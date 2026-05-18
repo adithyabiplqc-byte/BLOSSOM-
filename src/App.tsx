@@ -210,6 +210,15 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   )}
+                  {user?.role === 'ADMIN' && (
+                    <button 
+                      onClick={() => setConnectionError("CONFIGURATION_MODE")} 
+                      className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all shadow-sm"
+                      title="System Settings & Google Sheets Setup"
+                    >
+                      <Icon name="settings" size={18} />
+                    </button>
+                  )}
                   <button 
                     onClick={fetchData} 
                     disabled={loading}
@@ -255,7 +264,7 @@ const App: React.FC = () => {
 
               {connectionError && (
                 <ConnectionGuide 
-                  error={connectionError} 
+                  error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
                   onClose={() => setConnectionError(null)} 
                 />
               )}

@@ -71,31 +71,50 @@ export const api = {
     }
     // Workorder methods use their native names in Code.gs and target 'WORKORDER' sheet by default
 
+    // Execute Request
     try {
-      // Primary Attempt: Local API Proxy (which calls Google Apps Script)
-      console.log(`[API] Calling Proxy: ${gasMethod}`, gasArgs);
-      
-      const response = await fetch("/api/gas", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: gasMethod,
-          params: gasArgs
-        })
-      });
+      const customUrl = localStorage.getItem('VITE_GAS_URL');
+      const fallbackUrl = "https://script.google.com/macros/s/.../exec"; // PLACEHOLDER: Please provide your URL for hardcoding
+      const finalGasUrl = customUrl || fallbackUrl;
 
-      const result = await response.json();
+      // Attempt 1: Call Local Server Proxy (Cloud Run / Full-stack)
+      try {
+        const proxyHeaders: any = { 'Content-Type': 'application/json' };
+        if (customUrl) proxyHeaders['x-gas-url'] = customUrl;
 
-      if (response.ok) {
-        if (result && result.success !== false) {
-          return result;
+        const response = await fetch("/api/gas", {
+          method: 'POST',
+          headers: proxyHeaders,
+          body: JSON.stringify({ action: gasMethod, params: gasArgs })
+        });
+
+        // Check if proxy actually exists/works
+        if (response.status === 404) throw new Error("Proxy Not Found");
+        
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `Proxy error ${response.status}`);
+        return result;
+
+      } catch (proxyError: any) {
+        // Attempt 2: Direct Call to GAS (For Netlify/GitHub Static Pages)
+        if (proxyError.message === "Proxy Not Found" || proxyError.name === "TypeError") {
+           console.log("[API] Server proxy unavailable, attempting direct call to GAS...");
+           
+           if (!finalGasUrl || finalGasUrl.includes("REPLACE_WITH")) {
+             throw new Error("CONFIGURATION_REQUIRED");
+           }
+
+           // GAS WebApp requires POST for exec. 
+           // NOTE: Direct calls may hit CORS if Code.gs doesn't return correct Content-Type/Headers
+           const response = await fetch(finalGasUrl, {
+             method: 'POST',
+             mode: 'cors',
+             body: JSON.stringify({ action: gasMethod, params: gasArgs })
+           });
+
+           return await response.json();
         }
-        // If GAS explicitly returned success: false
-        throw new Error(result.error || "Google Script execution failed");
-      } else {
-        // If Proxy returned 500 or 404, we include the summary error
-        const msg = result.error || `Server responded with status ${response.status}`;
-        throw new Error(msg);
+        throw proxyError;
       }
     } catch (error: any) {
       console.warn(`[API] Proxy failed for ${method}: ${error.message}`);

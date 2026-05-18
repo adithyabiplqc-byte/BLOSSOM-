@@ -16,19 +16,20 @@ async function startServer() {
   // API Proxy for Google Apps Script
   app.post("/api/gas", async (req, res) => {
     try {
-      const gasUrl = process.env.VITE_GAS_URL;
+      // Priority: 1. Request Header, 2. Env Var
+      const gasUrl = req.headers['x-gas-url'] || process.env.VITE_GAS_URL;
       
-      if (!gasUrl || gasUrl.includes("REPLACE_WITH_YOUR_EXEC_URL")) {
+      if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH_YOUR_EXEC_URL"))) {
         console.error("VITE_GAS_URL is not configured.");
         return res.status(500).json({ 
           success: false, 
-          error: "Google Sheets Connection not configured. Please add VITE_GAS_URL to your project settings." 
+          error: "Google Sheets Connection not configured. Please use the setup tool in the UI or add VITE_GAS_URL to your settings." 
         });
       }
 
-      console.log(`[API PROXY] Action: ${req.body.action}`);
+      console.log(`[API PROXY] Action: ${req.body.action} to ${gasUrl}`);
 
-      const response = await fetch(gasUrl, {
+      const response = await fetch(gasUrl as string, {
         method: "POST",
         body: JSON.stringify(req.body),
         headers: { "Content-Type": "application/json" },
