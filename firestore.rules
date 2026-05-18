@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - userCode: string (required)
+    //   - username: string (required)
+    //   - role: string (required, enum: ADMIN, USER, WORKORDER)
+    //   - location: string (required)
+    //   - restrictions: list (optional)
+    //   - email: string (optional)
+    //
+    // Collection: workorders
+    // Document ID: woId
+    // Fields:
+    //   - workorderNumber: string (required)
+    //   - zone: string (required)
+    //   - item: string (required)
+    //   - style: string (required)
+    //   - sizeRange: string (required)
+    //   - quantity: number (required)
+    //   - colour: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: settings
+    // Document ID: settingId (e.g., 'GLOBAL' or userId)
+    // Fields:
+    //   - ZONE, UNITS, SUPPLIER, ITEMS, COLORS, SIZES, DEFECTS, OPERATIONS, MACHINE, WORKERS, CUPSIZE: list
+    //
+    // Collection: reports/{type}
+    // Document ID: reportId
+    // Fields: (Varies by type)
+    //   - inspector: string (required)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN' ||
+          (request.auth.token.email == "adithya.biplqc@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUser(data) {
+      return data.userCode is string && data.userCode.size() > 0 &&
+             data.username is string && data.username.size() > 0 &&
+             data.role in ['ADMIN', 'USER', 'WORKORDER'] &&
+             data.location is string && data.location.size() > 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /workorders/{woId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /reports/{type}/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

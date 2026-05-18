@@ -1,0 +1,358 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { api } from './services/api';
+import { auth, onAuthStateChanged, signOut, FirebaseUser, testConnection } from './firebase';
+import Icon from './components/Icon';
+import ErrorBoundary from './components/ErrorBoundary';
+import Login from './components/Login';
+import AdminDashboard from './components/AdminDashboard';
+import WorkorderDashboard from './components/WorkorderDashboard';
+import UserDashboard from './components/UserDashboard';
+import SubmoduleContainer from './components/SubmoduleContainer';
+
+import ConnectionGuide from './components/ConnectionGuide';
+
+const App: React.FC = () => {
+  const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>('splash');
+  const [user, setUser] = useState<any>(null);
+  const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [workorders, setWorkorders] = useState<any[]>([]);
+  const [cards, setCards] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [globalZone, setGlobalZone] = useState<string>('ALL');
+
+  const triggerSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 2500);
+  };
+
+  const fetchData = useCallback(async (customZone?: string) => {
+    if (!user || user.role === 'LOGIN' || !isAuthReady) return null;
+    
+    setLoading(true);
+    try {
+      const zoneToFetch = customZone || (user.role === 'ADMIN' ? globalZone : user.location);
+      const data = await api.run('api_getInitialData', { zone: zoneToFetch }) as any;
+      if (data) {
+        setUsers(prev => {
+          const fresh = Array.isArray(data.users) ? data.users : [];
+          // Instead of purely appending, we merge by userCode to ensure uniqueness
+          const userMap = new Map();
+          [...prev, ...fresh].forEach(u => userMap.set(u.userCode, u));
+          return Array.from(userMap.values());
+        });
+        setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
+        setCards(Array.isArray(data.cards) ? data.cards : []);
+        setIsFallback(!!data._isFallback);
+        setConnectionError(null);
+        return data;
+      }
+    } catch (e: any) {
+      console.error("Fetch Data Error:", e);
+      setConnectionError(e.message || "Failed to connect to Google Sheets");
+    } finally {
+      setLoading(false);
+    }
+    return null;
+  }, [user?.userCode, user?.role, user?.location, globalZone, isAuthReady]);
+
+  useEffect(() => {
+    testConnection();
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setFbUser(firebaseUser);
+      setLoading(true);
+      
+      try {
+        // Always fetch initial data so Login component has the users list
+        const initData = await api.run('api_getInitialData', { zone: 'ALL' }) as any;
+        const allUsers = initData?.users || [];
+        setUsers(allUsers);
+
+        if (firebaseUser) {
+          let profile = allUsers.find((u: any) => u.email === firebaseUser.email);
+          
+          if (!profile && firebaseUser.email === "adithya.biplqc@gmail.com") {
+             profile = { userCode: 'A001', username: 'Admin', role: 'ADMIN', location: 'SYSTEM', email: firebaseUser.email, restrictions: [] };
+          }
+          
+          if (profile) {
+            setUser(profile);
+            const activeZone = profile.location === 'SYSTEM' || !profile.location ? 'ALL' : profile.location;
+            setGlobalZone(activeZone);
+            
+            // Now fetch the ZONE-SPECIFIC workorders and settings
+            // We already have all cards from initData
+            const [s, wos] = await Promise.all([
+              api.run('api_getUserSettings', profile.userCode),
+              api.run('api_getWorkorders', { zone: activeZone })
+            ]);
+            
+            setSettings(s || {});
+            setWorkorders(wos || []);
+            setCards(initData?.cards || []);
+            
+            if (profile.role === 'ADMIN') setView('admin');
+            else if (profile.role === 'WORKORDER') setView('workorder');
+            else setView('user');
+          } else {
+             setView('login');
+          }
+        } else {
+          setUser(null);
+          setView('login');
+        }
+      } catch (e) {
+        console.error("Auth Data Fetch Error:", e);
+        if (!firebaseUser) setView('login');
+      }
+      
+      setLoading(false);
+      setIsAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async (u: any) => {
+    setUser(u);
+    const activeZone = u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location;
+    setGlobalZone(activeZone);
+    
+    if (u.role === 'ADMIN') setView('admin');
+    else if (u.role === 'WORKORDER') setView('workorder');
+    else setView('user');
+    
+    setLoading(true);
+    try {
+      const [initData, s] = await Promise.all([
+        api.run('api_getInitialData', { zone: activeZone }),
+        api.run('api_getUserSettings', u.userCode)
+      ]);
+      
+      const data = initData as any;
+      setUsers(data?.users || []);
+      setWorkorders(data?.workorders || []);
+      setCards(data?.cards || []);
+      setSettings(s || {});
+    } catch (e) {
+      console.error("Login Data Error:", e);
+      setSettings({});
+      setWorkorders([]);
+      setCards([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await signOut(auth);
+      // Clear ALL state to prevent "ghost" data on relogin
+      setUser(null);
+      setFbUser(null);
+      setUsers([]);
+      setWorkorders([]);
+      setSettings(null);
+      setGlobalZone('ALL');
+      setView('login');
+      setSelectedSubmodule('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderView = () => {
+    switch (view) {
+      case 'splash':
+        return (
+          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white">
+            <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/20 animate-bounce">
+              <Icon name="clipboard-check" size={48} />
+            </div>
+            <h1 className="text-4xl font-black tracking-tighter mb-2">BQOS <span className="text-indigo-500">APP</span></h1>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.4em] animate-pulse">Initializing System...</p>
+          </div>
+        );
+      case 'login':
+        return <Login onLogin={handleLogin} users={users} fbUser={fbUser} />;
+      default:
+        return (
+          <div className="min-h-screen bg-slate-50 flex flex-col">
+            <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
+              <div className="max-w-7xl mx-auto flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <Icon name="clipboard-check" size={20} />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">BQOS <span className="text-indigo-600">APP</span></h1>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 md:gap-4">
+                  {user?.role === 'ADMIN' && (
+                    <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                      {['ALL', 'KERALA', 'TAMILNADU', 'BANGLORE'].map(z => (
+                        <button
+                          key={z}
+                          onClick={() => setGlobalZone(z)}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${globalZone === z ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          {z}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button 
+                    onClick={fetchData} 
+                    disabled={loading}
+                    className={`p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all shadow-sm ${loading ? 'animate-spin opacity-50' : ''}`}
+                    title="Refresh Data"
+                  >
+                    <Icon name="refresh-cw" size={18} />
+                  </button>
+                  <div className="hidden md:flex flex-col items-end">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{user?.username}</span>
+                    <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">{user?.role} • {user?.location}</span>
+                  </div>
+                  <button onClick={handleLogout} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm">
+                    <Icon name="log-out" size={18} />
+                  </button>
+                </div>
+              </div>
+              {user?.role === 'ADMIN' && (
+                <div className="sm:hidden mt-2 bg-slate-100 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
+                  {['ALL', 'KERALA', 'TAMILNADU', 'BANGLORE'].map(z => (
+                    <button
+                      key={z}
+                      onClick={() => setGlobalZone(z)}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all whitespace-nowrap ${globalZone === z ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                    >
+                      {z}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </header>
+
+            <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
+              {isFallback && (
+                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800">
+                  <Icon name="alert-triangle" size={20} className="shrink-0" />
+                  <div className="text-xs">
+                    <p className="font-black uppercase tracking-tight">Running in Fallback Mode</p>
+                    <p className="font-medium opacity-80">Connected to local database only. Google Sheets integration (VITE_GAS_URL) is not configured or responding.</p>
+                  </div>
+                </div>
+              )}
+
+              {connectionError && (
+                <ConnectionGuide 
+                  error={connectionError} 
+                  onClose={() => setConnectionError(null)} 
+                />
+              )}
+
+              {view === 'admin' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Admin <span className="text-indigo-600">Control</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       <button onClick={() => setView('workorder')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="package" size={14} /> Workorders</button>
+                       <button onClick={() => setView('user')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="layout" size={14} /> User View</button>
+                    </div>
+                  </div>
+                  <AdminDashboard cards={cards} workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} />
+                </div>
+              )}
+              {view === 'workorder' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Workorder <span className="text-indigo-600">Center</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       {user?.role === 'ADMIN' && <button onClick={() => setView('admin')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="shield" size={14} /> Admin</button>}
+                       <button onClick={() => setView('user')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="layout" size={14} /> User View</button>
+                    </div>
+                  </div>
+                  <WorkorderDashboard 
+                    workorders={workorders} 
+                    setWorkorders={setWorkorders} 
+                    cards={cards}
+                    user={user} 
+                    settings={settings}
+                    refreshData={fetchData} 
+                    triggerSuccess={triggerSuccess} 
+                    globalZone={globalZone} 
+                  />
+                </div>
+              )}
+              {view === 'user' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Operation <span className="text-indigo-600">Dashboard</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zone: {globalZone}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       {user?.role === 'ADMIN' && <button onClick={() => setView('admin')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="shield" size={14} /> Admin</button>}
+                       {(user?.role === 'ADMIN' || user?.role === 'WORKORDER') && <button onClick={() => setView('workorder')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="package" size={14} /> Workorders</button>}
+                    </div>
+                  </div>
+                  <UserDashboard user={user} onSelectSubmodule={(id) => { setSelectedSubmodule(id); setView('submodule'); }} />
+                </div>
+              )}
+              {view === 'submodule' && (
+                <SubmoduleContainer 
+                  id={selectedSubmodule} 
+                  user={user} 
+                  settings={settings} 
+                  workorders={workorders} 
+                  cards={cards}
+                  users={users}
+                  onBack={() => setView('user')} 
+                  triggerSuccess={triggerSuccess}
+                  globalZone={globalZone}
+                />
+              )}
+            </main>
+
+            <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">© 2026 BQOS APP • Blossom Quality Operation System • v2.0.0</p>
+            </footer>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <ErrorBoundary>
+      {successMessage && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md animate-fade-in">
+          <div className="text-center p-8 bg-white rounded-3xl shadow-2xl shadow-indigo-500/20 scale-110 animate-bounce">
+            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white mx-auto mb-6 shadow-xl shadow-green-200">
+              <Icon name="check" size={40} />
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase mb-2">Success!</h2>
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">{successMessage}</p>
+          </div>
+        </div>
+      )}
+      {renderView()}
+    </ErrorBoundary>
+  );
+};
+
+export default App;

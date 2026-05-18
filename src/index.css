@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme {
+  --font-montserrat: "Montserrat", sans-serif;
+  
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in-from-bottom {
+    from { transform: translateY(1rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes slide-in-from-top {
+    from { transform: translateY(-1rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes slide-in-from-right {
+    from { transform: translateX(1rem); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes zoom-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-in-from-bottom: slide-in-from-bottom 0.5s ease-out;
+  --animate-slide-in-from-top: slide-in-from-top 0.5s ease-out;
+  --animate-slide-in-from-right: slide-in-from-right 0.5s ease-out;
+  --animate-zoom-in: zoom-in 0.3s ease-out;
+}
+
+body {
+  font-family: var(--font-montserrat);
+  @apply bg-slate-50 text-slate-900;
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl;
+}
+
+.btn-primary {
+  @apply bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200;
+}
+
+.btn-secondary {
+  @apply bg-white text-slate-600 px-6 py-2.5 rounded-xl font-bold border border-slate-200 hover:bg-slate-50 transition-all;
+}
+
+input, select, textarea {
+  @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm;
+}
+
+label {
+  @apply block text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-widest;
+}
+
+.splash-screen {
+  @apply fixed inset-0 bg-slate-900 flex items-center justify-center z-[9999];
+}
+
+.splash-content {
+  @apply text-center space-y-6 animate-fade-in animate-zoom-in duration-700;
+}
+
+.splash-logo {
+  @apply w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto shadow-2xl shadow-indigo-500/20 rotate-6;
+}
+
+.splash-text h1 {
+  @apply text-4xl font-black text-white tracking-tighter mt-4;
+}
+
+.splash-text h1 span {
+  @apply text-indigo-500;
+}
+
+.loading-bar {
+  @apply w-48 h-1.5 bg-white/10 rounded-full mx-auto mt-6 overflow-hidden;
+}
+
+.loading-progress {
+  @apply h-full bg-indigo-500 rounded-full;
+  animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+  0% { width: 0%; transform: translateX(-100%); }
+  50% { width: 100%; transform: translateX(0); }
+  100% { width: 0%; transform: translateX(100%); }
+}
+
+.app-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
