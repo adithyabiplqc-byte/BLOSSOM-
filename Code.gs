@@ -169,6 +169,37 @@ function clearSheetCache(sheetName) {
 
 // --- API ENDPOINTS ---
 
+function api_createSheets() {
+  try {
+    const required = ['USERS', 'WORKORDER', 'SETTINGS', 'ADMIN'];
+    required.forEach(s => getOrCreateSheet(s));
+    
+    // Seed USERS if empty
+    const users = api_getUsers();
+    if (users.length === 0) {
+      api_saveUser({
+        userCode: 'A001',
+        username: 'admin',
+        password: 'admin123',
+        role: 'ADMIN',
+        location: 'HEAD OFFICE',
+        restrictions: []
+      });
+    }
+
+    // Seed SETTINGS if empty
+    const settings = api_getGlobalSettings();
+    const sheet = getSS().getSheetByName('SETTINGS');
+    if (sheet.getLastRow() < 2) {
+      api_saveSettings('GLOBAL', settings);
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
 function api_getInitialData(params) {
   try {
     const users = api_getUsers();
@@ -207,7 +238,6 @@ function api_getInitialData(params) {
     return {
       users: users,
       workorders: api_getWorkorders(),
-      cards: api_getCards(),
       serverTime: new Date().toISOString(),
       success: true
     };
@@ -241,7 +271,7 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
     } else {
       const sheet = getOrCreateSheet(target);
       sheet.clear();
-      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
+      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
       sheet.appendRow(categories);
       
       let maxLen = 0;
@@ -298,7 +328,7 @@ function api_saveUser(user, admin = 'SYSTEM') {
 
   try {
     // Automatically create a dedicated sheet for the user's dropdown settings
-    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
+    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
     const ss = getSS();
     if (!ss.getSheetByName(user.userCode)) {
       const userSheet = ss.insertSheet(user.userCode);
@@ -414,8 +444,9 @@ function api_saveWorkorder(wo) {
   return saveDataToSheet('WORKORDER', wo); 
 }
 
-function api_getWorkorders(sheetName) { 
-  return getDataFromSheet(sheetName || 'WORKORDER'); 
+function api_getWorkorders(params) { 
+  const sheetName = (typeof params === 'string' && params) ? params : 'WORKORDER';
+  return getDataFromSheet(sheetName); 
 }
 
 function api_updateWorkorder(wo) {
@@ -428,124 +459,22 @@ function api_deleteWorkorder(id) {
 
 // Data Entry Saving
 function api_saveMATERIALREPORT(report) { return saveDataToSheet('MATERIAL REPORT', report); }
-function api_saveMATERIALTRACEABILITY(report) { 
-  const res = saveDataToSheet('MATERIAL TRACEABILITY', report);
-  if (res.success && report.cardNumber) {
-    api_updateCardStatus(report.cardNumber, { 
-      currentStatus: 'MATERIAL',
-      workorderNumber: report.workorderNumber 
-    });
-  }
-  return res; 
-}
 function api_saveCUTTINGQUALITY(report) { 
-  const res = saveDataToSheet('CUTTING QUALITY', report);
-  if (res.success && report.cardNumber) {
-    api_updateCardStatus(report.cardNumber, { currentStatus: 'CUTTING' });
-  }
-  return res;
+  return saveDataToSheet('CUTTING QUALITY', report);
 }
 function api_saveSEWINGDEFECT(report) { 
-  const res = saveDataToSheet('SEWING DEFECT', report);
-  if (res.success && report.cardNumber) {
-    api_updateCardStatus(report.cardNumber, { currentStatus: 'INLINE' });
-  }
-  return res;
+  return saveDataToSheet('SEWING DEFECT', report);
 }
 function api_saveENDLINEQUALITY(report) { 
-  const res = saveDataToSheet('ENDLINE QUALITY', report);
-  if (res.success && report.cardNumber) {
-    api_updateCardStatus(report.cardNumber, { currentStatus: 'ENDLINE' });
-  }
-  return res;
+  return saveDataToSheet('ENDLINE QUALITY', report);
 }
 function api_saveAQLREPORT(report) { 
-  const res = saveDataToSheet('AQL REPORT', report);
-  if (res.success && report.cardNumber) {
-    api_updateCardStatus(report.cardNumber, { currentStatus: 'AQL' });
-  }
-  return res;
+  return saveDataToSheet('AQL REPORT', report);
 }
 function api_saveFINALAUDIT(report) { 
-  const res = saveDataToSheet('FINAL AUDIT', report);
-  if (res.success && report.cardNumber) {
-    // Final Audit frees the card
-    api_updateCardStatus(report.cardNumber, { 
-      currentStatus: 'IDLE',
-      workorderNumber: '' 
-    });
-  }
-  return res;
+  return saveDataToSheet('FINAL AUDIT', report);
 }
 function api_saveREWORK(report) { return saveDataToSheet('REWORK', report); }
-
-// Card Management
-function api_saveCard(card) {
-  try {
-    card.currentStatus = card.currentStatus || 'IDLE';
-    card.updatedAt = new Date().toISOString();
-    
-    // Check if card exists for upsert
-    clearSheetCache('CARDS');
-    const sheet = getOrCreateSheet('CARDS');
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const cardIdx = headers.indexOf('cardNumber');
-    
-    if (cardIdx !== -1) {
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][cardIdx] === card.cardNumber) {
-          const newRow = headers.map(h => {
-             // Keep existing values if not provided in update
-             const val = card[h] !== undefined ? card[h] : data[i][headers.indexOf(h)];
-             return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
-          });
-          sheet.getRange(i + 1, 1, 1, headers.length).setValues([newRow]);
-          return { success: true, action: 'UPDATE' };
-        }
-      }
-    }
-    
-    // Create new
-    return saveDataToSheet('CARDS', card);
-  } catch (e) {
-    return { success: false, error: e.toString() };
-  }
-}
-
-function api_getCards() {
-  return getDataFromSheet('CARDS');
-}
-
-function api_updateCardStatus(cardNumber, updates) {
-  try {
-    clearSheetCache('CARDS');
-    const sheet = getOrCreateSheet('CARDS');
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const cardIdx = headers.indexOf('cardNumber');
-    
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][cardIdx] === cardNumber) {
-        headers.forEach((h, colIdx) => {
-          if (updates[h] !== undefined) {
-            sheet.getRange(i + 1, colIdx + 1).setValue(updates[h]);
-          }
-        });
-        sheet.getRange(i + 1, headers.indexOf('updatedAt') + 1).setValue(new Date().toISOString());
-        return { success: true };
-      }
-    }
-    return { success: false, error: "Card not found" };
-  } catch (e) {
-    return { success: false, error: e.toString() };
-  }
-}
-
-function api_getCardByNumber(cardNumber) {
-  const cards = api_getCards();
-  return cards.find(c => c.cardNumber === cardNumber) || null;
-}
 
 // Legacy aliases for compatibility
 function api_saveMaterialReport(report) { return api_saveMATERIALREPORT(report); }
@@ -624,7 +553,7 @@ function api_getUserSettings(userCode) {
     if (data.length < 2) return api_getGlobalSettings();
     
     // Assume columns: ZONE, SUPPLIER, ITEMS, DEFECTS, WORKERS, MACHINE, OPERATION, SIZE, CUPSIZE, UNIT, LINE
-    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
+    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE'];
     const settings = {};
     categories.forEach(cat => settings[cat] = []);
     

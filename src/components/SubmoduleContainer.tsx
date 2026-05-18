@@ -7,7 +7,6 @@ import InlineQuality from './InlineQuality';
 import EndlineQuality from './EndlineQuality';
 import AQLInspection from './AQLInspection';
 import FinalAudit from './FinalAudit';
-import MaterialTraceability from './MaterialTraceability';
 import DataView from './DataView';
 import MISView from './MISView';
 import { api } from '../services/api';
@@ -17,14 +16,13 @@ interface SubmoduleContainerProps {
   user: any;
   settings: any;
   workorders: any[];
-  cards: any[];
   onBack: () => void;
   users: any[];
   triggerSuccess: (message: string) => void;
   globalZone?: string;
 }
 
-const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, cards, onBack, users, triggerSuccess, globalZone }) => {
+const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone }) => {
   const renderSubmodule = () => {
     const commonProps = { user, settings, workorders, triggerSuccess, globalZone };
 
@@ -34,7 +32,6 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
     if (id === 'A4') return <EndlineQuality {...commonProps} users={users} />;
     if (id === 'A5') return <AQLInspection {...commonProps} />;
     if (id === 'A6') return <FinalAudit {...commonProps} />;
-    if (id === 'A7') return <MaterialTraceability user={user} onBack={onBack} api={api} workorders={workorders} />;
     if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} />;
     if (id.startsWith('C')) return <MISView id={id} globalZone={globalZone} />;
     return <div className="p-12 text-center text-slate-400 italic">Submodule {id} form logic coming soon...</div>;

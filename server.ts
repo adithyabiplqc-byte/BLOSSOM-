@@ -14,6 +14,13 @@ async function startServer() {
   app.use(express.json());
 
   // API Proxy for Google Apps Script
+  app.get("/api/config", (req, res) => {
+    res.json({
+      hasGasUrl: !!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH"),
+      gasUrlPlaceholder: process.env.VITE_GAS_URL?.includes("REPLACE_WITH")
+    });
+  });
+
   app.post("/api/gas", async (req, res) => {
     try {
       // Priority: 1. Request Header, 2. Env Var

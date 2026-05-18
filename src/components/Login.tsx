@@ -1,33 +1,16 @@
 import React, { useState } from 'react';
 import Icon from './Icon';
-import { auth, googleProvider, signInWithPopup, FirebaseUser } from '../firebase';
 
 interface LoginProps {
   onLogin: (user: any) => void;
   users: any[];
-  fbUser: FirebaseUser | null;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, users, fbUser }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      await signInWithPopup(auth, googleProvider);
-      // App.tsx will handle the view change via onAuthStateChanged
-    } catch (err: any) {
-      console.error("Google Login Error:", err);
-      setError(err.message || "Failed to login with Google");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,21 +44,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, users, fbUser }) => {
         </div>
 
         <div className="space-y-4">
-          <button 
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full bg-white text-slate-700 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-slate-50 shadow-lg border border-slate-200 transition-all active:scale-95 disabled:opacity-50"
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-            {loading ? 'Connecting...' : 'Continue with Google'}
-          </button>
-
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">OR</span>
-            <div className="flex-grow border-t border-slate-200"></div>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Username</label>
@@ -106,8 +74,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, users, fbUser }) => {
             </button>
           </form>
         </div>
-        
-        {/* System Information removed per user request */}
       </div>
     </div>
   );

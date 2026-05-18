@@ -1,11 +1,3 @@
-import { 
-  db, 
-  collection, 
-  getDocs, 
-  handleFirestoreError,
-  OperationType
-} from '../firebase';
-
 export const api = {
   async run(method: string, ...args: any[]) {
     // Map frontend methods to Apps Script methods if they differ
@@ -74,8 +66,15 @@ export const api = {
     // Execute Request
     try {
       const customUrl = localStorage.getItem('VITE_GAS_URL');
-      const fallbackUrl = "https://script.google.com/macros/s/.../exec"; // PLACEHOLDER: Please provide your URL for hardcoding
-      const finalGasUrl = customUrl || fallbackUrl;
+      const finalGasUrl = customUrl;
+
+      if (!finalGasUrl) {
+         console.warn("[API] No VITE_GAS_URL found in localStorage");
+         // Only throw if we are not in configuration mode
+         if (method !== 'api_getInitialData') {
+           throw new Error("CONFIGURATION_REQUIRED");
+         }
+      }
 
       // Attempt 1: Call Local Server Proxy (Cloud Run / Full-stack)
       try {
@@ -118,27 +117,6 @@ export const api = {
       }
     } catch (error: any) {
       console.warn(`[API] Proxy failed for ${method}: ${error.message}`);
-      
-      // Secondary Logic: Firebase Fallback (Only for specific legacy methods during migration)
-      if (method === 'api_getInitialData' || method === 'api_getUsers') {
-        try {
-          const usersSnap = await getDocs(collection(db, 'users'));
-          const users = usersSnap.docs.map(d => ({ ...d.data(), id: d.id }));
-          
-          if (method === 'api_getInitialData') {
-            return {
-              users,
-              workorders: [],
-              success: true,
-              _isFallback: true
-            };
-          }
-          return users;
-        } catch (e) {
-          handleFirestoreError(e, OperationType.LIST, 'fallback');
-        }
-      }
-      
       throw error;
     }
   }

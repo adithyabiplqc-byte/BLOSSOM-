@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from './services/api';
-import { auth, onAuthStateChanged, signOut, FirebaseUser, testConnection } from './firebase';
 import Icon from './components/Icon';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -14,16 +13,12 @@ import ConnectionGuide from './components/ConnectionGuide';
 const App: React.FC = () => {
   const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>('splash');
   const [user, setUser] = useState<any>(null);
-  const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [workorders, setWorkorders] = useState<any[]>([]);
-  const [cards, setCards] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [isAuthReady, setIsAuthReady] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [isFallback, setIsFallback] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
 
@@ -33,7 +28,7 @@ const App: React.FC = () => {
   };
 
   const fetchData = useCallback(async (customZone?: string) => {
-    if (!user || user.role === 'LOGIN' || !isAuthReady) return null;
+    if (!user || user.role === 'LOGIN') return null;
     
     setLoading(true);
     try {
@@ -42,14 +37,11 @@ const App: React.FC = () => {
       if (data) {
         setUsers(prev => {
           const fresh = Array.isArray(data.users) ? data.users : [];
-          // Instead of purely appending, we merge by userCode to ensure uniqueness
           const userMap = new Map();
           [...prev, ...fresh].forEach(u => userMap.set(u.userCode, u));
           return Array.from(userMap.values());
         });
         setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
-        setCards(Array.isArray(data.cards) ? data.cards : []);
-        setIsFallback(!!data._isFallback);
         setConnectionError(null);
         return data;
       }
@@ -60,66 +52,69 @@ const App: React.FC = () => {
       setLoading(false);
     }
     return null;
-  }, [user?.userCode, user?.role, user?.location, globalZone, isAuthReady]);
+  }, [user?.userCode, user?.role, user?.location, globalZone]);
 
   useEffect(() => {
-    testConnection();
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setFbUser(firebaseUser);
+    const initApp = async () => {
       setLoading(true);
+      const savedUser = localStorage.getItem('bqos_session');
+      let initialProfile: any = null;
       
+      if (savedUser) {
+        try {
+          initialProfile = JSON.parse(savedUser);
+          setUser(initialProfile);
+          const activeZone = initialProfile.location === 'SYSTEM' || !initialProfile.location ? 'ALL' : initialProfile.location;
+          setGlobalZone(activeZone);
+          
+          if (initialProfile.role === 'ADMIN') setView('admin');
+          else if (initialProfile.role === 'WORKORDER') setView('workorder');
+          else setView('user');
+        } catch (e) {
+          localStorage.removeItem('bqos_session');
+        }
+      }
+
       try {
-        // Always fetch initial data so Login component has the users list
-        const initData = await api.run('api_getInitialData', { zone: 'ALL' }) as any;
+        const initData = await api.run('api_getInitialData', { zone: globalZone || 'ALL' }) as any;
         const allUsers = initData?.users || [];
         setUsers(allUsers);
 
-        if (firebaseUser) {
-          let profile = allUsers.find((u: any) => u.email === firebaseUser.email);
-          
-          if (!profile && firebaseUser.email === "adithya.biplqc@gmail.com") {
-             profile = { userCode: 'A001', username: 'Admin', role: 'ADMIN', location: 'SYSTEM', email: firebaseUser.email, restrictions: [] };
-          }
-          
-          if (profile) {
-            setUser(profile);
-            const activeZone = profile.location === 'SYSTEM' || !profile.location ? 'ALL' : profile.location;
-            setGlobalZone(activeZone);
-            
-            // Now fetch the ZONE-SPECIFIC workorders and settings
-            // We already have all cards from initData
-            const [s, wos] = await Promise.all([
-              api.run('api_getUserSettings', profile.userCode),
-              api.run('api_getWorkorders', { zone: activeZone })
-            ]);
-            
-            setSettings(s || {});
-            setWorkorders(wos || []);
-            setCards(initData?.cards || []);
-            
-            if (profile.role === 'ADMIN') setView('admin');
-            else if (profile.role === 'WORKORDER') setView('workorder');
-            else setView('user');
-          } else {
-             setView('login');
+        if (initialProfile) {
+          const freshProfile = allUsers.find((u: any) => u.userCode === initialProfile.userCode);
+          if (freshProfile) {
+            setUser(freshProfile);
+            // Fetch additional data
+            try {
+               const [s, wos] = await Promise.all([
+                 api.run('api_getUserSettings', freshProfile.userCode),
+                 api.run('api_getWorkorders', { zone: globalZone || 'ALL' })
+               ]);
+               setSettings(s || {});
+               setWorkorders(wos || []);
+            } catch (e) {
+               console.warn("Soft initialization failure for settings/workorders");
+            }
           }
         } else {
-          setUser(null);
           setView('login');
         }
-      } catch (e) {
-        console.error("Auth Data Fetch Error:", e);
-        if (!firebaseUser) setView('login');
+      } catch (e: any) {
+        console.error("Initialization Error:", e);
+        if (e.message !== "CONFIGURATION_REQUIRED") {
+           setConnectionError(e.message || "Connection Failed");
+        }
+        if (!initialProfile) setView('login');
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
-      setIsAuthReady(true);
-    });
+    };
 
-    return () => unsubscribe();
+    initApp();
   }, []);
 
   const handleLogin = async (u: any) => {
+    localStorage.setItem('bqos_session', JSON.stringify(u));
     setUser(u);
     const activeZone = u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location;
     setGlobalZone(activeZone);
@@ -138,34 +133,23 @@ const App: React.FC = () => {
       const data = initData as any;
       setUsers(data?.users || []);
       setWorkorders(data?.workorders || []);
-      setCards(data?.cards || []);
       setSettings(s || {});
     } catch (e) {
       console.error("Login Data Error:", e);
-      setSettings({});
-      setWorkorders([]);
-      setCards([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    setLoading(true);
-    try {
-      await signOut(auth);
-      // Clear ALL state to prevent "ghost" data on relogin
-      setUser(null);
-      setFbUser(null);
-      setUsers([]);
-      setWorkorders([]);
-      setSettings(null);
-      setGlobalZone('ALL');
-      setView('login');
-      setSelectedSubmodule('');
-    } finally {
-      setLoading(false);
-    }
+    localStorage.removeItem('bqos_session');
+    setUser(null);
+    setUsers([]);
+    setWorkorders([]);
+    setSettings(null);
+    setGlobalZone('ALL');
+    setView('login');
+    setSelectedSubmodule('');
   };
 
   const renderView = () => {
@@ -181,7 +165,21 @@ const App: React.FC = () => {
           </div>
         );
       case 'login':
-        return <Login onLogin={handleLogin} users={users} fbUser={fbUser} />;
+        return (
+          <div className="min-h-screen bg-slate-50 flex flex-col">
+            <Login onLogin={handleLogin} users={users} />
+            {connectionError && (
+              <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="max-w-2xl w-full">
+                  <ConnectionGuide 
+                    error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
+                    onClose={() => setConnectionError(null)} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
       default:
         return (
           <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -252,16 +250,6 @@ const App: React.FC = () => {
             </header>
 
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
-              {isFallback && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800">
-                  <Icon name="alert-triangle" size={20} className="shrink-0" />
-                  <div className="text-xs">
-                    <p className="font-black uppercase tracking-tight">Running in Fallback Mode</p>
-                    <p className="font-medium opacity-80">Connected to local database only. Google Sheets integration (VITE_GAS_URL) is not configured or responding.</p>
-                  </div>
-                </div>
-              )}
-
               {connectionError && (
                 <ConnectionGuide 
                   error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
@@ -281,7 +269,7 @@ const App: React.FC = () => {
                        <button onClick={() => setView('user')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="layout" size={14} /> User View</button>
                     </div>
                   </div>
-                  <AdminDashboard cards={cards} workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} />
+                  <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} />
                 </div>
               )}
               {view === 'workorder' && (
@@ -299,7 +287,6 @@ const App: React.FC = () => {
                   <WorkorderDashboard 
                     workorders={workorders} 
                     setWorkorders={setWorkorders} 
-                    cards={cards}
                     user={user} 
                     settings={settings}
                     refreshData={fetchData} 
@@ -329,7 +316,6 @@ const App: React.FC = () => {
                   user={user} 
                   settings={settings} 
                   workorders={workorders} 
-                  cards={cards}
                   users={users}
                   onBack={() => setView('user')} 
                   triggerSuccess={triggerSuccess}

@@ -24,7 +24,6 @@ export const SUBMODULES = [
   { id: 'A4', module: 'A', name: 'Endline Quality' },
   { id: 'A5', module: 'A', name: 'AQL Inspection' },
   { id: 'A6', module: 'A', name: 'Final Audit' },
-  { id: 'A7', module: 'A', name: 'Material Traceability' },
   { id: 'B1', module: 'B', name: 'Material Report' },
   { id: 'B2', module: 'B', name: 'Cutting Report' },
   { id: 'B3', module: 'B', name: 'Inline Report' },
