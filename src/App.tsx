@@ -36,6 +36,8 @@ const App: React.FC = () => {
       const res = await api.run('api_ping') as any;
       setIsOnline(!!res?.success);
     } catch (e) {
+      console.warn("Ping failed:", e);
+      // Only set to offline if it's not a temporary configuration requirement
       setIsOnline(false);
     }
   }, []);
@@ -321,8 +323,8 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">BQOS <span className="text-indigo-600">APP</span></h1>
                         <div 
-                          className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : isOnline === false ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-slate-300'} transition-all`}
-                          title={isOnline ? "Connected to Server" : "Disconnected"}
+                          className={`w-2 h-2 rounded-full ${isOnline === true ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : isOnline === false ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-amber-400 animate-pulse'} transition-all`}
+                          title={isOnline === true ? "Connected to Server" : isOnline === false ? "Disconnected" : "Checking Connection..."}
                         />
                       </div>
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>

@@ -11,7 +11,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // API Proxy for Google Apps Script
   app.get("/api/config", (req, res) => {
@@ -68,22 +69,23 @@ async function startServer() {
       // Check if env var is actually set
       if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH"))) {
         gasUrl = HARDCODED_GAS_URL;
-        if (gasUrl) console.log(`[API PROXY] Using hardcoded fallback GAS URL`);
       }
       
       if (!gasUrl) {
-        console.error("VITE_GAS_URL is not configured.");
+        console.error("[PROXY ERROR] GAS URL missing even after fallbacks.");
         return res.status(500).json({ 
           success: false, 
           error: "CONFIGURATION_REQUIRED",
-          details: "Google Sheets Connection not configured. Please use the setup tool in the UI or add VITE_GAS_URL to your settings." 
+          details: "Google Sheets Connection not configured. Use the setup tool or add VITE_GAS_URL." 
         });
       }
 
-      console.log(`[API PROXY] Routing to GAS: ${req?.body?.action || 'unknown'} | URL Source: ${req.headers['x-gas-url'] ? 'header' : (fs.existsSync(CONFIG_FILE) ? 'file' : (process.env.VITE_GAS_URL ? 'env' : 'hardcoded'))}`);
+      const action = req.body?.action || 'unknown';
+      const payloadSize = JSON.stringify(req.body).length;
+      console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Source: ${req.headers['x-gas-url'] ? 'header' : (fs.existsSync(CONFIG_FILE) ? 'file' : (process.env.VITE_GAS_URL ? 'env' : 'hardcoded'))}`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for GAS
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s for large data
       
       const response = await fetch(gasUrl as string, {
         method: "POST",
@@ -94,17 +96,16 @@ async function startServer() {
       });
       clearTimeout(timeoutId);
 
+      const text = await response.text();
+
       if (!response.ok) {
-        const text = await response.text();
-        console.error(`[API PROXY] GAS returned ${response.status}:`, text);
+        console.error(`[API PROXY] GAS returned HTTP ${response.status}:`, text.slice(0, 1000));
         
-        let errorMessage = "Google Script responded with an error.";
+        let errorMessage = `Google Script error (${response.status})`;
         if (response.status === 401 || response.status === 403) {
-          errorMessage = "Permission Denied: Ensure your Google Apps Script is deployed as a Web App with 'Execute as: Me' and 'Who has access: Anyone'.";
-        } else if (response.status === 404 || text.includes("Page not found")) {
-          errorMessage = "Deployment Not Found: Check if your VITE_GAS_URL is correct and the script is correctly deployed as a Web App.";
-        } else if (text.includes("Script function not found")) {
-          errorMessage = `Function '${req.body.action}' not found in your Google Script.`;
+          errorMessage = "Permission Denied: Web App must be 'Anyone' access.";
+        } else if (response.status === 404) {
+          errorMessage = "Deployment Not Found. Check URL.";
         }
         
         return res.status(response.status).json({ 
@@ -114,11 +115,24 @@ async function startServer() {
         });
       }
 
-      const data = await response.json();
-      res.json(data);
-    } catch (error) {
-      console.error("[API PROXY] Error:", error);
-      res.status(500).json({ success: false, error: "Failed to communicate with Google Sheets. Check your Network and GAS Deployment URL." });
+      try {
+        const data = JSON.parse(text);
+        res.json(data);
+      } catch (parseError) {
+        console.error("[API PROXY] JSON Parse Failed. Sample:", text.slice(0, 200));
+        res.status(500).json({ 
+          success: false, 
+          error: "Invalid JSON response from Google Script.",
+          details: text.slice(0, 200)
+        });
+      }
+    } catch (error: any) {
+      console.error("[API PROXY] Request Execution Failed:", error.message);
+      res.status(500).json({ 
+        success: false, 
+        error: error.name === 'AbortError' ? "Request Timed Out (GAS limit)" : "Failed to communicate with Google Sheets.",
+        details: error.message 
+      });
     }
   });
 

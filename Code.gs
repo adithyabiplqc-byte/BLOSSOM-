@@ -108,6 +108,7 @@ function saveDataToSheet(sheetName, data, adminActivity = false, admin = 'SYSTEM
     });
     
     sheet.appendRow(row);
+    SpreadsheetApp.flush(); // Force write for ERP data integrity
 
     // Log admin activity if requested
     if (adminActivity) {
@@ -580,6 +581,49 @@ function api_deleteWorkorder(id, zone) {
 
 function api_ping() {
   return { success: true, status: "Connected", timestamp: new Date().toISOString() };
+}
+
+function api_bulkSave(sheetName, records) {
+  try {
+    if (!records || !Array.isArray(records) || records.length === 0) {
+      return { success: true, count: 0 };
+    }
+    
+    const sheet = getOrCreateSheet(sheetName);
+    const lastCol = sheet.getLastColumn();
+    let headers = lastCol === 0 ? [] : sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    
+    if (headers.length === 0) {
+      headers = Object.keys(records[0]);
+      sheet.appendRow(headers);
+    }
+    
+    const rows = records.map(data => {
+      // Ensure ID
+      if (!data.id && !data.workorderNumber) data.id = Utilities.getUuid();
+      
+      const dataKeys = Object.keys(data);
+      const keyMap = {};
+      dataKeys.forEach(k => keyMap[k.toUpperCase().replace(/\s+/g, '')] = k);
+
+      return headers.map(header => {
+        const hUpper = header.toString().toUpperCase().replace(/\s+/g, '');
+        const originalKey = keyMap[hUpper] || header;
+        const val = data[originalKey] !== undefined ? data[originalKey] : data[header];
+        return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
+      });
+    });
+    
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, rows.length, headers.length).setValues(rows);
+    SpreadsheetApp.flush();
+    clearSheetCache(sheetName);
+    
+    return { success: true, count: rows.length };
+  } catch (e) {
+    console.error(`Bulk save error for ${sheetName}:`, e);
+    return { success: false, error: e.toString() };
+  }
 }
 
 // Data Entry Saving
