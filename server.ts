@@ -5,6 +5,7 @@ import fetch from "node-fetch";
 import fs from "fs";
 
 const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
+const HARDCODED_GAS_URL = "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec";
 
 async function startServer() {
   const app = express();
@@ -21,10 +22,14 @@ async function startServer() {
       }
     } catch (e) {}
 
+    const envUrl = process.env.VITE_GAS_URL;
+    const hasEnv = !!envUrl && !envUrl.includes("REPLACE_WITH");
+
     res.json({
-      hasGasUrl: (!!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH")) || !!fileUrl,
-      gasUrlPlaceholder: process.env.VITE_GAS_URL?.includes("REPLACE_WITH"),
-      isPermanent: !!fileUrl || (!!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH"))
+      hasGasUrl: hasEnv || !!fileUrl || !!HARDCODED_GAS_URL,
+      gasUrlPlaceholder: envUrl?.includes("REPLACE_WITH"),
+      isPermanent: !!fileUrl || hasEnv || !!HARDCODED_GAS_URL,
+      source: fileUrl ? 'file' : (hasEnv ? 'env' : 'hardcoded')
     });
   });
 
@@ -45,7 +50,7 @@ async function startServer() {
 
   app.post("/api/gas", async (req, res) => {
     try {
-      // Priority: 1. Request Header, 2. Persistent File, 3. Env Var
+      // Priority: 1. Request Header, 2. Persistent File (Setup tool), 3. Env Var, 4. Hardcoded Fallback
       let gasUrl = req.headers['x-gas-url'];
       
       if (!gasUrl) {
@@ -56,11 +61,17 @@ async function startServer() {
         } catch (e) {}
       }
 
-      if (!gasUrl) {
+      if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH_YOUR_EXEC_URL"))) {
         gasUrl = process.env.VITE_GAS_URL;
       }
+
+      // Check if env var is actually set
+      if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH"))) {
+        gasUrl = HARDCODED_GAS_URL;
+        if (gasUrl) console.log(`[API PROXY] Using hardcoded fallback GAS URL`);
+      }
       
-      if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH_YOUR_EXEC_URL"))) {
+      if (!gasUrl) {
         console.error("VITE_GAS_URL is not configured.");
         return res.status(500).json({ 
           success: false, 
@@ -69,7 +80,7 @@ async function startServer() {
         });
       }
 
-      console.log(`[API PROXY] Action: ${req.body.action}`);
+      console.log(`[API PROXY] Routing to GAS: ${req?.body?.action || 'unknown'} | URL Source: ${req.headers['x-gas-url'] ? 'header' : (fs.existsSync(CONFIG_FILE) ? 'file' : (process.env.VITE_GAS_URL ? 'env' : 'hardcoded'))}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for GAS

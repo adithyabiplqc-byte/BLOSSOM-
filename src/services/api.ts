@@ -35,7 +35,7 @@ export const api = {
     const finalGasUrl = customUrl || envUrl;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s for GAS
 
     // Execute Request
     try {
@@ -83,7 +83,7 @@ export const api = {
            
            try {
              const directController = new AbortController();
-             const directTimeoutId = setTimeout(() => directController.abort(), 15000);
+             const directTimeoutId = setTimeout(() => directController.abort(), 30000);
 
              // GAS WebApp requires POST for exec. 
              const response = await fetch(finalGasUrl, {
