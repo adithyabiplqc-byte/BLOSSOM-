@@ -4,13 +4,15 @@ import { ZONES, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
 
 interface AdminDashboardProps {
-  users: any[];
-  setUsers: (users: any[]) => void;
+  users?: any[];
+  setUsers?: (users: any[]) => void;
   currentUser: any;
-  refreshData: () => Promise<void>;
-  triggerSuccess: (message: string) => void;
+  refreshData?: () => Promise<void>;
+  triggerSuccess?: (message: string) => void;
   globalZone?: string;
-  workorders: any[];
+  workorders?: any[];
+  configOnlyMode?: boolean;
+  onLogout?: () => void;
 }
 
 const UserRow = React.memo(({ u, onEdit }: { u: any, onEdit: () => void }) => (
@@ -36,8 +38,18 @@ const UserRow = React.memo(({ u, onEdit }: { u: any, onEdit: () => void }) => (
   </tr>
 ));
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, currentUser, refreshData, triggerSuccess, globalZone, workorders }) => {
-  const [tab, setTab] = useState('list');
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
+  users = [], 
+  setUsers, 
+  currentUser, 
+  refreshData, 
+  triggerSuccess, 
+  globalZone, 
+  workorders = [],
+  configOnlyMode = false,
+  onLogout
+}) => {
+  const [tab, setTab] = useState(configOnlyMode ? 'server' : 'list');
   const [editingUserCode, setEditingUserCode] = useState('');
   const [restrictingUserCode, setRestrictingUserCode] = useState('');
   const [deletingUserCode, setDeletingUserCode] = useState('');
@@ -65,6 +77,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  React.useEffect(() => {
+    if (tab === 'server' && serverUrl) {
+      const checkStatus = async () => {
+        try {
+          const res = await api.run('api_getInitialData');
+          if (res && res.success) setConnectionStatus('success');
+        } catch (e) {}
+      };
+      checkStatus();
+    }
+  }, [tab]);
 
   // Sync newUser location with globalZone when it changes
   React.useEffect(() => {
@@ -117,7 +142,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
     setIsSubmitting(true);
     
     const cleanUsername = newUser.username.trim();
-    const cleanPassword = newUser.password.trim();
+    const cleanPassword = newUser.password;
     
     if (!cleanUsername || !cleanPassword) {
       isLocked.current = false;
@@ -194,11 +219,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
     setIsSubmitting(true);
     
     try {
-      const updatedUser = { ...editingUser, username: cleanUsername };
+      const updatedUser = { ...editingUser, username: cleanUsername, password: editingUser.password };
+      if (!api.run) return;
       await api.run('api_updateUser', updatedUser);
-      await refreshData();
+      if (refreshData) await refreshData();
       await logActivity('EDIT USER', `Updated user ${updatedUser.userCode}`);
-      triggerSuccess(`USER UPDATED: ${updatedUser.userCode}`);
+      if (triggerSuccess) triggerSuccess(`USER UPDATED: ${updatedUser.userCode}`);
       setEditingUserCode('');
       setTab('list');
     } catch (err) {
@@ -219,9 +245,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
     try {
       const userCode = deletingUser.userCode;
       await api.run('api_deleteUser', userCode, deleteReason, currentUser.username);
-      await refreshData();
+      if (refreshData) await refreshData();
       await logActivity('DELETE USER', `Deleted user ${userCode}. Reason: ${deleteReason}`);
-      triggerSuccess(`USER DELETED: ${userCode}`);
+      if (triggerSuccess) triggerSuccess(`USER DELETED: ${userCode}`);
       setDeletingUserCode('');
       setDeleteReason('');
       setTab('list');
@@ -246,7 +272,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
       updatedUser = { ...userToUpdate, restrictions: newRestrictions };
     }
 
-    setUsers(prev => prev.map(u => u.userCode === updatedUser.userCode ? updatedUser : u));
+    setUsers && setUsers(prev => prev.map(u => u.userCode === updatedUser.userCode ? updatedUser : u));
 
     try {
       await api.run('api_updateUser', updatedUser);
@@ -309,7 +335,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
           { id: 'settings', label: 'User Data', icon: 'database' },
           { id: 'server', label: 'Server', icon: 'server' },
           { id: 'delete', label: 'Delete User', icon: 'user-minus' }
-        ].map(t => (
+        ].filter(t => !configOnlyMode || t.id === 'server').map(t => (
           <button 
             key={t.id} 
             onClick={() => setTab(t.id)} 
@@ -318,6 +344,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
             <Icon name={t.icon} size={16} /> {t.label}
           </button>
         ))}
+        {configOnlyMode && onLogout && (
+          <button 
+            onClick={onLogout}
+            className="px-4 py-2 rounded-lg font-bold uppercase text-xs flex items-center gap-2 text-rose-500 hover:bg-rose-50 ml-auto"
+          >
+            <Icon name="log-out" size={16} /> Back to Login
+          </button>
+        )}
       </div>
 
       <div className="glass-card p-6">
@@ -555,7 +589,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
                 value={selectedUserCode} 
                 onChange={e => fetchUserSettings(e.target.value)}
               >
-                <option value="">Select a user...</option>
+                <option value="">Select Target...</option>
+                <option value="GLOBAL">🌐 SYSTEM GLOBAL SETTINGS</option>
                 {filteredUsers.map(u => (
                   <option key={u.userCode} value={u.userCode}>{u.username} ({u.userCode})</option>
                 ))}
@@ -602,69 +637,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ users, setUsers, curren
                 <div className="bg-white p-4 rounded-xl border border-slate-200">
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Google Apps Script Connection</h3>
                   <div className="space-y-4">
-                    <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-3">
                       <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Web App URL (Exec URL)</label>
-                      <input 
-                        type="text" 
-                        value={serverUrl}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setServerUrl(val);
-                          localStorage.setItem('VITE_GAS_URL', val.trim());
-                        }}
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                        className="w-full font-mono text-xs bg-slate-50"
-                      />
+                      {connectionStatus === 'success' && (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
+                          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Live Connected</span>
+                        </div>
+                      )}
                     </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button 
-                        onClick={async () => {
-                          if (!serverUrl.trim()) return alert("Please enter a URL first");
-                          setIsSubmitting(true);
-                          try {
-                            const res = await api.run('api_getInitialData');
-                            if (res && res.success) {
-                              alert("✅ Connection Successful! Server is responding.");
+                    <input 
+                      type="text" 
+                      value={serverUrl}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setServerUrl(val);
+                        localStorage.setItem('VITE_GAS_URL', val.trim());
+                        setConnectionStatus('idle');
+                      }}
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      className="w-full font-mono text-xs bg-slate-50"
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                    <button 
+                      onClick={async () => {
+                        if (!serverUrl.trim()) return alert("Please enter a URL first");
+                        setIsSubmitting(true);
+                        setConnectionStatus('idle');
+                        try {
+                          localStorage.setItem('VITE_GAS_URL', serverUrl.trim());
+                          const res = await api.run('api_getInitialData');
+                          if (res && res.success) {
+                            setConnectionStatus('success');
+                            if (configOnlyMode && onLogout) {
+                              triggerSuccess && triggerSuccess("CONNECTION ESTABLISHED! SYNCHRONIZING...");
+                              setTimeout(() => onLogout(), 1500);
                             } else {
-                              alert("❌ Server responded but returned an error: " + (res?.error || "Unknown error"));
+                              alert("✅ Connection Successful!");
                             }
-                          } catch (e: any) {
-                            alert("❌ Connection Failed: " + (e.message || "Could not reach server. Check URL and ensure it is deployed as 'Anyone'."));
-                          } finally {
-                            setIsSubmitting(false);
+                          } else {
+                            setConnectionStatus('error');
+                            alert("❌ Server Error: " + (res?.error || "Unknown"));
                           }
-                        }}
-                        disabled={isSubmitting}
-                        className="btn-secondary flex-1 flex items-center justify-center gap-2 py-3"
-                      >
-                        <Icon name="zap" size={16} /> Test Connection
-                      </button>
-                      
+                        } catch (e: any) {
+                          setConnectionStatus('error');
+                          alert("❌ Failed: " + (e.message || "Connection Error"));
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={isSubmitting}
+                      className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 shadow-lg shadow-indigo-200"
+                    >
+                      <Icon name={isSubmitting ? "refresh-cw" : "zap"} size={16} className={isSubmitting ? "animate-spin" : ""} />
+                      {isSubmitting ? "Connecting..." : "Save & Sync App"}
+                    </button>
+                    
+                    {!configOnlyMode && (
                       <button 
-                        onClick={() => {
-                          if (window.confirm("This will reload the app to sync with the new server URL. Continue?")) {
-                            window.location.reload();
-                          }
-                        }}
-                        className="bg-indigo-600 text-white px-6 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-200 flex-1 py-3"
+                        onClick={() => window.confirm("Reload app to sync?") && window.location.reload()}
+                        className="btn-secondary flex-1 py-3"
                       >
-                        Apply & Reload App
+                        Manual Reload
                       </button>
-                    </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
                    <Icon name="info" className="text-indigo-600 mt-0.5 shrink-0" size={18} />
                    <div className="space-y-2">
-                     <p className="text-[11px] font-bold text-indigo-900 leading-relaxed uppercase tracking-tight">Deployment Guide:</p>
+                     <p className="text-[11px] font-bold text-indigo-900 leading-relaxed uppercase tracking-tight">Deployment & Permanent Connection:</p>
                      <ol className="text-[10px] text-indigo-700 list-decimal pl-4 space-y-1 font-medium">
                        <li>Open your Google Sheet and go to Extensions &gt; Apps Script</li>
                        <li>Paste the Backend Code (Code.gs)</li>
                        <li>Click Deploy &gt; New Deployment</li>
                        <li>Select "Web App" &gt; Execute as: "Me" &gt; Who has access: "Anyone"</li>
                        <li>Copy the Web App URL and paste it above</li>
+                       <li className="text-indigo-900 font-bold">For a permanent connection, set the VITE_GAS_URL environment variable in your server settings.</li>
                      </ol>
                    </div>
                 </div>

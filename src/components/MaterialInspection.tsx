@@ -11,43 +11,91 @@ interface MaterialInspectionProps {
 }
 
 const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings, triggerSuccess, globalZone }) => {
-  const currentSuppliers = settings?.SUPPLIER || SUPPLIERS || [];
-  const currentItems = settings?.ITEMS || ITEMS || [];
-  const currentColors = settings?.COLORS || COLORS || [];
-  const currentSizes = settings?.SIZES || SIZES || [];
-  const currentZones = settings?.ZONE || [];
+  const currentSuppliers = settings?.SUPPLIER || [];
+  const currentItems = settings?.ITEMS || [];
+  const currentZones = settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'];
 
-  const [form, setForm] = useState({ 
-    zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user.location !== 'SYSTEM' ? user.location : (currentZones[0] || '')),
-    supplier: currentSuppliers[0] || '', 
-    item: currentItems[0] || '', 
-    color: currentColors[0] || '', 
-    size: currentSizes[0] || '', 
-    rollNo: '', 
-    totalPoints: '', 
-    width: '', 
-    length: '', 
-    status: 'PASS', 
-    remarks: '' 
+  const [header, setHeader] = useState({
+    zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''),
+    billNo: '',
+    supplierName: currentSuppliers[0] || '',
+    grn: '',
+    receivedDate: new Date().toISOString().split('T')[0],
+    checkingDate: new Date().toISOString().split('T')[0],
+    remarks: ''
   });
+
+  const [items, setItems] = useState([
+    { itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }
+  ]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync initial values when settings load
+  React.useEffect(() => {
+    if (!header.supplierName && currentSuppliers.length > 0) {
+      setHeader(prev => ({ ...prev, supplierName: currentSuppliers[0] }));
+    }
+    if (items.length === 1 && !items[0].itemName && currentItems.length > 0) {
+      updateItem(0, 'itemName', currentItems[0]);
+    }
+  }, [currentSuppliers, currentItems]);
 
   // Sync zone with globalZone
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
-      setForm(prev => ({ ...prev, zone: globalZone }));
+      setHeader(prev => ({ ...prev, zone: globalZone }));
+    } else if (!header.zone && currentZones.length > 0) {
+      setHeader(prev => ({ ...prev, zone: currentZones[0] }));
     }
-  }, [globalZone]);
+  }, [globalZone, currentZones]);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const addItem = () => {
+    setItems([...items, { itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length === 1) return;
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const updateItem = (index: number, field: string, value: string) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setItems(newItems);
+  };
+
+  const handleClear = () => {
+    setHeader({
+      zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''),
+      billNo: '',
+      supplierName: currentSuppliers[0] || '',
+      grn: '',
+      receivedDate: new Date().toISOString().split('T')[0],
+      checkingDate: new Date().toISOString().split('T')[0],
+      remarks: ''
+    });
+    setItems([{ itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    
+    if (!header.billNo || !header.supplierName || !header.grn) {
+      return alert("Please enter Bill No, Supplier and GRN");
+    }
+
     setIsSubmitting(true);
     try {
-      await api.run('api_saveMaterialReport', { ...form, inspector: user.username, timestamp: new Date().toISOString() });
+      await api.run('api_saveMaterialReportBulk', { 
+        ...header, 
+        items,
+        inspector: user.username, 
+        timestamp: new Date().toISOString() 
+      });
       triggerSuccess('MATERIAL INSPECTION SUBMITTED SUCCESSFULLY');
-      setForm({ ...form, rollNo: '', totalPoints: '', width: '', length: '', remarks: '' });
+      handleClear();
     } catch (error) {
       alert('Error saving material inspection');
     } finally {
@@ -56,87 +104,209 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div>
-          <label>Zone</label>
-          <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Header Info */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone</label>
+          <select 
+            value={header.zone} 
+            onChange={e => setHeader({...header, zone: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl disabled:bg-slate-50"
+          >
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
           </select>
         </div>
-        <div>
-          <label>Supplier</label>
-          <select value={form.supplier} onChange={e => setForm({...form, supplier: e.target.value})}>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bill No</label>
+          <input 
+            type="text" 
+            placeholder="Enter Bill No" 
+            value={header.billNo} 
+            onChange={e => setHeader({...header, billNo: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Supplier Name</label>
+          <select 
+            value={header.supplierName} 
+            onChange={e => setHeader({...header, supplierName: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          >
+            <option value="">Select Supplier...</option>
             {currentSuppliers.map((s: string) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <div>
-          <label>Item Name</label>
-          <select value={form.item} onChange={e => setForm({...form, item: e.target.value})}>
-            {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
-          </select>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GRN</label>
+          <input 
+            type="text" 
+            placeholder="Enter GRN" 
+            value={header.grn} 
+            onChange={e => setHeader({...header, grn: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          />
         </div>
-        <div>
-          <label>Color</label>
-          <select value={form.color} onChange={e => setForm({...form, color: e.target.value})}>
-            {currentColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Received Date</label>
+          <input 
+            type="date" 
+            value={header.receivedDate} 
+            onChange={e => setHeader({...header, receivedDate: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          />
         </div>
-        <div>
-          <label>Size</label>
-          <select value={form.size} onChange={e => setForm({...form, size: e.target.value})}>
-            {currentSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div>
-          <label>Roll Number</label>
-          <input type="text" placeholder="Enter Roll No" value={form.rollNo} onChange={e => setForm({...form, rollNo: e.target.value})} required />
-        </div>
-        <div>
-          <label>Total Points</label>
-          <input type="number" placeholder="Enter Points" value={form.totalPoints} onChange={e => setForm({...form, totalPoints: e.target.value})} required />
-        </div>
-        <div>
-          <label>Width (inch)</label>
-          <input type="number" placeholder="Enter Width" value={form.width} onChange={e => setForm({...form, width: e.target.value})} required />
-        </div>
-        <div>
-          <label>Length (mtr)</label>
-          <input type="number" placeholder="Enter Length" value={form.length} onChange={e => setForm({...form, length: e.target.value})} required />
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Checked Date</label>
+          <input 
+            type="date" 
+            value={header.checkingDate} 
+            onChange={e => setHeader({...header, checkingDate: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          />
         </div>
       </div>
 
-      <div>
-        <label>Status</label>
-        <div className="flex gap-4">
-          {['PASS', 'FAIL', 'HOLD'].map(s => (
-            <button 
-              key={s} 
-              type="button"
-              onClick={() => setForm({...form, status: s})}
-              className={`flex-1 py-3 rounded-xl font-bold transition-all ${form.status === s ? (s === 'PASS' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : s === 'FAIL' ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-amber-500 text-white shadow-lg shadow-amber-200') : 'bg-slate-100 text-slate-400'}`}
-            >
-              {s}
-            </button>
+      {/* Items Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+            <Icon name="list" size={16} className="text-indigo-600" />
+            Inspection Items
+          </h3>
+          <button 
+            type="button" 
+            onClick={addItem}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-black text-[10px] uppercase hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+          >
+            <Icon name="plus" size={14} /> Add Item
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex flex-col md:flex-row gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-fade-in relative group">
+              <div className="flex-1 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Item Name</label>
+                <select 
+                  value={item.itemName} 
+                  onChange={e => updateItem(idx, 'itemName', e.target.value)}
+                  className="w-full text-xs font-bold"
+                >
+                  {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+              <div className="w-full md:w-24 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Received Quantity</label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  value={item.receivedQuantity} 
+                  onChange={e => updateItem(idx, 'receivedQuantity', e.target.value)}
+                  required
+                  className="w-full text-xs font-bold"
+                />
+              </div>
+              <div className="w-full md:w-24 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Checked Quantity</label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  value={item.checkedQuantity} 
+                  onChange={e => updateItem(idx, 'checkedQuantity', e.target.value)}
+                  required
+                  className="w-full text-xs font-bold"
+                />
+              </div>
+              <div className="w-full md:w-24 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Pass Quantity</label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  value={item.passQuantity} 
+                  onChange={e => updateItem(idx, 'passQuantity', e.target.value)}
+                  required
+                  className="w-full text-xs font-bold bg-emerald-50"
+                />
+              </div>
+              <div className="w-full md:w-24 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Rejected Quantity</label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  value={item.rejectedQuantity} 
+                  onChange={e => updateItem(idx, 'rejectedQuantity', e.target.value)}
+                  required
+                  className="w-full text-xs font-bold bg-rose-50"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Remarks</label>
+                <input 
+                  type="text" 
+                  placeholder="Notes"
+                  value={item.remarks} 
+                  onChange={e => updateItem(idx, 'remarks', e.target.value)}
+                  className="w-full text-xs font-bold"
+                />
+              </div>
+              {items.length > 1 && (
+                <button 
+                  type="button" 
+                  onClick={() => removeItem(idx)}
+                  className="md:self-end p-2.5 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-all"
+                >
+                  <Icon name="trash-2" size={16} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
 
-      <div>
-        <label>Remarks</label>
-        <textarea placeholder="Enter any remarks here..." value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} />
+      <div className="space-y-1">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">General Remarks</label>
+        <textarea 
+          placeholder="Enter any additional remarks here..." 
+          value={header.remarks} 
+          onChange={e => setHeader({...header, remarks: e.target.value})} 
+          className="w-full min-h-[100px] bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 focus:border-indigo-500 outline-none transition-all"
+        />
       </div>
 
-      <button 
-        type="submit" 
-        disabled={isSubmitting}
-        className="btn-primary w-full py-4 text-lg transition-all"
-      >
-        {isSubmitting ? 'SUBMITTING...' : <><Icon name="save" size={20} /> SUBMIT INSPECTION</>}
-      </button>
+      <div className="flex gap-4">
+        <button 
+          type="button"
+          onClick={handleClear}
+          className="btn-secondary flex-1 py-4 text-sm font-black uppercase tracking-widest"
+        >
+          Clear Form
+        </button>
+        <button 
+          type="submit" 
+          disabled={isSubmitting}
+          className="btn-primary flex-[3] py-4 text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-200"
+        >
+          {isSubmitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <Icon name="refresh-cw" size={18} className="animate-spin" />
+              PROCESSING SUBMISSION...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              <Icon name="save" size={18} />
+              FINAL SUBMIT INSPECTION
+            </span>
+          )}
+        </button>
+      </div>
     </form>
   );
 };

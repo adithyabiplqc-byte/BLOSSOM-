@@ -20,9 +20,9 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   const [form, setForm] = useState({ 
     zone: initialZone, 
     workorderNumber: '', 
-    item: '', 
     style: '', 
-    sizeRange: '', 
+    size: '',
+    cup: '', 
     quantity: '', 
     colour: ''
   });
@@ -48,6 +48,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       const woData = { 
         ...form, 
         id: isEditing ? selectedWO.id : Date.now(), 
+        status: isEditing ? selectedWO.status : 'CUTTING',
         createdAt: isEditing ? selectedWO.createdAt : new Date().toISOString() 
       };
 
@@ -66,11 +67,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       }
 
       setForm({ 
-        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.location !== 'SYSTEM' ? user?.location : ZONES[0]), 
+        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.location !== 'SYSTEM' ? user?.location : (currentZones[0] || ZONES[0])), 
         workorderNumber: '', 
-        item: '', 
         style: '', 
-        sizeRange: '', 
+        size: '', 
+        cup: '',
         quantity: '', 
         colour: ''
       });
@@ -88,7 +89,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   const handleDelete = (wo: any) => {
     if (!window.confirm('Delete this workorder?')) return;
     setWorkorders(workorders.filter(w => w.id !== wo.id));
-    api.run('api_deleteWorkorder', wo.id, wo).then(() => refreshData());
+    api.run('api_deleteWorkorder', wo.id, wo.zone || wo.location).then(() => refreshData());
     setSelectedWO(null);
   };
 
@@ -100,9 +101,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
 
   const filteredWorkorders = React.useMemo(() => {
     return workorders.filter(wo => {
-      const zoneMatch = !globalZone || globalZone === 'ALL' || wo.zone === globalZone;
+      const wZone = String(wo.zone || wo.location || "").toUpperCase().trim();
+      const gZone = String(globalZone || "ALL").toUpperCase().trim();
+      const zoneMatch = gZone === 'ALL' || wZone === gZone;
       const searchMatch = String(wo.workorderNumber).toLowerCase().includes(search.toLowerCase()) ||
-                          String(wo.item).toLowerCase().includes(search.toLowerCase()) ||
                           String(wo.style).toLowerCase().includes(search.toLowerCase());
       return zoneMatch && searchMatch;
     });
@@ -123,19 +125,21 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
               </div>
               <div>
                 <label>Workorder Number</label>
-                <input type="number" placeholder="Enter WO Number" className="w-full" value={form.workorderNumber} onChange={e => setForm({...form, workorderNumber: e.target.value})} required />
-              </div>
-              <div>
-                <label>Item Name</label>
-                <input type="text" placeholder="Enter Item Name" className="w-full" value={form.item} onChange={e => setForm({...form, item: e.target.value})} required />
+                <input type="text" placeholder="Enter WO Number" className="w-full" value={form.workorderNumber} onChange={e => setForm({...form, workorderNumber: e.target.value})} required />
               </div>
               <div>
                 <label>Style</label>
                 <input type="text" placeholder="Enter Style" className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required />
               </div>
-              <div>
-                <label>Size Range</label>
-                <input type="text" placeholder="Enter Size Range" className="w-full" value={form.sizeRange} onChange={e => setForm({...form, sizeRange: e.target.value})} required />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label>Size</label>
+                  <input type="text" placeholder="Size" className="w-full" value={form.size} onChange={e => setForm({...form, size: e.target.value})} required />
+                </div>
+                <div>
+                  <label>Cup</label>
+                  <input type="text" placeholder="Cup" className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})} />
+                </div>
               </div>
               <div>
                 <label>Quantity</label>
@@ -153,7 +157,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                 >
                   {isSubmitting ? 'SAVING...' : (isEditing ? 'UPDATE WO' : 'SUBMIT WO')}
                 </button>
-                {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: ZONES[0], workorderNumber: '', item: '', style: '', sizeRange: '', quantity: '', colour: '' }); }} className="btn-secondary mt-4">CANCEL</button>}
+                {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || ZONES[0], workorderNumber: '', style: '', size: '', cup: '', quantity: '', colour: '' }); }} className="btn-secondary mt-4">CANCEL</button>}
               </div>
             </form>
           </div>
@@ -183,10 +187,6 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.zone}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Item</span>
-                  <span className="font-bold text-slate-800 text-2xl">{selectedWO.item}</span>
-                </div>
-                <div className="space-y-1">
                   <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Style</span>
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.style}</span>
                 </div>
@@ -199,8 +199,18 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.quantity}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size Range</span>
-                  <span className="font-bold text-slate-800 text-2xl">{selectedWO.sizeRange}</span>
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size</span>
+                  <span className="font-bold text-slate-800 text-2xl">{selectedWO.size} {selectedWO.cup}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Workflow Status</span>
+                  <span className={`block font-black text-xl uppercase tracking-tighter ${
+                    selectedWO.status === 'COMPLETED' ? 'text-emerald-500' :
+                    selectedWO.status === 'CUTTING' ? 'text-amber-500' :
+                    'text-indigo-500'
+                  }`}>
+                    {selectedWO.status || 'CUTTING'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -212,7 +222,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
               <div className="relative w-full md:w-64">
                 <input 
                   type="text" 
-                  placeholder="Search WO, Item, Style..." 
+                  placeholder="Search WO, Style..." 
                   className="pl-10 py-2 text-sm"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -225,15 +235,16 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">WO #</th>
-                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Item</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Style</th>
+                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Status</th>
+                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Size</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Colour</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500 text-right">Qty</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredWorkorders.length === 0 ? (
-                    <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No workorders found.</td></tr>
+                    <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">No workorders found.</td></tr>
                   ) : (
                     filteredWorkorders.map((wo, i) => (
                       <tr 
@@ -242,8 +253,18 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                         className={`border-b border-slate-100 hover:bg-indigo-50 cursor-pointer transition-colors ${selectedWO?.id === wo.id ? 'bg-indigo-50' : ''}`}
                       >
                         <td className="p-4 font-mono text-indigo-600 font-bold">{wo.workorderNumber}</td>
-                        <td className="p-4 font-semibold">{wo.item}</td>
-                        <td className="p-4">{wo.style}</td>
+                        <td className="p-4 font-semibold">{wo.style}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                            wo.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                            wo.status === 'CUTTING' ? 'bg-amber-100 text-amber-700' :
+                            wo.status === 'INLINE' ? 'bg-indigo-100 text-indigo-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {wo.status || 'CUTTING'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-xs">{wo.size} {wo.cup}</td>
                         <td className="p-4">{wo.colour}</td>
                         <td className="p-4 text-right font-bold">{wo.quantity}</td>
                       </tr>

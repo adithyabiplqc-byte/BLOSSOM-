@@ -35,7 +35,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
   }, [globalZone]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const selectedWO = workorders.find(w => w.workorderNumber === form.wo);
+  const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
 
   const handleCardLookup = async (num: string) => {
     if (!num) return;
@@ -54,17 +54,22 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (moveToComplete: boolean = false) => {
     if (isSubmitting) return;
+    if (!form.wo) {
+      alert("Please select a workorder");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      if (form.cardNumber) {
-        await api.run('api_saveFINALAUDIT', { ...form, ...selectedWO, inspector: user.username, timestamp: new Date().toISOString() });
-        triggerSuccess('FINAL AUDIT SUBMITTED - PVC CARD FREED FOR REUSE');
-      } else {
-        await api.run('api_saveFinalAudit', { ...form, ...selectedWO, inspector: user.username, timestamp: new Date().toISOString() });
-        triggerSuccess('FINAL AUDIT SUBMITTED SUCCESSFULLY');
-      }
+      await api.run('api_saveFINALAUDIT', { 
+        ...form, 
+        ...selectedWO, 
+        moveToComplete,
+        inspector: user.username, 
+        timestamp: new Date().toISOString() 
+      });
+      triggerSuccess(moveToComplete ? 'AUDIT COMPLETE & WORKORDER CLOSED' : 'FINAL AUDIT RECORDED');
       setForm({ ...form, cardNumber: '', totalAudited: '', pass: '', rejected: '', remarks: '' });
     } catch (error) {
       alert('Error saving final audit');
@@ -74,10 +79,10 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label>Scan PVC Card</label>
+    <div className="space-y-8 animate-fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Scan PVC Card</label>
           <div className="flex gap-2">
              <input 
                type="text" 
@@ -85,58 +90,89 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
                value={form.cardNumber}
                onChange={e => setForm({...form, cardNumber: e.target.value.toUpperCase()})}
                onBlur={() => handleCardLookup(form.cardNumber)}
+               className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs"
              />
-             <button type="button" onClick={() => handleCardLookup(form.cardNumber)} className="btn-secondary px-4"><Icon name="search" size={16} /></button>
+             <button type="button" onClick={() => handleCardLookup(form.cardNumber)} className="bg-slate-200 p-2 rounded-xl text-slate-600 hover:bg-slate-300 transition-colors"><Icon name="search" size={16} /></button>
           </div>
         </div>
-        <div>
-          <label>Zone</label>
-          <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone</label>
+          <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs">
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
           </select>
         </div>
-        <div>
-          <label>Workorder Number</label>
-          <select value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
+          <select value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs">
             <option value="">Select Workorder</option>
-            {workorders.filter(w => w.zone === form.zone).map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)}
+            {workorders
+              .filter(w => {
+                const wZone = String(w.zone || w.location || "").toUpperCase().trim();
+                const fZone = String(form.zone).toUpperCase().trim();
+                const status = String(w.status || "").toUpperCase().trim();
+                return wZone === fZone && status === 'FINAL';
+              })
+              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
+            }
           </select>
         </div>
-        <div>
-          <label>Unit</label>
-          <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})}>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unit</label>
+          <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs">
             {currentUnits.map((u: string) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       </div>
 
-      <WorkorderDetailCard wo={selectedWO} />
+      {selectedWO && (
+        <div className="animate-zoom-in">
+          <WorkorderDetailCard wo={selectedWO} />
+        </div>
+      )}
       
-      <div>
-        <label>Total Audited Quantity</label>
-        <input type="number" placeholder="Enter Total Audited" value={form.totalAudited} onChange={e => setForm({...form, totalAudited: e.target.value})} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label>Pass Quantity</label>
-          <input type="number" placeholder="Enter Pass Qty" value={form.pass} onChange={e => setForm({...form, pass: e.target.value})} />
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2 mb-4">
+          <Icon name="check-square" size={16} className="text-emerald-600" />
+          Final Audit Entry
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter ml-1">Total Audited</label>
+            <input type="number" placeholder="0" value={form.totalAudited} onChange={e => setForm({...form, totalAudited: e.target.value})} className="w-full text-sm font-bold bg-slate-50 border-transparent focus:bg-white" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter ml-1">Pass Qty</label>
+            <input type="number" placeholder="0" value={form.pass} onChange={e => setForm({...form, pass: e.target.value})} className="w-full text-sm font-bold bg-emerald-50 border-transparent focus:bg-white" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter ml-1">Rejected Qty</label>
+            <input type="number" placeholder="0" value={form.rejected} onChange={e => setForm({...form, rejected: e.target.value})} className="w-full text-sm font-bold bg-rose-50 border-transparent focus:bg-white" />
+          </div>
         </div>
-        <div>
-          <label>Rejected Quantity</label>
-          <input type="number" placeholder="Enter Rejected Qty" value={form.rejected} onChange={e => setForm({...form, rejected: e.target.value})} />
-        </div>
       </div>
-      <div>
-        <label>Remarks</label>
-        <textarea placeholder="Enter any remarks here..." value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} />
+
+      <div className="space-y-1">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Remarks</label>
+        <textarea placeholder="Enter any remarks here..." value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} className="w-full min-h-[100px] bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 focus:border-indigo-500 outline-none transition-all font-medium text-sm" />
       </div>
-      <button 
-        onClick={handleSubmit} 
-        disabled={isSubmitting}
-        className="btn-primary w-full py-5 text-xl transition-all"
-      >
-        {isSubmitting ? 'SUBMITTING...' : 'SUBMIT FINAL AUDIT'}
-      </button>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button 
+          onClick={() => handleSubmit(false)} 
+          disabled={isSubmitting}
+          className="btn-secondary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 border-2 border-slate-200"
+        >
+          {isSubmitting ? <Icon name="refresh-cw" size={18} className="animate-spin" /> : <><Icon name="save" size={18} /> Record Only</>}
+        </button>
+        <button 
+          onClick={() => handleSubmit(true)} 
+          disabled={isSubmitting}
+          className="btn-primary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-emerald-200 bg-emerald-600 border-none hover:bg-emerald-700"
+        >
+          {isSubmitting ? <Icon name="refresh-cw" size={18} className="animate-spin" /> : <><Icon name="check-circle" size={18} /> Complete Audit</>}
+        </button>
+      </div>
     </div>
   );
 };

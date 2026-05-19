@@ -24,12 +24,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
     }
 
     const user = users.find(u => 
-      String(u.username).trim().toLowerCase() === cleanUsername.toLowerCase() && 
-      String(u.password) === cleanPassword
+      String(u.username || '').trim().toLowerCase() === cleanUsername.toLowerCase() && 
+      String(u.password || '') === cleanPassword
     );
 
-    if (user) onLogin(user);
-    else setError('Invalid username or password');
+    if (user) {
+      onLogin(user);
+    } else {
+      if (users.length === 0) {
+        setError('Connection in progress or no users found. Please wait or check your server URL.');
+      } else {
+        setError('Invalid username or password');
+      }
+    }
   };
 
   return (
@@ -73,6 +80,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
               <Icon name="log-in" size={18} /> Login with Credentials
             </button>
           </form>
+
+          <div className="pt-4 text-center">
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('SHOW_CONFIG'))}
+              className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+            >
+              <Icon name="server" size={12} /> Configure Backend Server
+            </button>
+          </div>
         </div>
       </div>
     </div>

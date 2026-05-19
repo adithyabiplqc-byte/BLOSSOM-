@@ -1,11 +1,10 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import fetch from "node-fetch";
+import fs from "fs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 
 async function startServer() {
   const app = express();
@@ -15,33 +14,74 @@ async function startServer() {
 
   // API Proxy for Google Apps Script
   app.get("/api/config", (req, res) => {
+    let fileUrl = null;
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        fileUrl = fs.readFileSync(CONFIG_FILE, 'utf8').trim();
+      }
+    } catch (e) {}
+
     res.json({
-      hasGasUrl: !!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH"),
-      gasUrlPlaceholder: process.env.VITE_GAS_URL?.includes("REPLACE_WITH")
+      hasGasUrl: (!!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH")) || !!fileUrl,
+      gasUrlPlaceholder: process.env.VITE_GAS_URL?.includes("REPLACE_WITH"),
+      isPermanent: !!fileUrl || (!!process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH"))
     });
+  });
+
+  app.post("/api/save-config", (req, res) => {
+    const { url } = req.body;
+    if (!url || !url.startsWith("https://script.google.com/macros/s/")) {
+      return res.status(400).json({ success: false, error: "Invalid Google Script URL" });
+    }
+    try {
+      fs.writeFileSync(CONFIG_FILE, url);
+      console.log(`[CONFIG] Permanent GAS URL saved to ${CONFIG_FILE}`);
+      res.json({ success: true, message: "URL saved permanently on server" });
+    } catch (e) {
+      console.error("[CONFIG] Failed to save URL:", e);
+      res.status(500).json({ success: false, error: "Failed to write configuration to server storage." });
+    }
   });
 
   app.post("/api/gas", async (req, res) => {
     try {
-      // Priority: 1. Request Header, 2. Env Var
-      const gasUrl = req.headers['x-gas-url'] || process.env.VITE_GAS_URL;
+      // Priority: 1. Request Header, 2. Persistent File, 3. Env Var
+      let gasUrl = req.headers['x-gas-url'];
+      
+      if (!gasUrl) {
+        try {
+          if (fs.existsSync(CONFIG_FILE)) {
+            gasUrl = fs.readFileSync(CONFIG_FILE, 'utf8').trim();
+          }
+        } catch (e) {}
+      }
+
+      if (!gasUrl) {
+        gasUrl = process.env.VITE_GAS_URL;
+      }
       
       if (!gasUrl || (typeof gasUrl === 'string' && gasUrl.includes("REPLACE_WITH_YOUR_EXEC_URL"))) {
         console.error("VITE_GAS_URL is not configured.");
         return res.status(500).json({ 
           success: false, 
-          error: "Google Sheets Connection not configured. Please use the setup tool in the UI or add VITE_GAS_URL to your settings." 
+          error: "CONFIGURATION_REQUIRED",
+          details: "Google Sheets Connection not configured. Please use the setup tool in the UI or add VITE_GAS_URL to your settings." 
         });
       }
 
-      console.log(`[API PROXY] Action: ${req.body.action} to ${gasUrl}`);
-
+      console.log(`[API PROXY] Action: ${req.body.action}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for GAS
+      
       const response = await fetch(gasUrl as string, {
         method: "POST",
         body: JSON.stringify(req.body),
         headers: { "Content-Type": "application/json" },
-        redirect: 'follow' 
+        redirect: 'follow',
+        signal: controller.signal as any
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const text = await response.text();
@@ -93,6 +133,11 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    if (process.env.VITE_GAS_URL && !process.env.VITE_GAS_URL.includes("REPLACE_WITH")) {
+      console.log("BASE CONFIG: Permanent VITE_GAS_URL detected in environment.");
+    } else {
+      console.log("BASE CONFIG: No permanent VITE_GAS_URL found. Relying on client-side setup.");
+    }
   });
 }
 

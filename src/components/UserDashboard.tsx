@@ -17,25 +17,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onSelectSubmodule }
         <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] mt-2">Select a module to begin operations</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in">
-        <div className="glass-card p-4 border-l-4 border-indigo-500 bg-white">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modules</p>
-          <p className="text-3xl font-black text-slate-800">{MAIN_MODULES.length}</p>
-        </div>
-        <div className="glass-card p-4 border-l-4 border-rose-500 bg-white">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Restricted</p>
-          <p className="text-3xl font-black text-slate-800">{(user.restrictions || []).length}</p>
-        </div>
-        <div className="glass-card p-4 border-l-4 border-emerald-500 bg-white">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</p>
-          <p className="text-3xl font-black text-slate-800">{user.location}</p>
-        </div>
-        <div className="glass-card p-4 border-l-4 border-amber-500 bg-white">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Permissions</p>
-          <p className="text-3xl font-black text-slate-800">{user.canDownload !== false ? 'FULL' : 'LIMITED'}</p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {MAIN_MODULES.map((module, idx) => {
           const submodules = SUBMODULES.filter(s => s.module === module.id);

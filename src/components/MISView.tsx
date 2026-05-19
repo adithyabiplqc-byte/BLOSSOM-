@@ -15,7 +15,17 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.run('api_getEndlineData');
+      const apiMapping: { [key: string]: string } = {
+        'C1': 'api_getEndlineData',
+        'C2': 'api_getEndlineData',
+        'C3': 'api_getEndlineData',
+        'C4': 'api_getEndlineData',
+        'C8': 'api_getMaterialData',
+      };
+      
+      const targetApi = apiMapping[id] || 'api_getEndlineData';
+      const res = await api.run(targetApi as any);
+
       if (res && res.length > 0) {
         // Apply Global Zone Filter
         const filtered = globalZone && globalZone !== 'ALL' 
@@ -23,12 +33,18 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
           : res;
 
         const grouped = filtered.reduce((acc: any, curr: any) => {
-          const date = new Date(curr.timestamp).toLocaleDateString('en-US', { weekday: 'short' });
+          const rawDate = curr.timestamp || curr.receivedDate;
+          const date = new Date(rawDate).toLocaleDateString('en-US', { weekday: 'short' });
           if (!acc[date]) acc[date] = { name: date, pass: 0, rework: 0, fail: 0, total: 0 };
-          acc[date].pass += Number(curr.passQty || 0);
-          acc[date].rework += Number(curr.reworkQty || 0);
-          acc[date].fail += Number(curr.failQty || 0);
-          acc[date].total += (Number(curr.passQty || 0) + Number(curr.reworkQty || 0) + Number(curr.failQty || 0));
+          
+          const p = Number(curr.passQty || curr.passQuantity || 0);
+          const r = Number(curr.reworkQty || 0);
+          const f = Number(curr.failQty || curr.rejectedQuantity || 0);
+          
+          acc[date].pass += p;
+          acc[date].rework += r;
+          acc[date].fail += f;
+          acc[date].total += (p + r + f);
           return acc;
         }, {});
         setData(Object.values(grouped));

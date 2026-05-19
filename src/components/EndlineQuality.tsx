@@ -34,12 +34,20 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
     remarks: '' 
   });
 
-  // Sync zone with globalZone
+  // Sync with globalZone or settings load
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
       setForm(prev => ({ ...prev, zone: globalZone }));
+    } else if (!form.zone && currentZones.length > 0) {
+      setForm(prev => ({ ...prev, zone: currentZones[0] }));
     }
-  }, [globalZone]);
+  }, [globalZone, currentZones]);
+
+  React.useEffect(() => {
+    if (!form.unit && currentUnits.length > 0) {
+      setForm(prev => ({ ...prev, unit: currentUnits[0] }));
+    }
+  }, [currentUnits]);
 
   const [isReworkMode, setIsReworkMode] = useState(false);
   const [defectEntry, setDefectEntry] = useState({ worker: currentWorkers[0] || '', operation: currentOperations[0] || '', defect: currentDefects[0] || '', machine: currentMachines[0] || '', remarks: '', extra1: '', extra2: '', extra3: '', extra4: '' });
@@ -66,13 +74,24 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, moveToAQL: boolean = false) => {
     if (e) e.preventDefault();
     if (isSubmitting) return;
+    if (!form.wo) {
+      alert("Please select a workorder");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await api.run('api_saveEndlineReport', { ...form, ...selectedWO, inspector: user.username, timestamp: new Date().toISOString(), reworks: reworkQueue });
-      triggerSuccess('ENDLINE DATA SUBMITTED SUCCESSFULLY');
+      await api.run('api_saveENDLINEQUALITY', { 
+        ...form, 
+        ...selectedWO, 
+        moveToAQL,
+        inspector: user.username, 
+        timestamp: new Date().toISOString(), 
+        reworks: reworkQueue 
+      });
+      triggerSuccess(moveToAQL ? 'DATA SAVED & MOVED TO AQL' : 'ENDLINE DATA SAVED');
       setForm({ ...form, bundleNo: '', checkedQty: '', passQty: '', reworkQty: '', failQty: '', remarks: '' });
       setReworkQueue([]);
     } catch (error) {
@@ -93,9 +112,17 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
         </div>
         <div>
           <label>Workorder Number</label>
-          <select value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required>
+          <select value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
             <option value="">Select Workorder</option>
-            {workorders.filter(w => w.zone === form.zone).map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)}
+            {workorders
+              .filter(w => {
+                const wZone = String(w.zone || w.location || "").toUpperCase().trim();
+                const fZone = String(form.zone).toUpperCase().trim();
+                const status = String(w.status || "").toUpperCase().trim();
+                return wZone === fZone && status === 'ENDLINE';
+              })
+              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
+            }
           </select>
         </div>
         <div>
@@ -175,13 +202,22 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
         )}
       </div>
 
-      <button 
-        onClick={handleSubmit} 
-        disabled={isSubmitting}
-        className="btn-primary w-full py-4 text-lg transition-all"
-      >
-        {isSubmitting ? 'SUBMITTING...' : <><Icon name="send" size={20} /> SUBMIT BUNDLE DATA</>}
-      </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button 
+          onClick={(e) => handleSubmit(e, false)} 
+          disabled={isSubmitting}
+          className="btn-secondary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 border-2 border-slate-200"
+        >
+          {isSubmitting ? <Icon name="refresh-cw" size={18} className="animate-spin" /> : <><Icon name="save" size={18} /> Submit Only</>}
+        </button>
+        <button 
+          onClick={(e) => handleSubmit(e, true)} 
+          disabled={isSubmitting}
+          className="btn-primary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-indigo-200"
+        >
+          {isSubmitting ? <Icon name="refresh-cw" size={18} className="animate-spin" /> : <><Icon name="check-circle" size={18} /> Pass to AQL</>}
+        </button>
+      </div>
 
       {reworkQueue.length > 0 && (
         <div className="space-y-2">

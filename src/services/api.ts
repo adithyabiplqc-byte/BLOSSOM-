@@ -1,81 +1,44 @@
 export const api = {
+  async getServerConfig() {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch("/api/config", { signal: controller.signal });
+      clearTimeout(id);
+      return await response.json();
+    } catch (e) {
+      return { hasGasUrl: false };
+    }
+  },
+
+  async saveServerConfig(url: string) {
+    const response = await fetch("/api/save-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
+    });
+    return await response.json();
+  },
+
+  disconnect() {
+    localStorage.removeItem('VITE_GAS_URL');
+    window.location.reload();
+  },
+
   async run(method: string, ...args: any[]) {
     // Map frontend methods to Apps Script methods if they differ
     let gasMethod = method;
     let gasArgs = args;
 
-    // Report Mappings for Data Fetching consistency with Code.gs
-    const reportGetMappings: Record<string, string> = {
-      'api_getMaterialData': 'MATERIAL',
-      'api_getCuttingData': 'CUTTING',
-      'api_getInlineData': 'INLINE',
-      'api_getEndlineData': 'ENDLINE',
-      'api_getAQLData': 'AQL',
-      'api_getFinalAuditData': 'FINAL-AUDIT'
-    };
-    
-    const reportDeleteMappings: Record<string, string> = {
-      'api_deleteMaterialData': 'MATERIAL',
-      'api_deleteCuttingData': 'CUTTING',
-      'api_deleteInlineData': 'INLINE',
-      'api_deleteEndlineData': 'ENDLINE',
-      'api_deleteAQLData': 'AQL',
-      'api_deleteFinalAuditData': 'FINAL-AUDIT'
-    };
-    
-    const reportSaveMappings: Record<string, string> = {
-      'api_saveMaterialReport': 'MATERIAL',
-      'api_saveCuttingReport': 'CUTTING',
-      'api_saveInlineReport': 'INLINE',
-      'api_saveEndlineReport': 'ENDLINE',
-      'api_saveAQLReport': 'AQL',
-      'api_saveFinalAudit': 'FINAL-AUDIT'
-    };
+    const customUrl = localStorage.getItem('VITE_GAS_URL');
+    const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+    const finalGasUrl = customUrl || envUrl;
 
-    // Helper to resolve dynamic sheet name based on zone (Warehouse Model)
-    // Format: [BaseName] - [Zone] (e.g. Material - Kerala)
-    const resolveSheetName = (baseName: string, data: any) => {
-      const zone = data?.zone || data?.location || data?.userZone;
-      
-      if (!zone || zone === 'SYSTEM' || zone === 'ALL') {
-        return baseName.toUpperCase().replace(/\s+/g, '-');
-      }
-
-      // Format as "Base - Zone" (e.g. Material - Kerala)
-      const formattedBase = baseName.charAt(0).toUpperCase() + baseName.slice(1).toLowerCase();
-      const formattedZone = zone.charAt(0).toUpperCase() + zone.slice(1).toLowerCase();
-      
-      return `${formattedBase} - ${formattedZone}`;
-    };
-
-    if (reportGetMappings[method]) {
-      gasMethod = 'api_getDataBySheet';
-      gasArgs = [resolveSheetName(reportGetMappings[method], args[0])];
-    } else if (reportDeleteMappings[method]) {
-      gasMethod = 'api_deleteDataBySheet';
-      const baseName = reportDeleteMappings[method];
-      const data = args[1] || {};
-      gasArgs = [resolveSheetName(baseName, data), args[0]];
-    } else if (reportSaveMappings[method]) {
-      gasMethod = 'api_saveDataBySheet';
-      const baseName = reportSaveMappings[method];
-      gasArgs = [resolveSheetName(baseName, args[0]), args[0]];
-    }
-    // Workorder methods use their native names in Code.gs and target 'WORKORDER' sheet by default
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
     // Execute Request
     try {
-      const customUrl = localStorage.getItem('VITE_GAS_URL');
-      const finalGasUrl = customUrl;
-
-      if (!finalGasUrl) {
-         console.warn("[API] No VITE_GAS_URL found in localStorage");
-         // Only throw if we are not in configuration mode
-         if (method !== 'api_getInitialData') {
-           throw new Error("CONFIGURATION_REQUIRED");
-         }
-      }
-
       // Attempt 1: Call Local Server Proxy (Cloud Run / Full-stack)
       try {
         const proxyHeaders: any = { 'Content-Type': 'application/json' };
@@ -84,39 +47,71 @@ export const api = {
         const response = await fetch("/api/gas", {
           method: 'POST',
           headers: proxyHeaders,
-          body: JSON.stringify({ action: gasMethod, params: gasArgs })
+          body: JSON.stringify({ action: gasMethod, params: gasArgs }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         // Check if proxy actually exists/works
         if (response.status === 404) throw new Error("Proxy Not Found");
         
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || `Proxy error ${response.status}`);
+        if (!response.ok) {
+           if (result.error === "CONFIGURATION_REQUIRED") throw new Error("CONFIGURATION_REQUIRED");
+           throw new Error(result.error || `Proxy error ${response.status}`);
+        }
         return result;
 
       } catch (proxyError: any) {
-        // Attempt 2: Direct Call to GAS (For Netlify/GitHub Static Pages)
-        if (proxyError.message === "Proxy Not Found" || proxyError.name === "TypeError") {
-           console.log("[API] Server proxy unavailable, attempting direct call to GAS...");
-           
+        if (proxyError.message === "CONFIGURATION_REQUIRED") throw proxyError;
+        if (proxyError.name === 'AbortError') throw new Error("Connection Timeout: Server is taking too long to respond.");
+
+        // Attempt 2: Direct Call to GAS (Fallback)
+        // Fallback if proxy is missing, network error, or if the proxy explicitly failed to connect
+        const isNetworkError = proxyError.name === "TypeError" || proxyError.message.includes("Failed to fetch") || proxyError.message.includes("NetworkError");
+        const isProxyMissing = proxyError.message === "Proxy Not Found";
+        const isConnectionError = proxyError.message.includes("Failed to communicate") || proxyError.message.includes("Unable to connect");
+
+        if (isProxyMissing || isNetworkError || isConnectionError) {
+           // If we reach here, and we don't have a local URL, then we really are missing config
            if (!finalGasUrl || finalGasUrl.includes("REPLACE_WITH")) {
-             throw new Error("CONFIGURATION_REQUIRED");
+              throw new Error("CONFIGURATION_REQUIRED");
            }
 
-           // GAS WebApp requires POST for exec. 
-           // NOTE: Direct calls may hit CORS if Code.gs doesn't return correct Content-Type/Headers
-           const response = await fetch(finalGasUrl, {
-             method: 'POST',
-             mode: 'cors',
-             body: JSON.stringify({ action: gasMethod, params: gasArgs })
-           });
+           console.log("[API] Server proxy unavailable or failed, attempting direct call to GAS...");
+           
+           try {
+             const directController = new AbortController();
+             const directTimeoutId = setTimeout(() => directController.abort(), 15000);
 
-           return await response.json();
+             // GAS WebApp requires POST for exec. 
+             const response = await fetch(finalGasUrl, {
+               method: 'POST',
+               mode: 'cors',
+               body: JSON.stringify({ action: gasMethod, params: gasArgs }),
+               signal: directController.signal
+             });
+
+             clearTimeout(directTimeoutId);
+
+             if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`GAS ${response.status}: ${text.slice(0, 50)}`);
+             }
+
+             return await response.json();
+           } catch (directError: any) {
+             if (directError.name === 'AbortError') throw new Error("Connection Timeout: Google Script is not responding.");
+             console.error("[API] Direct call failed:", directError);
+             throw new Error("Unable to connect to Google Script. Check your URL and ensure it's deployed to 'Anyone'.");
+           }
         }
         throw proxyError;
       }
     } catch (error: any) {
-      console.warn(`[API] Proxy failed for ${method}: ${error.message}`);
+      clearTimeout(timeoutId);
+      console.warn(`[API] Execution failed for ${method}: ${error.message}`);
       throw error;
     }
   }

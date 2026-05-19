@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../services/api';
 import { SUBMODULES } from '../constants';
 import Icon from './Icon';
@@ -7,21 +7,36 @@ interface DataViewProps {
   id: string;
   user: any;
   globalZone?: string;
+  settings?: any;
 }
 
-const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
+const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) => {
+  const currentZones = settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'];
+  const currentItems = settings?.ITEMS || ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
+
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [selectedZone, setSelectedZone] = useState<string>(globalZone || user.location || 'ALL');
   const [selectedItem, setSelectedItem] = useState<string>('ALL');
 
+  // Sync with globalZone if it changes
+  useEffect(() => {
+    if (globalZone) {
+      setSelectedZone(globalZone);
+    }
+  }, [globalZone]);
+
   useEffect(() => {
     fetchData();
-  }, [id, selectedZone, selectedItem]);
+  }, [id, selectedZone, selectedItem, refreshKey]);
 
   const fetchData = async () => {
     setLoading(true);
+    setActiveSearch(searchTerm); // Sync active search with term on fetch or button click
+    console.log(`[DataView] Fetching data for id: ${id}`, { selectedZone, selectedItem });
     const sheetMapping: { [key: string]: string } = {
       'B1': 'api_getMaterialData',
       'B2': 'api_getCuttingData',
@@ -32,11 +47,32 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
       'B7': 'api_getUsers',
       'B8': 'api_getWorkorders',
     };
+
+    if (!sheetMapping[id]) {
+      console.warn(`[DataView] No API mapping found for id: ${id}`);
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await api.run(sheetMapping[id] as any, { zone: selectedZone, item: selectedItem });
-      setData(res || []);
-    } catch (error) {
+      console.log(`[DataView] Received response for ${id}:`, res);
+      
+      if (res && res.success === false) {
+        throw new Error(res.error || "Server returned failure");
+      }
+      
+      if (Array.isArray(res)) {
+        setData(res);
+      } else {
+        console.warn(`[DataView] Expected array but got:`, typeof res, res);
+        setData([]);
+      }
+    } catch (error: any) {
       console.error("Fetch Data Error:", error);
+      alert(`Error loading data: ${error.message || "Unknown error"}`);
+      setData([]);
     } finally {
       setLoading(false);
     }
@@ -59,19 +95,20 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
     if (!sheetMapping[id]) return alert('Delete not supported for this module yet.');
     
     try {
-      await api.run(sheetMapping[id], row.id || row.workorderNumber);
+      const res = await api.run(sheetMapping[id], row.id || row.workorderNumber);
+      if (res && res.success === false) throw new Error(res.error);
       alert('Record Deleted');
       fetchData();
-    } catch (error) {
-      alert('Error deleting record');
+    } catch (error: any) {
+      alert(`Error deleting record: ${error.message || "Unknown error"}`);
     }
   };
 
   const exportToCSV = () => {
-    if (filteredData.length === 0) return;
-    const headers = Object.keys(filteredData[0]);
-    const rows = filteredData.map(row => headers.map(h => JSON.stringify(row[h] || '')).join(','));
-    const csvContent = [headers.join(','), ...rows].join('\n');
+    if (!Array.isArray(displayData) || displayData.length === 0) return;
+    const exportHeaders = headers.length > 0 ? headers : Object.keys(displayData[0]);
+    const rows = displayData.map(row => exportHeaders.map(h => JSON.stringify(row[h] || '')).join(','));
+    const csvContent = [exportHeaders.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -83,26 +120,66 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
     document.body.removeChild(link);
   };
 
-  if (loading) return <div className="p-12 text-center text-slate-400">Loading data...</div>;
+  // Define which columns to hide
+  const hiddenColumns = useMemo(() => {
+    const base = ['id', 'restrictions', 'canDownload'];
+    return base;
+  }, []);
 
-  const filteredData = data.filter(row => {
-    // Zone filter
-    const zoneMatch = selectedZone === 'ALL' || 
-                      (row.zone && row.zone === selectedZone) || 
-                      (row.location && row.location === selectedZone);
+  const filteredData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data.filter(row => {
+      if (!row) return false;
+      // Zone filter
+      const zoneMatch = selectedZone === 'ALL' || 
+                        (row.zone && String(row.zone).toUpperCase() === selectedZone.toUpperCase()) || 
+                        (row.location && String(row.location).toUpperCase() === selectedZone.toUpperCase());
+      
+      // Item filter
+      const itemMatch = selectedItem === 'ALL' || 
+                        (row.item && row.item === selectedItem) ||
+                        (row.items && row.items === selectedItem) ||
+                        (row.itemName && row.itemName === selectedItem);
+
+      const rowStr = Object.values(row as object).map(v => {
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'object') return JSON.stringify(v);
+        return String(v);
+      }).join(' ').toLowerCase();
+      const searchMatch = !activeSearch || rowStr.includes(activeSearch.toLowerCase());
+
+      return zoneMatch && itemMatch && searchMatch;
+    });
+  }, [data, selectedZone, selectedItem, activeSearch]);
+
+  const headers = useMemo(() => {
+    if (filteredData.length === 0) return [];
+    // Collect all unique keys from all rows to ensure no missing columns
+    const allKeys = new Set<string>();
+    filteredData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (!hiddenColumns.includes(key)) allKeys.add(key);
+      });
+    });
     
-    // Item filter
-    const itemMatch = selectedItem === 'ALL' || 
-                      (row.item && row.item === selectedItem) ||
-                      (row.items && row.items === selectedItem);
+    // Sort headers: timestamp first, then others
+    const sorted = Array.from(allKeys);
+    return sorted.sort((a, b) => {
+      if (a === 'timestamp' || a === 'createdAt') return -1;
+      if (b === 'timestamp' || b === 'createdAt') return 1;
+      return a.localeCompare(b);
+    });
+  }, [filteredData]);
 
-    const rowStr = Object.values(row).join(' ').toLowerCase();
-    const searchMatch = rowStr.includes(search.toLowerCase());
+  // Data to display
+  const displayData = filteredData;
 
-    return zoneMatch && itemMatch && searchMatch;
-  });
-
-  const headers = data.length > 0 ? Object.keys(data[0]).filter(h => h !== 'id' && h !== 'restrictions') : [];
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-20 space-y-4">
+      <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      <p className="text-slate-400 font-medium animate-pulse">Synchronizing Data...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -117,37 +194,52 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
               disabled={!!globalZone && globalZone !== 'ALL'}
             >
               <option value="ALL">ALL ZONES</option>
-              {['KERALA', 'TAMILNADU', 'BANGLORE'].map(z => <option key={z} value={z}>{z}</option>)}
+              {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Item:</span>
-            <select 
-              className="py-1 px-3 text-xs w-32"
-              value={selectedItem}
-              onChange={e => setSelectedItem(e.target.value)}
-            >
-              <option value="ALL">ALL ITEMS</option>
-              {['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'].map(i => <option key={i} value={i}>{i}</option>)}
-            </select>
-          </div>
+          {id !== 'B1' && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Item:</span>
+              <select 
+                className="py-1 px-3 text-xs w-32"
+                value={selectedItem}
+                onChange={e => setSelectedItem(e.target.value)}
+              >
+                <option value="ALL">ALL ITEMS</option>
+                {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="pl-9 py-1.5 text-xs"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1 pr-2 w-full md:w-64">
+            <div className="relative flex-1">
+              <input 
+                type="text" 
+                placeholder="Search..." 
+                className="pl-9 py-1.5 text-xs border-none bg-transparent focus:ring-0"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && fetchData()}
+              />
+              <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
+            <button 
+              type="button"
+              onClick={() => fetchData()}
+              className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-sm"
+            >
+              Search
+            </button>
           </div>
           {user.canDownload !== false && (
             <button onClick={exportToCSV} className="btn-secondary flex items-center gap-2 py-1.5 px-3 text-[10px] whitespace-nowrap">
               <Icon name="download" size={12} /> EXPORT
             </button>
           )}
+          <button onClick={() => setRefreshKey(prev => prev + 1)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
+            <Icon name="refresh-cw" size={14} />
+          </button>
         </div>
       </div>
 
@@ -160,10 +252,10 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone }) => {
             </tr>
           </thead>
           <tbody>
-            {filteredData.length === 0 ? (
+            {displayData.length === 0 ? (
               <tr><td colSpan={headers.length + (user.role === 'ADMIN' ? 1 : 0)} className="p-10 text-center text-slate-400 italic text-sm">No data matches your filters.</td></tr>
             ) : (
-              filteredData.map((row, i) => (
+              displayData.map((row, i) => (
                 <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   {headers.map(h => (
                     <td key={h} className="p-3 text-xs text-slate-600">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { api } from './services/api';
 import Icon from './components/Icon';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -18,6 +19,9 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [showSkip, setShowSkip] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
@@ -27,6 +31,21 @@ const App: React.FC = () => {
     setTimeout(() => setSuccessMessage(null), 2500);
   };
 
+  const checkConnectivity = useCallback(async () => {
+    try {
+      const res = await api.run('api_ping') as any;
+      setIsOnline(!!res?.success);
+    } catch (e) {
+      setIsOnline(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkConnectivity();
+    const interval = setInterval(checkConnectivity, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [checkConnectivity]);
+
   const fetchData = useCallback(async (customZone?: string) => {
     if (!user || user.role === 'LOGIN') return null;
     
@@ -34,14 +53,9 @@ const App: React.FC = () => {
     try {
       const zoneToFetch = customZone || (user.role === 'ADMIN' ? globalZone : user.location);
       const data = await api.run('api_getInitialData', { zone: zoneToFetch }) as any;
-      if (data) {
-        setUsers(prev => {
-          const fresh = Array.isArray(data.users) ? data.users : [];
-          const userMap = new Map();
-          [...prev, ...fresh].forEach(u => userMap.set(u.userCode, u));
-          return Array.from(userMap.values());
-        });
-        setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
+        if (data) {
+          setUsers(Array.isArray(data.users) ? data.users : []);
+          setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
         setConnectionError(null);
         return data;
       }
@@ -55,62 +69,98 @@ const App: React.FC = () => {
   }, [user?.userCode, user?.role, user?.location, globalZone]);
 
   useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      fetchData();
+    }
+  }, [globalZone, fetchData, user?.role]);
+
+  useEffect(() => {
+    const handleShowConfig = () => setConnectionError("CONFIGURATION_MODE");
+    window.addEventListener('SHOW_CONFIG', handleShowConfig);
+    
     const initApp = async () => {
       setLoading(true);
-      const savedUser = localStorage.getItem('bqos_session');
-      let initialProfile: any = null;
       
-      if (savedUser) {
-        try {
-          initialProfile = JSON.parse(savedUser);
-          setUser(initialProfile);
-          const activeZone = initialProfile.location === 'SYSTEM' || !initialProfile.location ? 'ALL' : initialProfile.location;
-          setGlobalZone(activeZone);
-          
-          if (initialProfile.role === 'ADMIN') setView('admin');
-          else if (initialProfile.role === 'WORKORDER') setView('workorder');
-          else setView('user');
-        } catch (e) {
-          localStorage.removeItem('bqos_session');
-        }
-      }
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 15000); // 15s absolute fallback
+
+      const skipTimer = setTimeout(() => {
+        setShowSkip(true);
+      }, 5000); // Show skip after 5s
 
       try {
-        const initData = await api.run('api_getInitialData', { zone: globalZone || 'ALL' }) as any;
-        const allUsers = initData?.users || [];
+        // Parallel fetch for speed
+        const [srvConfig, initResult] = await Promise.allSettled([
+          api.getServerConfig(),
+          api.run('api_getInitialData', { zone: 'ALL' }),
+          api.run('api_getUserSettings', 'GLOBAL')
+        ]);
+
+        if (srvConfig.status === 'fulfilled') {
+          setIsPermanentlyConnected(!!srvConfig.value.hasGasUrl);
+        }
+
+        const globalSettings = initResult.status === 'fulfilled' ? (initResult as any).value : null;
+        if (globalSettings && !Array.isArray(globalSettings)) { // api_getUserSettings returns object
+           // If the 3rd promise was getUserSettings GLOBAL
+        }
+
+        // Re-read results properly
+        let initialData: any = null;
+        if (initResult.status === 'fulfilled') initialData = initResult.value;
+        
+        const allUsers = initialData?.users || [];
         setUsers(allUsers);
 
-        if (initialProfile) {
-          const freshProfile = allUsers.find((u: any) => u.userCode === initialProfile.userCode);
-          if (freshProfile) {
-            setUser(freshProfile);
-            // Fetch additional data
-            try {
-               const [s, wos] = await Promise.all([
-                 api.run('api_getUserSettings', freshProfile.userCode),
-                 api.run('api_getWorkorders', { zone: globalZone || 'ALL' })
+        // Fetch global settings specifically if not done in parallel or failed
+        try {
+           const s = await api.run('api_getUserSettings', 'GLOBAL');
+           if (s) setSettings(s);
+        } catch(e) {}
+
+        const savedSession = localStorage.getItem('bqos_session');
+        if (savedSession) {
+          try {
+            const session = JSON.parse(savedSession);
+            setUser(session);
+            const activeZone = session.location === 'SYSTEM' || !session.location ? 'ALL' : session.location;
+            setGlobalZone(activeZone);
+            
+            if (session.role === 'ADMIN') setView('admin');
+            else if (session.role === 'WORKORDER') setView('workorder');
+            else setView('user');
+
+            // Find fresh profile
+            const fresh = allUsers.find((u: any) => u.userCode === session.userCode);
+            if (fresh) {
+               setUser(fresh);
+               const [s, wos] = await Promise.allSettled([
+                 api.run('api_getUserSettings', fresh.userCode),
+                 api.run('api_getWorkorders', { zone: activeZone })
                ]);
-               setSettings(s || {});
-               setWorkorders(wos || []);
-            } catch (e) {
-               console.warn("Soft initialization failure for settings/workorders");
+               if (s.status === 'fulfilled') setSettings(s.value);
+               if (wos.status === 'fulfilled') setWorkorders(wos.value || []);
             }
+          } catch (e) {
+            localStorage.removeItem('bqos_session');
           }
         } else {
           setView('login');
         }
       } catch (e: any) {
         console.error("Initialization Error:", e);
-        if (e.message !== "CONFIGURATION_REQUIRED") {
-           setConnectionError(e.message || "Connection Failed");
-        }
-        if (!initialProfile) setView('login');
+        setConnectionError(e.message || "Initialization Failed");
+        setView('login');
       } finally {
+        clearTimeout(timeoutId);
+        clearTimeout(skipTimer);
         setLoading(false);
       }
     };
 
     initApp();
+    return () => window.removeEventListener('SHOW_CONFIG', handleShowConfig);
   }, []);
 
   const handleLogin = async (u: any) => {
@@ -144,7 +194,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     localStorage.removeItem('bqos_session');
     setUser(null);
-    setUsers([]);
+    // Keep users to allow login without refresh
     setWorkorders([]);
     setSettings(null);
     setGlobalZone('ALL');
@@ -153,15 +203,92 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
+    const hasConnection = localStorage.getItem('VITE_GAS_URL') || isPermanentlyConnected;
+    if (connectionError === 'CONFIGURATION_REQUIRED' || connectionError === 'CONFIGURATION_MODE' || (!hasConnection && view === 'splash' && !loading)) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-start justify-center pt-12 p-4">
+          <div className="w-full max-w-2xl">
+            <AdminDashboard 
+              currentUser={{ role: 'ADMIN', username: 'CONFIG_MODE' }} 
+              onLogout={() => {
+                setConnectionError(null);
+                if (view === 'splash' || !user) setView('login');
+              }}
+              configOnlyMode={true}
+            />
+          </div>
+        </div>
+      );
+    }
+
     switch (view) {
       case 'splash':
         return (
-          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white">
+          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6">
             <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/20 animate-bounce">
               <Icon name="clipboard-check" size={48} />
             </div>
             <h1 className="text-4xl font-black tracking-tighter mb-2">BQOS <span className="text-indigo-500">APP</span></h1>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.4em] animate-pulse">Initializing System...</p>
+            
+            {connectionError ? (
+              <div className="max-w-md w-full animate-fade-in text-center">
+                <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl mb-4">
+                   <p className="text-rose-400 font-bold text-xs uppercase tracking-widest mb-2">Connection Error</p>
+                   <p className="text-sm text-slate-300 font-medium">{connectionError}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="w-full bg-white text-slate-900 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 flex items-center justify-center gap-2"
+                  >
+                    <Icon name="refresh-cw" size={14} />
+                    Retry Connection
+                  </button>
+                  <button 
+                    onClick={() => {
+                       localStorage.removeItem('VITE_GAS_URL');
+                       setConnectionError("CONFIGURATION_MODE");
+                    }}
+                    className="w-full bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-700 flex items-center justify-center gap-2"
+                  >
+                    <Icon name="settings" size={14} />
+                    Reset & Setup Again
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex gap-2">
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                      className="w-2.5 h-2.5 bg-indigo-500 rounded-full"
+                    />
+                  ))}
+                </div>
+                <div className="text-center space-y-4">
+                  <div>
+                    <p className="text-white font-black text-sm uppercase tracking-[0.3em] mb-1">
+                      Connecting to System
+                    </p>
+                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                      Updating Cloud Spreadsheet
+                    </p>
+                  </div>
+
+                  {showSkip && (
+                    <button 
+                      onClick={() => setLoading(false)}
+                      className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-white transition-colors border border-indigo-500/30 bg-indigo-500/10 px-6 py-3 rounded-xl animate-fade-in"
+                    >
+                      Continue anyway
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       case 'login':
@@ -174,6 +301,7 @@ const App: React.FC = () => {
                   <ConnectionGuide 
                     error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
                     onClose={() => setConnectionError(null)} 
+                    isPermanentlyConnected={isPermanentlyConnected}
                   />
                 </div>
               </div>
@@ -185,19 +313,25 @@ const App: React.FC = () => {
           <div className="min-h-screen bg-slate-50 flex flex-col">
             <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
               <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                    <Icon name="clipboard-check" size={20} />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                      <Icon name="clipboard-check" size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">BQOS <span className="text-indigo-600">APP</span></h1>
+                        <div 
+                          className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : isOnline === false ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-slate-300'} transition-all`}
+                          title={isOnline ? "Connected to Server" : "Disconnected"}
+                        />
+                      </div>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">BQOS <span className="text-indigo-600">APP</span></h1>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
-                  </div>
-                </div>
                 <div className="flex items-center gap-2 md:gap-4">
                   {user?.role === 'ADMIN' && (
                     <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                      {['ALL', 'KERALA', 'TAMILNADU', 'BANGLORE'].map(z => (
+                      {['ALL', ...(settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'])].map(z => (
                         <button
                           key={z}
                           onClick={() => setGlobalZone(z)}
@@ -236,7 +370,7 @@ const App: React.FC = () => {
               </div>
               {user?.role === 'ADMIN' && (
                 <div className="sm:hidden mt-2 bg-slate-100 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
-                  {['ALL', 'KERALA', 'TAMILNADU', 'BANGLORE'].map(z => (
+                  {['ALL', ...(settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'])].map(z => (
                     <button
                       key={z}
                       onClick={() => setGlobalZone(z)}
@@ -254,6 +388,7 @@ const App: React.FC = () => {
                 <ConnectionGuide 
                   error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
                   onClose={() => setConnectionError(null)} 
+                  isPermanentlyConnected={isPermanentlyConnected}
                 />
               )}
 
@@ -266,7 +401,6 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                        <button onClick={() => setView('workorder')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="package" size={14} /> Workorders</button>
-                       <button onClick={() => setView('user')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="layout" size={14} /> User View</button>
                     </div>
                   </div>
                   <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} />
@@ -281,7 +415,6 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                        {user?.role === 'ADMIN' && <button onClick={() => setView('admin')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="shield" size={14} /> Admin</button>}
-                       <button onClick={() => setView('user')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="layout" size={14} /> User View</button>
                     </div>
                   </div>
                   <WorkorderDashboard 

@@ -32,7 +32,7 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
     if (id === 'A4') return <EndlineQuality {...commonProps} users={users} />;
     if (id === 'A5') return <AQLInspection {...commonProps} />;
     if (id === 'A6') return <FinalAudit {...commonProps} />;
-    if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} />;
+    if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} settings={settings} />;
     if (id.startsWith('C')) return <MISView id={id} globalZone={globalZone} />;
     return <div className="p-12 text-center text-slate-400 italic">Submodule {id} form logic coming soon...</div>;
   };
