@@ -14,12 +14,13 @@ interface EndlineQualityProps {
 }
 
 const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workorders, users, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || ZONES || [];
-  const currentUnits = settings?.UNIT || UNITS || [];
-  const currentDefects = settings?.DEFECTS || DEFECTS || [];
-  const currentOperations = settings?.OPERATIONS || OPERATIONS || [];
-  const currentWorkers = settings?.WORKERS || WORKERS || [];
-  const currentMachines = settings?.MACHINE || MACHINES || [];
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
+  const currentUnits = settings?.UNIT || settings?.UNITS || UNITS || [];
+  const currentDefects = settings?.DEFECTS || settings?.DEFECT || DEFECTS || [];
+  const currentOperations = settings?.OPERATION || settings?.OPERATIONS || OPERATIONS || [];
+  const currentWorkers = settings?.WORKERS || settings?.WORKER || WORKERS || [];
+  const currentMachines = settings?.MACHINE || settings?.MACHINES || MACHINES || [];
+  const currentLines = settings?.LINE || settings?.LINES || [];
 
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
@@ -119,7 +120,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
                 const status = String(w.status || "").toUpperCase().trim();
-                return wZone === fZone && status === 'ENDLINE';
+                return wZone === fZone && (status === 'ENDLINE' || status === 'INLINE_AND_ENDLINE');
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
             }
@@ -133,12 +134,19 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({ user, settings, workord
         </div>
       </div>
 
-      <WorkorderDetailCard wo={selectedWO} />
+      <WorkorderDetailCard wo={selectedWO} settings={settings} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
           <label>Line</label>
-          <input type="text" placeholder="Line" value={form.line} onChange={e => setForm({...form, line: e.target.value})} />
+          {currentLines.length > 0 ? (
+            <select value={form.line} onChange={e => setForm({...form, line: e.target.value})} className="w-full text-xs p-2 rounded border border-slate-200 font-semibold bg-white mt-1">
+              <option value="">Select Line</option>
+              {currentLines.map((l: string) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          ) : (
+            <input type="text" placeholder="Line" value={form.line} onChange={e => setForm({...form, line: e.target.value})} />
+          )}
         </div>
         <div>
           <label>Bundle No</label>

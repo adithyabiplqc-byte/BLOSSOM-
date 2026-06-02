@@ -11,9 +11,10 @@ interface MaterialInspectionProps {
 }
 
 const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings, triggerSuccess, globalZone }) => {
-  const currentSuppliers = settings?.SUPPLIER || [];
-  const currentItems = settings?.ITEMS || [];
-  const currentZones = settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'];
+  const currentSuppliers = settings?.SUPPLIER || settings?.SUPPLIERS || [];
+  const currentItems = settings?.ITEMS || settings?.ITEM || [];
+  const currentZones = settings?.ZONE || settings?.ZONES || ['KERALA', 'TIRUPUR', 'BANGLORE'];
+  const currentStyles = settings?.STYLE_NAME || settings?.['STYLE_NAME'] || settings?.['STYLE NAME'] || settings?.STYLE || settings?.STYLES || [];
 
   const [header, setHeader] = useState({
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''),
@@ -36,8 +37,8 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
     if (!header.supplierName && currentSuppliers.length > 0) {
       setHeader(prev => ({ ...prev, supplierName: currentSuppliers[0] }));
     }
-    if (items.length === 1 && !items[0].itemName && currentItems.length > 0) {
-      updateItem(0, 'itemName', currentItems[0]);
+    if (items.length === 1 && currentItems.length > 0) {
+      if (!items[0].itemName) updateItem(0, 'itemName', currentItems[0]);
     }
   }, [currentSuppliers, currentItems]);
 

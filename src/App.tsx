@@ -28,6 +28,7 @@ const App: React.FC = () => {
 
   const triggerSuccess = (message: string) => {
     setSuccessMessage(message);
+    fetchData();
     setTimeout(() => setSuccessMessage(null), 2500);
   };
 
@@ -53,7 +54,7 @@ const App: React.FC = () => {
     
     setLoading(true);
     try {
-      const zoneToFetch = customZone || (user.role === 'ADMIN' ? globalZone : user.location);
+      const zoneToFetch = customZone || (user.role === 'ADMIN' ? globalZone : (user.zone || user.location));
       const data = await api.run('api_getInitialData', { zone: zoneToFetch }) as any;
         if (data) {
           setUsers(Array.isArray(data.users) ? data.users : []);
@@ -68,13 +69,31 @@ const App: React.FC = () => {
       setLoading(false);
     }
     return null;
-  }, [user?.userCode, user?.role, user?.location, globalZone]);
+  }, [user?.userCode, user?.role, user?.location, user?.zone, globalZone]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       fetchData();
     }
   }, [globalZone, fetchData, user?.role]);
+
+  // Keep logged-in user info in sync with fresh database updates (e.g., administrator restriction updates)
+  useEffect(() => {
+    if (user && users.length > 0) {
+      const freshUser = users.find(u => u.userCode === user.userCode);
+      if (freshUser) {
+        if (JSON.stringify(freshUser.restrictions) !== JSON.stringify(user.restrictions) || 
+            freshUser.canDownload !== user.canDownload || 
+            freshUser.role !== user.role || 
+            freshUser.username !== user.username ||
+            freshUser.zone !== user.zone ||
+            freshUser.location !== user.location) {
+          setUser(freshUser);
+          localStorage.setItem('bqos_session', JSON.stringify(freshUser));
+        }
+      }
+    }
+  }, [users, user?.userCode]);
 
   useEffect(() => {
     const handleShowConfig = () => setConnectionError("CONFIGURATION_MODE");
@@ -85,67 +104,92 @@ const App: React.FC = () => {
       
       const timeoutId = setTimeout(() => {
         setLoading(false);
-      }, 15000); // 15s absolute fallback
+      }, 25000); // 25s absolute fallback
 
       const skipTimer = setTimeout(() => {
         setShowSkip(true);
       }, 5000); // Show skip after 5s
 
       try {
-        // Parallel fetch for speed
-        const [srvConfig, initResult] = await Promise.allSettled([
-          api.getServerConfig(),
-          api.run('api_getInitialData', { zone: 'ALL' }),
-          api.run('api_getUserSettings', 'GLOBAL')
-        ]);
-
-        if (srvConfig.status === 'fulfilled') {
-          setIsPermanentlyConnected(!!srvConfig.value.hasGasUrl);
-        }
-
-        const globalSettings = initResult.status === 'fulfilled' ? (initResult as any).value : null;
-        if (globalSettings && !Array.isArray(globalSettings)) { // api_getUserSettings returns object
-           // If the 3rd promise was getUserSettings GLOBAL
-        }
-
-        // Re-read results properly
-        let initialData: any = null;
-        if (initResult.status === 'fulfilled') initialData = initResult.value;
+        // 1. First fetch server config sequentially to obtain proper server configuration state
+        const srvConfigVal = await api.getServerConfig();
+        const hasUrl = !!srvConfigVal?.hasGasUrl;
+        setIsPermanentlyConnected(hasUrl);
         
-        const allUsers = initialData?.users || [];
-        setUsers(allUsers);
+        if (hasUrl && srvConfigVal.source !== 'hardcoded') {
+          console.log("[SYSTEM] Connecting through custom GAS server proxy...");
+        }
 
-        // Fetch global settings specifically if not done in parallel or failed
-        try {
-           const s = await api.run('api_getUserSettings', 'GLOBAL');
-           if (s) setSettings(s);
-        } catch(e) {}
-
+        // 2. Identify saved session before calling initial data so we can request for specific user settings immediately!
         const savedSession = localStorage.getItem('bqos_session');
+        let session: any = null;
+        let activeZone = 'ALL';
+        let sessionUserCode = '';
         if (savedSession) {
           try {
-            const session = JSON.parse(savedSession);
-            setUser(session);
-            const activeZone = session.location === 'SYSTEM' || !session.location ? 'ALL' : session.location;
-            setGlobalZone(activeZone);
-            
-            if (session.role === 'ADMIN') setView('admin');
-            else if (session.role === 'WORKORDER') setView('workorder');
-            else setView('user');
-
-            // Find fresh profile
-            const fresh = allUsers.find((u: any) => u.userCode === session.userCode);
-            if (fresh) {
-               setUser(fresh);
-               const [s, wos] = await Promise.allSettled([
-                 api.run('api_getUserSettings', fresh.userCode),
-                 api.run('api_getWorkorders', { zone: activeZone })
-               ]);
-               if (s.status === 'fulfilled') setSettings(s.value);
-               if (wos.status === 'fulfilled') setWorkorders(wos.value || []);
-            }
+            session = JSON.parse(savedSession);
+            activeZone = session.zone || (session.location === 'SYSTEM' || !session.location ? 'ALL' : session.location);
+            sessionUserCode = session.userCode || '';
           } catch (e) {
             localStorage.removeItem('bqos_session');
+          }
+        }
+
+        // 3. Run initialization queries in a single direct backend operation! Let's pass userCode and zone to fetch everything parallelly!
+        const [initResult] = await Promise.allSettled([
+          api.run('api_getInitialData', { zone: activeZone, userCode: sessionUserCode })
+        ]);
+
+        let initialData: any = null;
+        if (initResult.status === 'fulfilled') {
+          initialData = initResult.value;
+        }
+        
+        let allUsers = initialData?.users || [];
+        if (allUsers.length === 0) {
+          try {
+            const stored = localStorage.getItem('bqos_local_sheet_USERS');
+            if (stored) {
+              allUsers = JSON.parse(stored);
+            }
+          } catch (e) {}
+        }
+        if (allUsers.length === 0) {
+          allUsers = [
+            { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "KERALA", restrictions: [], canDownload: true },
+            { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "KERALA", restrictions: [], canDownload: true },
+            { userCode: "W001", username: "wo1", password: "123", role: "WORKORDER", location: "KERALA", restrictions: [], canDownload: true }
+          ];
+        }
+        setUsers(allUsers);
+
+        // Set global settings or user settings if returned by initial data!
+        if (initialData?.settings) {
+          setSettings(initialData.settings);
+        } else {
+          // Fallback settings query
+          try {
+            const s = await api.run('api_getUserSettings', sessionUserCode || 'GLOBAL');
+            if (s) setSettings(s);
+          } catch (e) {}
+        }
+
+        if (session) {
+          setUser(session);
+          setGlobalZone(activeZone);
+          
+          if (initialData?.workorders) {
+            setWorkorders(initialData.workorders);
+          }
+
+          if (session.role === 'ADMIN') setView('admin');
+          else if (session.role === 'WORKORDER') setView('workorder');
+          else setView('user');
+
+          // Sync fresh profile details if in the database
+          const fresh = allUsers.find((u: any) => u.userCode === session.userCode);
+          if (fresh) {
+             setUser(fresh);
           }
         } else {
           setView('login');
@@ -168,7 +212,7 @@ const App: React.FC = () => {
   const handleLogin = async (u: any) => {
     localStorage.setItem('bqos_session', JSON.stringify(u));
     setUser(u);
-    const activeZone = u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location;
+    const activeZone = u.zone || (u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location);
     setGlobalZone(activeZone);
     
     if (u.role === 'ADMIN') setView('admin');
@@ -205,7 +249,7 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
-    const hasConnection = localStorage.getItem('VITE_GAS_URL') || isPermanentlyConnected;
+    const hasConnection = localStorage.getItem('VITE_GAS_URL') || isPermanentlyConnected || localStorage.getItem('VITE_SPREADSHEET_ID');
     if (connectionError === 'CONFIGURATION_REQUIRED' || connectionError === 'CONFIGURATION_MODE' || (!hasConnection && view === 'splash' && !loading)) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-start justify-center pt-12 p-4">
@@ -217,6 +261,7 @@ const App: React.FC = () => {
                 if (view === 'splash' || !user) setView('login');
               }}
               configOnlyMode={true}
+              settings={settings}
             />
           </div>
         </div>
@@ -226,22 +271,22 @@ const App: React.FC = () => {
     switch (view) {
       case 'splash':
         return (
-          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6">
-            <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/20 animate-bounce">
-              <Icon name="clipboard-check" size={48} />
+          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-800 p-6">
+            <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-200 animate-bounce">
+              <Icon name="clipboard-check" size={48} className="text-white" />
             </div>
-            <h1 className="text-4xl font-black tracking-tighter mb-2">BQOS <span className="text-indigo-500">APP</span></h1>
+            <h1 className="text-4xl font-black tracking-tighter mb-2 text-slate-800">BQOS <span className="text-indigo-600 font-extrabold">APP</span></h1>
             
             {connectionError ? (
               <div className="max-w-md w-full animate-fade-in text-center">
-                <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-2xl mb-4">
-                   <p className="text-rose-400 font-bold text-xs uppercase tracking-widest mb-2">Connection Error</p>
-                   <p className="text-sm text-slate-300 font-medium">{connectionError}</p>
+                <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl mb-4 text-rose-800">
+                   <p className="text-rose-600 font-bold text-xs uppercase tracking-widest mb-2">Connection Error</p>
+                   <p className="text-sm font-medium text-slate-600">{connectionError}</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   <button 
                     onClick={() => window.location.reload()}
-                    className="w-full bg-white text-slate-900 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 flex items-center justify-center gap-2"
+                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-md shadow-indigo-100"
                   >
                     <Icon name="refresh-cw" size={14} />
                     Retry Connection
@@ -251,7 +296,7 @@ const App: React.FC = () => {
                        localStorage.removeItem('VITE_GAS_URL');
                        setConnectionError("CONFIGURATION_MODE");
                     }}
-                    className="w-full bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-700 flex items-center justify-center gap-2"
+                    className="w-full bg-slate-200 text-slate-800 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-300 flex items-center justify-center gap-2"
                   >
                     <Icon name="settings" size={14} />
                     Reset & Setup Again
@@ -272,10 +317,10 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-center space-y-4">
                   <div>
-                    <p className="text-white font-black text-sm uppercase tracking-[0.3em] mb-1">
+                    <p className="text-slate-800 font-black text-sm uppercase tracking-[0.3em] mb-1">
                       Connecting to System
                     </p>
-                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest animate-pulse">
                       Updating Cloud Spreadsheet
                     </p>
                   </div>
@@ -283,7 +328,7 @@ const App: React.FC = () => {
                   {showSkip && (
                     <button 
                       onClick={() => setLoading(false)}
-                      className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-white transition-colors border border-indigo-500/30 bg-indigo-500/10 px-6 py-3 rounded-xl animate-fade-in"
+                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-colors border border-indigo-200 bg-indigo-50 px-6 py-3 rounded-xl animate-fade-in"
                     >
                       Continue anyway
                     </button>
@@ -314,7 +359,8 @@ const App: React.FC = () => {
         return (
           <div className="min-h-screen bg-slate-50 flex flex-col">
             <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
-              <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
                       <Icon name="clipboard-check" size={20} />
@@ -330,10 +376,39 @@ const App: React.FC = () => {
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
                     </div>
                   </div>
-                <div className="flex items-center gap-2 md:gap-4">
+                </div>
+
+                {/* CENTRAL DASHBOARD SWITCHER (ADMIN ONLY) */}
+                {user?.role === 'ADMIN' && (
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200 justify-center">
+                    <button
+                      onClick={() => { setView('admin'); setSelectedSubmodule(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                    >
+                      <Icon name="shield" size={12} />
+                      Admin Panel
+                    </button>
+                    <button
+                      onClick={() => { setView('workorder'); setSelectedSubmodule(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'workorder' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                    >
+                      <Icon name="package" size={12} />
+                      Workorders
+                    </button>
+                    <button
+                      onClick={() => { setView('user'); setSelectedSubmodule(''); }}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${(view === 'user' || view === 'submodule') ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                    >
+                      <Icon name="activity" size={12} />
+                      Operations
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-2 md:gap-4 self-end md:self-auto">
                   {user?.role === 'ADMIN' && (
                     <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                      {['ALL', ...(settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'])].map(z => (
+                      {['ALL', ...(settings?.ZONE || ['KERALA', 'TIRUPUR', 'BANGLORE'])].map(z => (
                         <button
                           key={z}
                           onClick={() => setGlobalZone(z)}
@@ -354,16 +429,18 @@ const App: React.FC = () => {
                     </button>
                   )}
                   <button 
-                    onClick={fetchData} 
+                    onClick={() => fetchData()} 
                     disabled={loading}
                     className={`p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all shadow-sm ${loading ? 'animate-spin opacity-50' : ''}`}
                     title="Refresh Data"
                   >
                     <Icon name="refresh-cw" size={18} />
                   </button>
-                  <div className="hidden md:flex flex-col items-end">
+                  <div className="flex flex-col items-end">
                     <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{user?.username}</span>
-                    <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">{user?.role} • {user?.location}</span>
+                    <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">
+                      {user?.role} • {user?.zone || user?.location}{user?.location && user?.zone && user?.location !== user?.zone ? ` - ${user.location}` : ''}
+                    </span>
                   </div>
                   <button onClick={handleLogout} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm">
                     <Icon name="log-out" size={18} />
@@ -372,7 +449,7 @@ const App: React.FC = () => {
               </div>
               {user?.role === 'ADMIN' && (
                 <div className="sm:hidden mt-2 bg-slate-100 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
-                  {['ALL', ...(settings?.ZONE || ['KERALA', 'TAMILNADU', 'BANGLORE'])].map(z => (
+                  {['ALL', ...(settings?.ZONE || ['KERALA', 'TIRUPUR', 'BANGLORE'])].map(z => (
                     <button
                       key={z}
                       onClick={() => setGlobalZone(z)}
@@ -386,12 +463,32 @@ const App: React.FC = () => {
             </header>
 
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
-              {connectionError && (
+              {connectionError && (connectionError === 'CONFIGURATION_REQUIRED' || connectionError === 'CONFIGURATION_MODE') ? (
                 <ConnectionGuide 
                   error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
                   onClose={() => setConnectionError(null)} 
                   isPermanentlyConnected={isPermanentlyConnected}
                 />
+              ) : (
+                connectionError && (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-center justify-between mb-6 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center">
+                        <Icon name="alert-triangle" size={16} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs uppercase tracking-wider">Sheets Sync Warning</h4>
+                        <p className="text-xs text-rose-600/90 font-medium">{connectionError}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setConnectionError(null)}
+                      className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
+                    >
+                      <Icon name="x" size={16} />
+                    </button>
+                  </div>
+                )
               )}
 
               {view === 'admin' && (
@@ -401,11 +498,8 @@ const App: React.FC = () => {
                       <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Admin <span className="text-indigo-600">Control</span></h2>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
                     </div>
-                    <div className="flex gap-2">
-                       <button onClick={() => setView('workorder')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="package" size={14} /> Workorders</button>
-                    </div>
                   </div>
-                  <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} />
+                  <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} settings={settings} />
                 </div>
               )}
               {view === 'workorder' && (
@@ -414,9 +508,6 @@ const App: React.FC = () => {
                     <div>
                       <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Workorder <span className="text-indigo-600">Center</span></h2>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
-                    </div>
-                    <div className="flex gap-2">
-                       {user?.role === 'ADMIN' && <button onClick={() => setView('admin')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="shield" size={14} /> Admin</button>}
                     </div>
                   </div>
                   <WorkorderDashboard 
@@ -432,17 +523,12 @@ const App: React.FC = () => {
               )}
               {view === 'user' && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Operation <span className="text-indigo-600">Dashboard</span></h2>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Zone: {globalZone}</p>
-                    </div>
-                    <div className="flex gap-2">
-                       {user?.role === 'ADMIN' && <button onClick={() => setView('admin')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="shield" size={14} /> Admin</button>}
-                       {(user?.role === 'ADMIN' || user?.role === 'WORKORDER') && <button onClick={() => setView('workorder')} className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"><Icon name="package" size={14} /> Workorders</button>}
-                    </div>
-                  </div>
-                  <UserDashboard user={user} onSelectSubmodule={(id) => { setSelectedSubmodule(id); setView('submodule'); }} />
+                  <UserDashboard 
+                    user={user} 
+                    onSelectSubmodule={(id) => { setSelectedSubmodule(id); setView('submodule'); }} 
+                    workorders={workorders}
+                    users={users}
+                  />
                 </div>
               )}
               {view === 'submodule' && (

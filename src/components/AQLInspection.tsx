@@ -13,8 +13,8 @@ interface AQLInspectionProps {
 }
 
 const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || ZONES || [];
-  const currentUnits = settings?.UNIT || UNITS || [];
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
+  const currentUnits = settings?.UNIT || settings?.UNITS || UNITS || [];
 
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
@@ -102,7 +102,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
 
       {selectedWO && (
         <div className="animate-zoom-in">
-          <WorkorderDetailCard wo={selectedWO} />
+          <WorkorderDetailCard wo={selectedWO} settings={settings} />
         </div>
       )}
 

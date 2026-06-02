@@ -6,12 +6,13 @@ export interface User {
   password: string;
   role: UserRole;
   location: string;
+  zone?: string;
   restrictions: string[]; // List of disabled submodule IDs
 }
 
 export interface Workorder {
   id: string;
-  zone: 'KERALA' | 'TAMILNADU' | 'BANGLORE';
+  zone: 'KERALA' | 'TIRUPUR' | 'BANGLORE';
   workorderNumber: string;
   style: string;
   sizeRange: string;

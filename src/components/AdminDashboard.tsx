@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { api } from '../services/api';
-import { ZONES, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
+import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
 
 interface AdminDashboardProps {
@@ -13,6 +13,7 @@ interface AdminDashboardProps {
   workorders?: any[];
   configOnlyMode?: boolean;
   onLogout?: () => void;
+  settings?: any;
 }
 
 const UserRow = React.memo(({ u, onEdit }: { u: any, onEdit: () => void }) => (
@@ -25,7 +26,8 @@ const UserRow = React.memo(({ u, onEdit }: { u: any, onEdit: () => void }) => (
         {u.role}
       </span>
     </td>
-    <td className="p-3 text-slate-500">{u.location}</td>
+    <td className="p-3 text-slate-500 font-semibold">{u.zone || '-'}</td>
+    <td className="p-3 text-slate-500">{u.location || '-'}</td>
     <td className="p-3 text-right flex justify-end gap-2">
       <button 
         onClick={onEdit}
@@ -47,7 +49,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   globalZone, 
   workorders = [],
   configOnlyMode = false,
-  onLogout
+  onLogout,
+  settings
 }) => {
   const [tab, setTab] = useState(configOnlyMode ? 'server' : 'list');
   const [editingUserCode, setEditingUserCode] = useState('');
@@ -55,14 +58,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [deletingUserCode, setDeletingUserCode] = useState('');
   const isLocked = useRef(false);
   
+  const styleOptions = React.useMemo(() => {
+    if (settings) {
+      const styles = settings.STYLE_NAME || settings['STYLE_NAME'] || settings['STYLE NAME'] || settings.STYLE || settings.STYLES;
+      if (Array.isArray(styles)) {
+        return styles;
+      }
+    }
+    return ['STYLE 1', 'STYLE 2', 'STYLE 3'];
+  }, [settings]);
+
   const filteredUsers = React.useMemo(() => {
-    const unique = users.filter((u, index, self) => 
+    return users.filter((u, index, self) => 
       self.findIndex(t => t.userCode === u.userCode) === index
     );
-    return unique.filter(u => 
-      !globalZone || globalZone === 'ALL' || u.location === globalZone || u.location === 'SYSTEM'
-    );
-  }, [users, globalZone]);
+  }, [users]);
 
   const editingUser = React.useMemo(() => users.find(u => u.userCode === editingUserCode), [users, editingUserCode]);
   const restrictingUser = React.useMemo(() => users.find(u => u.userCode === restrictingUserCode), [users, restrictingUserCode]);
@@ -72,12 +82,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     username: '', 
     password: '', 
     role: 'USER', 
-    location: (globalZone && globalZone !== 'ALL') ? globalZone : ZONES[0] 
+    location: '', 
+    zone: (globalZone && globalZone !== 'ALL') ? globalZone : ZONES[0]
   });
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
 
   React.useEffect(() => {
     if (tab === 'server' && serverUrl) {
@@ -94,7 +106,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Sync newUser location with globalZone when it changes
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
-      setNewUser(prev => ({ ...prev, location: globalZone }));
+      setNewUser(prev => ({ ...prev, zone: globalZone }));
     }
   }, [globalZone]);
 
@@ -110,7 +122,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     OPERATION: 'FRONT ATTACH\nBACK ATTACH\nSLEEVE ATTACH',
     MACHINE: 'SNLS\nDNLS\nO/L\nF/L',
     WORKERS: 'WORKER 1\nWORKER 2\nWORKER 3\nWORKER 4',
-    LINE: 'LINE 1\nLINE 2'
+    LINE: 'LINE 1\nLINE 2',
+    STYLE_NAME: 'STYLE A\nSTYLE B\nSTYLE C'
   };
 
   const [selectedUserCode, setSelectedUserCode] = useState('');
@@ -155,27 +168,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const currentUsers = Array.isArray(serverUsers) ? serverUsers : users;
       
       const exists = currentUsers.some((u: any) => 
-        u.username.toLowerCase() === cleanUsername.toLowerCase()
+        String(u?.username || '').toLowerCase() === cleanUsername.toLowerCase()
       );
       
-      const pwdExists = currentUsers.some((u: any) => u.password === cleanPassword);
-
       if (exists) {
         alert(`Error: Username "${cleanUsername}" is already taken.`);
         setIsSubmitting(false);
         isLocked.current = false;
         return;
       }
-
-      if (pwdExists) {
-        alert(`Error: This password is already in use by another account.`);
-        setIsSubmitting(false);
-        isLocked.current = false;
-        return;
-      }
       
       const maxCode = currentUsers.reduce((max: number, u: any) => {
-        const codeNum = parseInt(String(u.userCode || '').replace(/\D/g, '')) || 0;
+        const codeNum = parseInt(String(u?.userCode || '').replace(/\D/g, '')) || 0;
         return codeNum > max ? codeNum : max;
       }, 0);
       
@@ -196,7 +200,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         throw new Error(result?.error || "Server failed to save user");
       }
       
-      setNewUser({ username: '', password: '', role: 'USER', location: ZONES[0] });
+      setNewUser({ username: '', password: '', role: 'USER', location: '', zone: ZONES[0] });
       await refreshData();
       await logActivity('ADD USER', `Created user ${userCode} (${cleanUsername})`);
       triggerSuccess(`USER ${userCode} CREATED SUCCESSFULLY`);
@@ -364,7 +368,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th className="p-3">Username</th>
                   <th className="p-3">Password</th>
                   <th className="p-3">Role</th>
-                  <th className="p-3">Location</th>
+                  <th className="p-3">Zone</th>
+                  <th className="p-3">Location / Unit</th>
                   <th className="p-3 text-right">Action</th>
                 </tr>
               </thead>
@@ -390,19 +395,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Assigned User Code</label>
-                <div className="bg-slate-50 p-3 rounded-xl border-2 border-dashed border-indigo-200 flex items-center justify-between group transition-all hover:bg-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg">
-                      <Icon name="fingerprint" size={16} />
-                    </div>
-                    <span className="font-mono text-indigo-600 font-black text-lg">
-                      U{String(users.reduce((max, u) => {
-                        const codeNum = parseInt(String(u.userCode || '').replace(/\D/g, '')) || 0;
-                        return codeNum > max ? codeNum : max;
-                      }, 0) + 1).padStart(3, '0')}
-                    </span>
-                  </div>
-                </div>
+                <input 
+                  type="text" 
+                  readOnly 
+                  className="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-sm cursor-not-allowed select-none"
+                  value={"U" + String(users.reduce((max, u) => {
+                    const codeNum = parseInt(String(u.userCode || '').replace(/\D/g, '')) || 0;
+                    return codeNum > max ? codeNum : max;
+                  }, 0) + 1).padStart(3, '0')}
+                />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Username</label>
@@ -429,10 +430,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Zone</label>
-                <select value={newUser.location} onChange={e => setNewUser({...newUser, location: e.target.value})}>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Zone</label>
+                <select value={newUser.zone} onChange={e => setNewUser({...newUser, zone: e.target.value})}>
                   {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
+                <input 
+                  type="text" 
+                  placeholder="Enter Unit or Location Name" 
+                  value={newUser.location} 
+                  onChange={e => setNewUser({...newUser, location: e.target.value})} 
+                />
               </div>
               <button 
                 type="button"
@@ -487,13 +497,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label>Location</label>
-                    <select value={editingUser.location} onChange={e => {
-                      const updated = { ...editingUser, location: e.target.value };
+                    <label>Zone</label>
+                    <select value={editingUser.zone || ''} onChange={e => {
+                      const updated = { ...editingUser, zone: e.target.value };
                       setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
                     }}>
                       {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
+                    <input 
+                      type="text" 
+                      placeholder="Enter Unit or Location Name" 
+                      value={editingUser.location || ''} 
+                      onChange={e => {
+                        const updated = { ...editingUser, location: e.target.value };
+                        setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                      }} 
+                    />
                   </div>
                   <button 
                     onClick={handleUpdate} 
@@ -598,25 +620,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {selectedUserCode && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4">
-                {Object.keys(userSettings).map(key => (
-                  <div key={key} className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{key} (One per line)</label>
-                    <textarea 
-                      rows={4} 
-                      className="text-sm font-mono"
-                      value={userSettings[key as keyof typeof userSettings]} 
-                      onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
-                    />
+              <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Settings Categories (Grouped & Collapsed by Default)
+                  </span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setOpenGroups(['product', 'factory', 'workshop', 'defects'])}
+                      className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-indigo-600 hover:bg-slate-50 transition-colors"
+                    >
+                      Expand All
+                    </button>
+                    <button 
+                      onClick={() => setOpenGroups([])}
+                      className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
+                    >
+                      Collapse All
+                    </button>
                   </div>
-                ))}
-                <div className="lg:col-span-3 pt-6 border-t border-slate-100 flex justify-end">
+                </div>
+
+                {[
+                  {
+                    id: 'product',
+                    name: 'Product Details (Styles, Sizes, Items, Colors)',
+                    keys: ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'ITEMS'],
+                    icon: 'shirt'
+                  },
+                  {
+                    id: 'factory',
+                    name: 'Factory Organization (Zones, Units, Lines)',
+                    keys: ['ZONE', 'UNIT', 'LINE'],
+                    icon: 'milestone'
+                  },
+                  {
+                    id: 'workshop',
+                    name: 'Workshop Floor (Workers, Machines, Operations)',
+                    keys: ['WORKERS', 'MACHINE', 'OPERATION'],
+                    icon: 'wrench'
+                  },
+                  {
+                    id: 'defects',
+                    name: 'Quality Controls (Defects, Suppliers)',
+                    keys: ['DEFECTS', 'SUPPLIER'],
+                    icon: 'shield-alert'
+                  }
+                ].map(group => {
+                  const isOpen = openGroups.includes(group.id);
+                  return (
+                    <div key={group.id} className="border border-slate-150 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenGroups(prev => 
+                            prev.includes(group.id) ? prev.filter(id => id !== group.id) : [...prev, group.id]
+                          );
+                        }}
+                        className="w-full text-left p-4 bg-slate-50 flex items-center justify-between border-b border-slate-100 font-bold text-slate-700 hover:bg-slate-100/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon name={group.icon} size={18} className="text-indigo-600 shrink-0" />
+                          <span className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-700">{group.name}</span>
+                        </div>
+                        <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={16} className="text-slate-400" />
+                      </button>
+
+                      {isOpen && (
+                        <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                          {group.keys.map(key => (
+                            <div key={key} className="space-y-2">
+                              <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{key} (One per line)</label>
+                              <textarea 
+                                rows={4} 
+                                className="text-sm font-mono border-slate-200 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl"
+                                value={userSettings[key as keyof typeof userSettings] || ''} 
+                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <div className="pt-6 border-t border-slate-100 flex justify-end">
                   <button 
                     onClick={handleSaveSettings} 
                     disabled={savingSettings}
                     className="btn-primary px-12 py-4"
                   >
-                    {savingSettings ? 'SAVING CONFIG...' : 'SAVE USER CONFIGURATION'}
+                    {savingSettings ? 'SAVING CONFIG...' : 'SAVE CONFIGURATION'}
                   </button>
                 </div>
               </div>

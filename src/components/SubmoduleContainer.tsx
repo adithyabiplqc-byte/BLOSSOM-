@@ -23,7 +23,35 @@ interface SubmoduleContainerProps {
 }
 
 const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone }) => {
+  const isRestricted = user?.role !== 'ADMIN' && (
+    (user?.restrictions || []).includes(id) || 
+    (user?.restrictions || []).includes(id.charAt(0))
+  );
+
   const renderSubmodule = () => {
+    if (isRestricted) {
+      return (
+        <div className="p-12 text-center space-y-4 max-w-md mx-auto animate-fade-in">
+          <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center border border-rose-100 mx-auto shadow-sm">
+            <Icon name="lock" size={24} />
+          </div>
+          <div>
+            <h3 className="font-black text-slate-800 uppercase tracking-tight text-lg">Access Denied</h3>
+            <p className="text-[10px] uppercase tracking-widest font-black text-rose-500 mt-1">Authorization Exception</p>
+          </div>
+          <p className="text-xs text-slate-500 font-medium leading-relaxed">
+            Your user code does not have active clearance key for module node <span className="font-mono bg-slate-100 text-slate-700 px-1 py-0.5 rounded font-black">#{id}</span>. Please request authority update from the system admin.
+          </p>
+          <button 
+            onClick={onBack}
+            className="w-full bg-slate-900 text-white rounded-xl py-2.5 text-xs font-black uppercase tracking-wider hover:bg-slate-800 transition"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      );
+    }
+
     const commonProps = { user, settings, workorders, triggerSuccess, globalZone };
 
     if (id === 'A1') return <MaterialInspection {...commonProps} />;

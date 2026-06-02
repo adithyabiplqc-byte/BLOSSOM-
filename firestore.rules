@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // System configurations: read and write by anyone to ensure permanent storage of GAS configs
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -290,7 +290,7 @@ async def api_dispatcher(method: str, request: Request):
                 'version': '2.0.0',
                 'maintenanceMode': False,
                 'allowUserRegistration': False,
-                'defaultLocation': 'HEAD OFFICE'
+                'defaultLocation': 'KERALA'
             }
 
         elif method == 'api_getAdminLogs':

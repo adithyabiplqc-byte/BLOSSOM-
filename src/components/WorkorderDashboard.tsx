@@ -14,14 +14,43 @@ interface WorkorderDashboardProps {
 }
 
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || ZONES || [];
-  const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (user?.location !== 'SYSTEM' ? user?.location : (currentZones && currentZones.length > 0 ? currentZones[0] : ZONES[0]));
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
+  const currentSizes = settings?.SIZE || settings?.SIZES || [];
+  const currentCups = settings?.CUPSIZE || settings?.CUPSIZES || [];
+  const currentColors = settings?.COLOR || settings?.COLORS || settings?.COLOUR || settings?.COLOURS || [];
+  const currentStyles = settings?.STYLE_NAME || settings?.['STYLE_NAME'] || settings?.['STYLE NAME'] || settings?.STYLE || settings?.STYLES || [];
+  const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones && currentZones.length > 0 ? currentZones[0] : ZONES[0])));
+
+  const getStyleLabel = () => {
+    if (settings) {
+      const keys = Object.keys(settings);
+      const match = keys.find(k => {
+        const u = k.trim().toUpperCase();
+        return u === 'STYLE_NAME' || u === 'STYLE NAME' || u === 'STYLE NAMES' || u === 'STYLE' || u === 'STYLES';
+      });
+      if (match) return match.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return 'Style Name';
+  };
+
+  const getColorLabel = () => {
+    if (settings) {
+      const keys = Object.keys(settings);
+      const match = keys.find(k => {
+        const u = k.trim().toUpperCase();
+        return u === 'COLOUR' || u === 'COLOURS' || u === 'COLOR' || u === 'COLORS';
+      });
+      if (match) return match.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return 'Colour';
+  };
 
   const [form, setForm] = useState({ 
     zone: initialZone, 
     workorderNumber: '', 
     style: '', 
-    size: '',
+    sizeFrom: '',
+    sizeTo: '',
     cup: '', 
     quantity: '', 
     colour: ''
@@ -45,8 +74,18 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         return;
       }
 
+      const mergedSize = form.sizeFrom && form.sizeTo 
+        ? `${form.sizeFrom.trim()} - ${form.sizeTo.trim()}`
+        : (form.sizeFrom || form.sizeTo || '');
+
       const woData = { 
-        ...form, 
+        zone: form.zone,
+        workorderNumber: woNum,
+        style: form.style,
+        size: mergedSize,
+        cup: form.cup,
+        quantity: form.quantity,
+        colour: form.colour,
         id: isEditing ? selectedWO.id : Date.now(), 
         status: isEditing ? selectedWO.status : 'CUTTING',
         createdAt: isEditing ? selectedWO.createdAt : new Date().toISOString() 
@@ -67,10 +106,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       }
 
       setForm({ 
-        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.location !== 'SYSTEM' ? user?.location : (currentZones[0] || ZONES[0])), 
+        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones[0] || ZONES[0]))), 
         workorderNumber: '', 
         style: '', 
-        size: '', 
+        sizeFrom: '', 
+        sizeTo: '', 
         cup: '',
         quantity: '', 
         colour: ''
@@ -94,7 +134,27 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   };
 
   const startEdit = (wo: any) => {
-    setForm(wo);
+    let sizeFrom = '';
+    let sizeTo = '';
+    if (wo.size) {
+      const parts = String(wo.size).split(' - ');
+      if (parts.length > 1) {
+        sizeFrom = parts[0];
+        sizeTo = parts[1];
+      } else {
+        sizeFrom = wo.size;
+      }
+    }
+    setForm({
+      zone: wo.zone || wo.location || '',
+      workorderNumber: wo.workorderNumber || '',
+      style: wo.style || '',
+      sizeFrom,
+      sizeTo,
+      cup: wo.cup || '',
+      quantity: wo.quantity || '',
+      colour: wo.colour || ''
+    });
     setSelectedWO(wo);
     setIsEditing(true);
   };
@@ -110,60 +170,92 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     });
   }, [workorders, globalZone, search]);
 
+  const canManage = user?.role === 'ADMIN' || user?.role === 'WORKORDER';
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-          <div className="glass-card p-8 sticky top-24">
-            <h2 className="text-2xl font-bold mb-6 text-indigo-800 border-b pb-4">{isEditing ? 'Edit Workorder' : 'New Entry'}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label>Zone</label>
-                <select className="w-full" value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
-                  {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <label>Workorder Number</label>
-                <input type="text" placeholder="Enter WO Number" className="w-full" value={form.workorderNumber} onChange={e => setForm({...form, workorderNumber: e.target.value})} required />
-              </div>
-              <div>
-                <label>Style</label>
-                <input type="text" placeholder="Enter Style" className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        {canManage && (
+          <div className="lg:col-span-1">
+            <div className="glass-card p-8 sticky top-24">
+              <h2 className="text-2xl font-bold mb-6 text-indigo-800 border-b pb-4">{isEditing ? 'Edit Workorder' : 'New Entry'}</h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label>Size</label>
-                  <input type="text" placeholder="Size" className="w-full" value={form.size} onChange={e => setForm({...form, size: e.target.value})} required />
+                  <label>Zone</label>
+                  <select className="w-full" value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
+                    {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label>Cup</label>
-                  <input type="text" placeholder="Cup" className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})} />
+                  <label>Workorder Number</label>
+                  <input type="text" placeholder="Enter WO Number" className="w-full" value={form.workorderNumber} onChange={e => setForm({...form, workorderNumber: e.target.value})} required />
                 </div>
-              </div>
-              <div>
-                <label>Quantity</label>
-                <input type="number" placeholder="Enter Quantity" className="w-full" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} required />
-              </div>
-              <div>
-                <label>Colour</label>
-                <input type="text" placeholder="Enter Colour" className="w-full" value={form.colour} onChange={e => setForm({...form, colour: e.target.value})} required />
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                  className={`btn-primary flex-1 py-4 text-xs font-black italic tracking-widest uppercase mt-4 transition-all shadow-xl shadow-indigo-100 hover:scale-[1.02]`}
-                >
-                  {isSubmitting ? 'SAVING...' : (isEditing ? 'UPDATE WO' : 'SUBMIT WO')}
-                </button>
-                {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || ZONES[0], workorderNumber: '', style: '', size: '', cup: '', quantity: '', colour: '' }); }} className="btn-secondary mt-4">CANCEL</button>}
-              </div>
-            </form>
+                <div>
+                  <label>{getStyleLabel()}</label>
+                  {currentStyles.length > 0 ? (
+                    <select className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required>
+                      <option value="">Select {getStyleLabel()}</option>
+                      {currentStyles.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" placeholder={`Enter ${getStyleLabel()}`} className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required />
+                  )}
+                </div>
+                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label>Size From</label>
+                    <input type="text" placeholder="e.g. 32 / S" className="w-full" value={form.sizeFrom} onChange={e => setForm({...form, sizeFrom: e.target.value})} required />
+                  </div>
+                  <div>
+                    <label>Size To</label>
+                    <input type="text" placeholder="e.g. 42 / XL" className="w-full" value={form.sizeTo} onChange={e => setForm({...form, sizeTo: e.target.value})} required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label>Cup (Optional)</label>
+                    {currentCups.length > 0 ? (
+                      <select className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})}>
+                        <option value="">Select Cup</option>
+                        {currentCups.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" placeholder="Cup" className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})} />
+                    )}
+                  </div>
+                  <div>
+                    <label>Quantity</label>
+                    <input type="number" placeholder="Enter Quantity" className="w-full" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} required />
+                  </div>
+                </div>
+                <div>
+                  <label>{getColorLabel()}</label>
+                  {currentColors.length > 0 ? (
+                    <select className="w-full" value={form.colour} onChange={e => setForm({...form, colour: e.target.value})} required>
+                      <option value="">Select {getColorLabel()}</option>
+                      {currentColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" placeholder={`Enter ${getColorLabel()}`} className="w-full" value={form.colour} onChange={e => setForm({...form, colour: e.target.value})} required />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className={`btn-primary flex-1 py-4 text-xs font-black italic tracking-widest uppercase mt-4 transition-all shadow-xl shadow-indigo-100 hover:scale-[1.02]`}
+                  >
+                    {isSubmitting ? 'SAVING...' : (isEditing ? 'UPDATE WO' : 'SUBMIT WO')}
+                  </button>
+                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || ZONES[0], workorderNumber: '', style: '', sizeFrom: '', sizeTo: '', cup: '', quantity: '', colour: '' }); }} className="btn-secondary mt-4">CANCEL</button>}
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="lg:col-span-2 space-y-8">
+        <div className={`${canManage ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-8`}>
           {selectedWO && !isEditing && (
             <div className="glass-card p-8 border-l-[12px] border-indigo-600 animate-in slide-in-from-right-4">
               <div className="flex justify-between items-start mb-6">
@@ -172,8 +264,12 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Detailed View</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => startEdit(selectedWO)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Icon name="edit" size={20} /></button>
-                  <button onClick={() => handleDelete(selectedWO)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Icon name="trash-2" size={20} /></button>
+                  {canManage && (
+                    <>
+                      <button onClick={() => startEdit(selectedWO)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Icon name="edit" size={20} /></button>
+                      <button onClick={() => handleDelete(selectedWO)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Icon name="trash-2" size={20} /></button>
+                    </>
+                  )}
                   <button onClick={() => setSelectedWO(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><Icon name="x" size={24} /></button>
                 </div>
               </div>
@@ -187,11 +283,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.zone}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Style</span>
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">{getStyleLabel()}</span>
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.style}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Colour</span>
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">{getColorLabel()}</span>
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.colour}</span>
                 </div>
                 <div className="space-y-1">
@@ -199,7 +295,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.quantity}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size</span>
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size Range</span>
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.size} {selectedWO.cup}</span>
                 </div>
                 <div className="space-y-1">
@@ -211,6 +307,59 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   }`}>
                     {selectedWO.status || 'CUTTING'}
                   </span>
+                </div>
+
+                {/* Process Status Pipeline Stepper */}
+                <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-6 mt-4">
+                  <span className="text-indigo-500 block uppercase text-[10px] font-black tracking-widest mb-4">Live Production Flow Tracker</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 font-sans text-left md:text-center">
+                    {['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].map((step, idx) => {
+                      const statusVal = (selectedWO.status || 'CUTTING').toUpperCase();
+                      let isPast = false;
+                      let isActive = false;
+                      
+                      if (statusVal === 'INLINE_AND_ENDLINE') {
+                        if (step === 'CUTTING') {
+                          isPast = true;
+                        } else if (step === 'INLINE' || step === 'ENDLINE') {
+                          isActive = true;
+                        }
+                      } else {
+                        const activeIdx = ['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].indexOf(statusVal);
+                        isPast = idx < activeIdx;
+                        isActive = idx === activeIdx;
+                      }
+                      
+                      return (
+                        <div key={step} className="flex flex-row md:flex-col items-center md:items-center gap-3 md:gap-2 relative">
+                           {/* Connecting Line */}
+                           {idx < 5 && (
+                             <div className={`hidden md:block absolute top-[15px] left-[60%] right-[-40%] h-1 rounded transition-colors ${
+                               isPast || (statusVal === 'INLINE_AND_ENDLINE' && idx < 2) ? 'bg-emerald-500' : 'bg-slate-200'
+                             }`} />
+                           )}
+                          
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all z-10 shrink-0 ${
+                            isPast ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-100' :
+                            isActive ? 'bg-indigo-600 border-indigo-600 text-white ring-4 ring-indigo-50 scale-110' :
+                            'bg-white border-slate-200 text-slate-400'
+                          }`}>
+                            {isPast ? '✓' : idx + 1}
+                          </div>
+                          <div className="flex flex-col md:items-center">
+                            <span className={`text-[10px] font-black uppercase tracking-tight leading-none ${
+                              isActive ? 'text-indigo-600 font-extrabold' : isPast ? 'text-emerald-600' : 'text-slate-400'
+                            }`}>
+                              {step}
+                            </span>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">
+                              {isActive ? 'Current' : isPast ? 'Done' : 'Pending'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -235,10 +384,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">WO #</th>
-                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Style</th>
+                    <th className="p-4 text-xs font-bold uppercase text-slate-500">{getStyleLabel()}</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Status</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Size</th>
-                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Colour</th>
+                    <th className="p-4 text-xs font-bold uppercase text-slate-500">{getColorLabel()}</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500 text-right">Qty</th>
                   </tr>
                 </thead>

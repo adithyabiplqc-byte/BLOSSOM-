@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "Global application connection and configuration parameters.",
+      "type": "object",
+      "properties": {
+        "gasUrl": {
+          "type": "string",
+          "description": "Google Apps Script Web App execution URL."
+        },
+        "spreadsheetId": {
+          "type": "string",
+          "description": "Google Spreadsheet ID for sheets connections."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last configuration update."
+        }
+      }
+    }
+  },
+  "firestore": {
+    "system_config/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Global configuration settings collection."
+    }
+  }
+}

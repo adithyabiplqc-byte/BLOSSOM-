@@ -1,4 +1,4 @@
-export const ZONES = ['KERALA', 'TAMILNADU', 'BANGLORE'];
+export const ZONES = ['KERALA', 'TIRUPUR', 'BANGLORE'];
 export const UNITS = ['UNIT A', 'UNIT B', 'UNIT C', 'UNIT D'];
 export const ROLES = ['ADMIN', 'USER', 'WORKORDER'];
 export const SUPPLIERS = ['SUPPLIER A', 'SUPPLIER B', 'SUPPLIER C', 'SUPPLIER D'];

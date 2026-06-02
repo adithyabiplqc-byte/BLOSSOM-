@@ -29,7 +29,9 @@ export default function Layout({ user, onLogout }: LayoutProps) {
         <div className="flex items-center gap-4">
           <div className="hidden md:flex flex-col items-end">
             <span className="font-semibold text-slate-700">{user.username}</span>
-            <span className="text-xs text-slate-500">{user.location}</span>
+            <span className="text-xs text-slate-500">
+              {user.zone && user.zone !== user.location ? `${user.zone} - ${user.location}` : user.location}
+            </span>
           </div>
           <button
             onClick={onLogout}

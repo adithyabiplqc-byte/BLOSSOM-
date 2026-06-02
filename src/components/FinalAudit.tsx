@@ -13,12 +13,11 @@ interface FinalAuditProps {
 }
 
 const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || ZONES || [];
-  const currentUnits = settings?.UNIT || UNITS || [];
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
+  const currentUnits = settings?.UNIT || settings?.UNITS || UNITS || [];
 
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
-    cardNumber: '',
     wo: '', 
     unit: currentUnits[0] || '', 
     totalAudited: '', 
@@ -37,23 +36,6 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
   const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
 
-  const handleCardLookup = async (num: string) => {
-    if (!num) return;
-    try {
-      const card = await api.run('api_getCardByNumber', num);
-      if (card && card.workorderNumber) {
-        setForm(prev => ({ ...prev, wo: card.workorderNumber }));
-        triggerSuccess(`CARD ${num} LINKED TO WO ${card.workorderNumber}`);
-      } else if (card) {
-        alert("This card is not assigned to any workorder.");
-      } else {
-        alert("Card not found.");
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const handleSubmit = async (moveToComplete: boolean = false) => {
     if (isSubmitting) return;
     if (!form.wo) {
@@ -70,7 +52,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         timestamp: new Date().toISOString() 
       });
       triggerSuccess(moveToComplete ? 'AUDIT COMPLETE & WORKORDER CLOSED' : 'FINAL AUDIT RECORDED');
-      setForm({ ...form, cardNumber: '', totalAudited: '', pass: '', rejected: '', remarks: '' });
+      setForm({ ...form, totalAudited: '', pass: '', rejected: '', remarks: '' });
     } catch (error) {
       alert('Error saving final audit');
     } finally {
@@ -80,21 +62,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-        <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Scan PVC Card</label>
-          <div className="flex gap-2">
-             <input 
-               type="text" 
-               placeholder="Scan..." 
-               value={form.cardNumber}
-               onChange={e => setForm({...form, cardNumber: e.target.value.toUpperCase()})}
-               onBlur={() => handleCardLookup(form.cardNumber)}
-               className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs"
-             />
-             <button type="button" onClick={() => handleCardLookup(form.cardNumber)} className="bg-slate-200 p-2 rounded-xl text-slate-600 hover:bg-slate-300 transition-colors"><Icon name="search" size={16} /></button>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone</label>
           <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs">
@@ -126,7 +94,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
       {selectedWO && (
         <div className="animate-zoom-in">
-          <WorkorderDetailCard wo={selectedWO} />
+          <WorkorderDetailCard wo={selectedWO} settings={settings} />
         </div>
       )}
       

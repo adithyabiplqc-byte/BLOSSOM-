@@ -13,7 +13,7 @@ interface CuttingQualityProps {
 }
 
 const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || ZONES || [];
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
     wo: '', 
@@ -111,7 +111,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
 
       {selectedWO && (
         <div className="animate-zoom-in">
-          <WorkorderDetailCard wo={selectedWO} />
+          <WorkorderDetailCard wo={selectedWO} settings={settings} />
         </div>
       )}
 
@@ -215,7 +215,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
           {isSubmitting ? (
              <Icon name="refresh-cw" size={18} className="animate-spin" />
           ) : (
-            <><Icon name="check-circle" size={18} /> Pass to Inline</>
+            <><Icon name="check-circle" size={18} /> Pass to Inline & Endline</>
           )}
         </button>
       </div>
