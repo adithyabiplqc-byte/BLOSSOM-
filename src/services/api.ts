@@ -59,9 +59,9 @@ function sanitizeArgs(args: any[]): any[] {
 
 // Global defaults for users
 const SEED_USERS = [
-  { userCode: 'U001', username: 'user1', password: 'pass1', role: 'USER', location: 'KERALA', restrictions: [], canDownload: true },
-  { userCode: 'A001', username: 'admin', password: 'admin123', role: 'ADMIN', location: 'KERALA', restrictions: [], canDownload: true },
-  { userCode: 'W001', username: 'wo1', password: '123', role: 'WORKORDER', location: 'KERALA', restrictions: [], canDownload: true }
+  { userCode: 'U001', username: 'user1', password: 'pass1', role: 'USER', location: 'SYSTEM', restrictions: [], canDownload: true },
+  { userCode: 'A001', username: 'admin', password: 'admin123', role: 'ADMIN', location: 'SYSTEM', restrictions: [], canDownload: true },
+  { userCode: 'W001', username: 'wo1', password: '123', role: 'WORKORDER', location: 'SYSTEM', restrictions: [], canDownload: true }
 ];
 
 async function updateWorkorderStatus(woNum: string, nextStatus: string) {
@@ -374,6 +374,395 @@ export const api = {
       case 'api_getAdminLogs':
         return await sheetsService.getData('ADMIN');
 
+      case 'api_getZoneMappings': {
+        try {
+          const zoneRows = await sheetsService.getData('ZONE').catch(() => []);
+          const result: any[] = [];
+          
+          // Get all sheet titles to see if unit-specific sheets exist
+          const spreadsheetId = sheetsService.getSpreadsheetId();
+          let sheetTitles: string[] = [];
+          if (spreadsheetId) {
+            try {
+              const metadata = await sheetsService.request(spreadsheetId);
+              sheetTitles = (metadata.sheets || []).map((s: any) => String(s.properties?.title || '').trim().toUpperCase());
+            } catch (err) {
+              console.error("Failed to get spreadsheet metadata in getZoneMappings:", err);
+            }
+          }
+
+          // Build a dictionary of ZMAP-ID -> Human Name
+          const zoneIdToNameMap = new Map<string, string>();
+          for (const row of zoneRows) {
+            const z = String(row.zone || '').trim().toUpperCase();
+            const id = String(row.id || '').trim().toUpperCase();
+            if (z.startsWith('ZMAP-') && id && !id.startsWith('ZMAP-')) {
+              zoneIdToNameMap.set(z, id);
+            } else if (id.startsWith('ZMAP-') && z && !z.startsWith('ZMAP-')) {
+              zoneIdToNameMap.set(id, z);
+            }
+          }
+
+          for (const row of zoneRows) {
+            const unitName = String(row.unit || '').trim().toUpperCase();
+            let zoneName = String(row.zone || '').trim().toUpperCase();
+            let idValue = String(row.id || '').trim();
+
+            if (zoneName.startsWith('ZMAP-')) {
+              const mapped = zoneIdToNameMap.get(zoneName);
+              if (mapped) {
+                zoneName = mapped;
+              }
+            } else if (zoneName.startsWith('ZMAP-') && idValue && !idValue.toUpperCase().startsWith('ZMAP-')) {
+              const temp = zoneName;
+              zoneName = idValue.toUpperCase();
+              idValue = temp;
+            }
+
+            if (!zoneName || zoneName.startsWith('ZMAP-')) continue;
+
+            if (unitName) {
+              const unitSheetExists = sheetTitles.includes(unitName);
+              if (unitSheetExists) {
+                const workerRows = await sheetsService.getData(unitName).catch(() => []);
+                let hasWorker = false;
+                for (const wRow of workerRows) {
+                  const workerName = String(wRow.worker || '').trim().toUpperCase();
+                  if (!workerName) continue;
+                  hasWorker = true;
+                  const wId = wRow.id || ('zmap-' + Math.floor(Math.random() * 10000000));
+                  result.push({
+                    id: wId,
+                    zone: zoneName,
+                    unit: unitName,
+                    worker: workerName,
+                    timestamp: wRow.timestamp || new Date().toISOString()
+                  });
+                }
+                if (!hasWorker) {
+                  result.push({
+                    id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+                    zone: zoneName,
+                    unit: unitName,
+                    worker: '',
+                    timestamp: row.timestamp || new Date().toISOString()
+                  });
+                }
+              } else {
+                result.push({
+                  id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+                  zone: zoneName,
+                  unit: unitName,
+                  worker: '',
+                  timestamp: row.timestamp || new Date().toISOString()
+                });
+              }
+            } else {
+              result.push({
+                id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+                zone: zoneName,
+                unit: '',
+                worker: '',
+                timestamp: row.timestamp || new Date().toISOString()
+              });
+            }
+          }
+          return result;
+        } catch (e) {
+          console.error("Error in api_getZoneMappings runDirect:", e);
+          return [];
+        }
+      }
+
+      case 'api_saveZoneMapping': {
+        const record = args[0] || {};
+        if (!record.id) {
+          record.id = 'zmap-' + Math.floor(Math.random() * 10000000);
+        }
+        if (!record.timestamp) {
+          record.timestamp = new Date().toISOString();
+        }
+
+        const zone = String(record.zone || '').trim().toUpperCase();
+        const unit = String(record.unit || '').trim().toUpperCase();
+        const worker = String(record.worker || '').trim().toUpperCase();
+
+        if (worker) {
+          if (!unit) {
+            return { success: false, error: "Unit is required to save a worker." };
+          }
+          // Make sure the unit sheet exists in the spreadsheet
+          const spreadsheetId = sheetsService.getSpreadsheetId();
+          if (spreadsheetId) {
+            try {
+              const metadata = await sheetsService.request(spreadsheetId);
+              const sheetTitles = (metadata.sheets || []).map((s: any) => String(s.properties?.title || '').trim().toUpperCase());
+              if (!sheetTitles.includes(unit)) {
+                // Create sheet via Sheets API
+                await sheetsService.request(`${spreadsheetId}:batchUpdate`, {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    requests: [
+                      {
+                        addSheet: {
+                          properties: {
+                            title: unit
+                          }
+                        }
+                      }
+                    ]
+                  })
+                });
+                // Initialize the unit sheet with headers
+                await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(unit)}!A1?valueInputOption=USER_ENTERED`, {
+                  method: 'PUT',
+                  body: JSON.stringify({
+                    values: [['id', 'worker', 'timestamp']]
+                  })
+                });
+              }
+            } catch (err) {
+              console.error("Failed to ensure unit sheet exists:", err);
+            }
+          }
+
+          const workerRecord = {
+            id: record.id,
+            worker: worker,
+            timestamp: record.timestamp
+          };
+          return await sheetsService.saveData(unit, workerRecord);
+        }
+
+        if (unit) {
+          if (!zone) {
+            return { success: false, error: "Zone is required to save a unit." };
+          }
+          const unitRecord = {
+            id: record.id,
+            zone: zone,
+            unit: unit,
+            timestamp: record.timestamp
+          };
+          await sheetsService.saveData('UNIT', unitRecord).catch(() => {});
+          return await sheetsService.saveData('ZONE', unitRecord);
+        }
+
+        if (zone) {
+          const zoneRecord = {
+            id: record.id,
+            zone: zone,
+            unit: '',
+            timestamp: record.timestamp
+          };
+          return await sheetsService.saveData('ZONE', zoneRecord);
+        }
+
+        return { success: false, error: "Empty record" };
+      }
+
+      case 'api_deleteZoneMapping': {
+        const param = args[0];
+        let targetIdStr = "";
+        let targetZone = "";
+        let targetUnit = "";
+        let targetWorker = "";
+
+        if (param && typeof param === 'object') {
+          targetIdStr = String(param.id || '').trim();
+          targetZone = String(param.zone || '').trim().toUpperCase();
+          targetUnit = String(param.unit || '').trim().toUpperCase();
+          targetWorker = String(param.worker || '').trim().toUpperCase();
+        } else {
+          targetIdStr = String(param || '').trim();
+        }
+
+        const isOfflineDemo = localStorage.getItem('BQOS_DEMO_MODE') === 'true';
+        if (isOfflineDemo) {
+          if (targetWorker && targetUnit) {
+            sheetsService.deleteOfflineData(targetUnit, targetIdStr);
+            return { success: true, details: "Deleted worker offline" };
+          }
+          if (targetUnit && !targetWorker) {
+            const zoneRows = sheetsService.getOfflineData('ZONE');
+            const filteredZone = zoneRows.filter((row: any) => {
+              const rUnit = String(row.unit || '').trim().toUpperCase();
+              const rZone = String(row.zone || '').trim().toUpperCase();
+              return !(rUnit === targetUnit && (!targetZone || rZone === targetZone));
+            });
+            localStorage.setItem('bqos_local_sheet_ZONE', JSON.stringify(filteredZone));
+            localStorage.removeItem('bqos_local_sheet_' + targetUnit);
+            return { success: true, details: "Deleted unit offline" };
+          }
+          if (targetZone && !targetUnit && !targetWorker) {
+            const zoneRows = sheetsService.getOfflineData('ZONE');
+            const unitsToDelete: string[] = [];
+            const filteredZone = zoneRows.filter((row: any) => {
+              const rZone = String(row.zone || '').trim().toUpperCase();
+              if (rZone === targetZone) {
+                if (row.unit) unitsToDelete.push(String(row.unit).trim().toUpperCase());
+                return false;
+              }
+              return true;
+            });
+            localStorage.setItem('bqos_local_sheet_ZONE', JSON.stringify(filteredZone));
+            unitsToDelete.forEach(u => localStorage.removeItem('bqos_local_sheet_' + u));
+            return { success: true, details: "Deleted zone offline" };
+          }
+          if (targetIdStr) {
+            sheetsService.deleteOfflineData('ZONE', targetIdStr);
+            return { success: true };
+          }
+          return { success: false, error: "Mapping not found" };
+        }
+
+        const spreadsheetId = sheetsService.getSpreadsheetId();
+        if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
+
+        const metadata = await sheetsService.request(spreadsheetId);
+        const resolvedZoneSheetName = sheetsService.resolveSynonymSheetNameClient('ZONE', metadata.sheets || []);
+
+        // Case 1: If it's a Worker row (has a worker name and unit sheet)
+        if (targetWorker && targetUnit) {
+          try {
+            // Delete worker row from unit-specific sheet
+            await sheetsService.deleteData(targetUnit, targetIdStr);
+            return { success: true, details: "Deleted worker " + targetWorker + " from unit sheet " + targetUnit };
+          } catch (e: any) {
+            // Fall back to filtering
+            const data = await sheetsService.getData(targetUnit).catch(() => []);
+            const filtered = data.filter((row: any) => {
+              const rWorker = String(row.worker || '').trim().toUpperCase();
+              return rWorker !== targetWorker;
+            });
+            const resolvedName = targetUnit;
+            await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z5000:clear`, {
+              method: 'POST'
+            });
+            await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1?valueInputOption=USER_ENTERED`, {
+              method: 'PUT',
+              body: JSON.stringify({
+                values: [['id', 'worker', 'timestamp'], ...filtered.map((r: any) => [r.id || '', r.worker || '', r.timestamp || ''])]
+              })
+            });
+            return { success: true, details: "Deleted worker " + targetWorker + " from unit sheet " + targetUnit + " via filtering." };
+          }
+        }
+
+        // Case 2: If it's a Unit row (has a unit name and zone, but no worker)
+        if (targetUnit && !targetWorker) {
+          const zoneRows = await sheetsService.getData('ZONE').catch(() => []);
+          const filteredZone = zoneRows.filter((row: any) => {
+            const rUnit = String(row.unit || '').trim().toUpperCase();
+            const rZone = String(row.zone || '').trim().toUpperCase();
+            const isMatch = rUnit === targetUnit && (!targetZone || rZone === targetZone);
+            return !isMatch;
+          });
+
+          const headers = ['id', 'zone', 'unit', 'timestamp'];
+          await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedZoneSheetName)}!A1:Z5000:clear`, {
+            method: 'POST'
+          });
+          await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedZoneSheetName)}!A1?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              values: [headers, ...filteredZone.map((r: any) => [r.id || '', r.zone || '', r.unit || '', r.timestamp || ''])]
+            })
+          });
+
+          // Cascade delete/clear unit sheet
+          try {
+            const matchingSheet = (metadata.sheets || []).find((s: any) => String(s.properties?.title || '').trim().toUpperCase() === targetUnit);
+            if (matchingSheet && matchingSheet.properties?.sheetId !== undefined) {
+              const sheetId = matchingSheet.properties.sheetId;
+              await sheetsService.request(`${spreadsheetId}:batchUpdate`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  requests: [
+                    {
+                      deleteSheet: {
+                        sheetId: sheetId
+                      }
+                    }
+                  ]
+                })
+              });
+            }
+          } catch (err) {
+            console.warn("Failed to delete unit sheet, trying clear:", err);
+            try {
+              await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(targetUnit)}!A1:Z5000:clear`, {
+                method: 'POST'
+              });
+            } catch (clearErr) {}
+          }
+
+          return { success: true, details: "Deleted unit " + targetUnit + " and cleared sheets." };
+        }
+
+        // Case 3: If it's a Zone row (has a zone name, but no unit and no worker)
+        if (targetZone && !targetUnit && !targetWorker) {
+          const zoneRows = await sheetsService.getData('ZONE').catch(() => []);
+          const unitsToDelete: string[] = [];
+
+          const filteredZone = zoneRows.filter((row: any) => {
+            const rZone = String(row.zone || '').trim().toUpperCase();
+            if (rZone === targetZone) {
+              const rUnit = String(row.unit || '').trim().toUpperCase();
+              if (rUnit) {
+                unitsToDelete.push(rUnit);
+              }
+              return false;
+            }
+            return true;
+          });
+
+          const headers = ['id', 'zone', 'unit', 'timestamp'];
+          await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedZoneSheetName)}!A1:Z5000:clear`, {
+            method: 'POST'
+          });
+          await sheetsService.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedZoneSheetName)}!A1?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              values: [headers, ...filteredZone.map((r: any) => [r.id || '', r.zone || '', r.unit || '', r.timestamp || ''])]
+            })
+          });
+
+          // Delete sheets for units that were deleted
+          const sheetsList = metadata.sheets || [];
+
+          for (const uName of unitsToDelete) {
+            try {
+              const matchingSheet = sheetsList.find((s: any) => String(s.properties?.title || '').trim().toUpperCase() === uName);
+              if (matchingSheet && matchingSheet.properties?.sheetId !== undefined) {
+                await sheetsService.request(`${spreadsheetId}:batchUpdate`, {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    requests: [
+                      {
+                        deleteSheet: {
+                          sheetId: matchingSheet.properties.sheetId
+                        }
+                      }
+                    ]
+                  })
+                });
+              }
+            } catch (sheetErr) {
+              console.warn("Failed to delete unit sheet cascade: " + uName, sheetErr);
+            }
+          }
+
+          return { success: true, details: "Deleted zone " + targetZone + " and cascaded units." };
+        }
+
+        if (targetIdStr) {
+          return await sheetsService.deleteData('ZONE', targetIdStr);
+        }
+
+        return { success: false, error: "Mapping not found" };
+      }
+
       case 'api_logAdminActivity': {
         const details = args[0];
         await sheetsService.saveData('ADMIN', {
@@ -394,7 +783,7 @@ export const api = {
       case 'api_saveCUTTINGQUALITY': {
         const report = args[0];
         const res = await sheetsService.saveData('CUTTING QUALITY', report);
-        if (res.success && report.moveToInline && report.wo) {
+        if (res.success && report.wo) {
           await updateWorkorderStatus(report.wo, 'INLINE_AND_ENDLINE');
         }
         return res;
@@ -439,6 +828,67 @@ export const api = {
 
       case 'api_save8ROUNDSYSTEM': {
         const report = args[0];
+        try {
+          const existingData = await sheetsService.getData('INLINE');
+          if (Array.isArray(existingData)) {
+            const dupIdx = existingData.findIndex((r: any) => {
+              const rWorker = String(r.worker || r.operator || '').trim().toUpperCase();
+              const sWorker = String(report.worker || '').trim().toUpperCase();
+              
+              const rRoundIdx = Number(r.roundIndex || 0);
+              const sRoundIdx = Number(report.roundIndex || 0);
+              
+              const rRound = String(r.round || r.ROUND || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+              const sRound = String(report.round || report.ROUND || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+              
+              const normalizeDateSimple = (dVal: any) => {
+                if (!dVal) return '';
+                const s = String(dVal).trim().split(/[ T]/)[0].replace(/[\/.]/g, '-');
+                const p = s.split('-');
+                if (p.length === 3) {
+                  const p0 = p[0].padStart(2, '0');
+                  const p1 = p[1].padStart(2, '0');
+                  if (p[2].length === 4) {
+                    return `${p[2]}-${p1}-${p0}`;
+                  }
+                  if (p[0].length === 4) {
+                    return `${p[0]}-${p1}-${p[2].padStart(2, '0')}`;
+                  }
+                }
+                return s;
+              };
+
+              const rDateNorm = normalizeDateSimple(r.checkingDate || r.date || r.CHECKINGDATE || r.DATE || r.timestamp || r.TIMESTAMP || r.createdAt || r.CREATEDAT);
+              const sDateNorm = normalizeDateSimple(report.checkingDate || report.date || report.CHECKINGDATE || report.DATE || report.timestamp || report.TIMESTAMP || report.createdAt || report.CREATEDAT);
+              
+              const rParts = rDateNorm.split('-');
+              const sParts = sDateNorm.split('-');
+              let dateMatches = rDateNorm === sDateNorm;
+              if (!dateMatches && rParts.length === 3 && sParts.length === 3 && rParts[0] === sParts[0]) {
+                const rm = rParts[1], rd = rParts[2];
+                const sm = sParts[1], sd = sParts[2];
+                if ((rm === sm && rd === sd) || (rm === sd && rd === sm)) {
+                  dateMatches = true;
+                }
+              }
+              
+              const rZone = String(r.zone || r.location || r.ZONE || '').trim().toUpperCase();
+              const sZone = String(report.zone || report.location || '').trim().toUpperCase();
+              
+              const roundMatches = (rRoundIdx === sRoundIdx) || (rRound === sRound && rRound !== '');
+              
+              return rWorker === sWorker && roundMatches && dateMatches && (rZone === sZone || sZone === '' || rZone === '') && rWorker !== '';
+            });
+            if (dupIdx !== -1) {
+              const matchedRow = existingData[dupIdx];
+              report.id = matchedRow.id || matchedRow.ID || report.id;
+              const res = await sheetsService.updateData('INLINE', report);
+              return { success: res.success, updated: true };
+            }
+          }
+        } catch (e) {
+          console.error("Pre-verification direct sheets check bypassed", e);
+        }
         const res = await sheetsService.saveData('INLINE', report);
         return res;
       }
@@ -520,6 +970,19 @@ export const api = {
         return data;
       }
 
+      case 'api_getREPORTS_SOPData': {
+        const zone = args[0]?.zone;
+        let data = await sheetsService.getData('REPORTS_SOP');
+        if (zone && zone !== 'ALL') {
+          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        }
+        return data;
+      }
+
+      case 'api_saveREPORTS_SOP': {
+        return await sheetsService.saveData('REPORTS_SOP', args[0]);
+      }
+
       // Quality Reports Row Deletes
       case 'api_deleteMaterialData': return await sheetsService.deleteData('MATERIAL REPORT', args[0]);
       case 'api_deleteCuttingData': return await sheetsService.deleteData('CUTTING QUALITY', args[0]);
@@ -527,6 +990,7 @@ export const api = {
       case 'api_deleteEndlineData': return await sheetsService.deleteData('ENDLINE QUALITY', args[0]);
       case 'api_deleteAQLData': return await sheetsService.deleteData('AQL REPORT', args[0]);
       case 'api_deleteFinalAuditData': return await sheetsService.deleteData('FINAL AUDIT', args[0]);
+      case 'api_deleteREPORTS_SOP': return await sheetsService.deleteData('REPORTS_SOP', args[0]);
 
       // Bulk actions
       case 'api_bulkSave':
@@ -569,54 +1033,6 @@ export const api = {
 
   async run(method: string, ...args: any[]) {
     const sanitizedArgs = sanitizeArgs(args);
-
-    // Immediate offline cache synchronization for user management operations
-    if (method === 'api_saveUser') {
-      try {
-        const u = sanitizedArgs[0];
-        const key = 'bqos_local_sheet_USERS';
-        const current = JSON.parse(localStorage.getItem(key) || '[]');
-        const filtered = current.filter((item: any) => item.userCode !== u.userCode);
-        filtered.push({
-          userCode: u.userCode,
-          username: u.username,
-          password: u.password,
-          role: u.role,
-          location: u.location,
-          restrictions: u.restrictions || [],
-          canDownload: u.canDownload !== false,
-          createdAt: u.createdAt || new Date().toISOString()
-        });
-        localStorage.setItem(key, JSON.stringify(filtered));
-      } catch (e) {
-        console.error("Failed to copy saved user to offline localStorage cache:", e);
-      }
-    } else if (method === 'api_updateUser') {
-      try {
-        const u = sanitizedArgs[0];
-        const key = 'bqos_local_sheet_USERS';
-        const current = JSON.parse(localStorage.getItem(key) || '[]');
-        const idx = current.findIndex((item: any) => item.userCode === u.userCode);
-        if (idx !== -1) {
-          current[idx] = { ...current[idx], ...u };
-        } else {
-          current.push(u);
-        }
-        localStorage.setItem(key, JSON.stringify(current));
-      } catch (e) {
-        console.error("Failed to update user in offline localStorage cache:", e);
-      }
-    } else if (method === 'api_deleteUser') {
-      try {
-        const userCode = sanitizedArgs[0];
-        const key = 'bqos_local_sheet_USERS';
-        const current = JSON.parse(localStorage.getItem(key) || '[]');
-        const filtered = current.filter((item: any) => item.userCode !== userCode);
-        localStorage.setItem(key, JSON.stringify(filtered));
-      } catch (e) {
-        console.error("Failed to delete user in offline localStorage cache:", e);
-      }
-    }
 
     const isOfflineDemo = localStorage.getItem('BQOS_DEMO_MODE') === 'true';
     if (isOfflineDemo && method === 'api_ping') {

@@ -1,5 +1,34 @@
 import { getAccessToken } from './auth';
 
+export function areSynonyms(h1: string, h2: string): boolean {
+  if (!h1 || !h2) return false;
+  const norm1 = h1.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const norm2 = h2.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (norm1 === norm2) return true;
+
+  const groups = [
+    ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty'],
+    ['checkedquantity', 'checkedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty'],
+    ['passedquantity', 'passquantity', 'passqty', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity'],
+    ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty'],
+    ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
+    ['style', 'stylename', 'style_name', 'styles', 'stylenames'],
+    ['color', 'colour', 'colors', 'colours'],
+    ['workordernumber', 'workorderno', 'workorderNumber', 'workorderNo', 'wo', 'wonum', 'wonumber'],
+    ['unit', 'units'],
+    ['line', 'lines'],
+    ['size', 'sizes'],
+    ['cupsize', 'cup', 'cups']
+  ];
+
+  for (const group of groups) {
+    const hasNorm1 = group.includes(norm1);
+    const hasNorm2 = group.includes(norm2);
+    if (hasNorm1 && hasNorm2) return true;
+  }
+  return false;
+}
+
 export function resolveSynonymValue(header: string, record: any): any {
   if (!record) return "";
   const normHeader = header.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -7,7 +36,7 @@ export function resolveSynonymValue(header: string, record: any): any {
   const groups = [
     {
       canonical: 'totalquantity',
-      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited']
+      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty']
     },
     {
       canonical: 'checkedquantity',
@@ -44,6 +73,34 @@ export function resolveSynonymValue(header: string, record: any): any {
     {
       canonical: 'checkingdate',
       synonyms: ['checkingdate', 'date', 'checkingDate']
+    },
+    {
+      canonical: 'style',
+      synonyms: ['style', 'stylename', 'style_name', 'styles', 'stylenames']
+    },
+    {
+      canonical: 'color',
+      synonyms: ['color', 'colour', 'colors', 'colours']
+    },
+    {
+      canonical: 'workordernumber',
+      synonyms: ['workordernumber', 'workorderno', 'workorderNumber', 'workorderNo', 'wo', 'wonum', 'wonumber']
+    },
+    {
+      canonical: 'unit',
+      synonyms: ['unit', 'units']
+    },
+    {
+      canonical: 'line',
+      synonyms: ['line', 'lines']
+    },
+    {
+      canonical: 'size',
+      synonyms: ['size', 'sizes']
+    },
+    {
+      canonical: 'cupsize',
+      synonyms: ['cupsize', 'cup', 'cups']
     }
   ];
 
@@ -80,7 +137,7 @@ function generateUuid() {
 }
 
 export const DEFAULT_SETTINGS = {
-  ZONE: ['KERALA', 'TIRUPUR', 'BANGLORE'],
+  ZONE: [],
   SUPPLIER: ['SUPPLIER A', 'SUPPLIER B'],
   ITEMS: ['ITEM 1', 'ITEM 2'],
   COLOR: ['BLACK', 'WHITE', 'NAVY'],
@@ -90,15 +147,15 @@ export const DEFAULT_SETTINGS = {
   OPERATION: ['OP 1', 'OP 2'],
   SIZE: ['S', 'M', 'L', 'XL'],
   CUPSIZE: ['A', 'B', 'C'],
-  UNIT: ['UNIT 1', 'UNIT 2'],
+  UNIT: [],
   LINE: ['LINE 1', 'LINE 2'],
   STYLE_NAME: ['STYLE A', 'STYLE B', 'STYLE C', 'STYLE 1', 'STYLE 2']
 };
 
 const OFFLINE_SEED_USERS = [
-  { userCode: 'U001', username: 'user1', password: 'pass1', role: 'USER' as const, location: 'UNIT A', zone: 'KERALA', restrictions: [], canDownload: true },
+  { userCode: 'U001', username: 'user1', password: 'pass1', role: 'USER' as const, location: 'UNIT A', zone: 'SYSTEM', restrictions: [], canDownload: true },
   { userCode: 'A001', username: 'admin', password: 'admin123', role: 'ADMIN' as const, location: 'SYSTEM', zone: 'SYSTEM', restrictions: [], canDownload: true },
-  { userCode: 'W001', username: 'wo1', password: '123', role: 'WORKORDER' as const, location: 'UNIT A', zone: 'KERALA', restrictions: [], canDownload: true }
+  { userCode: 'W001', username: 'wo1', password: '123', role: 'WORKORDER' as const, location: 'UNIT A', zone: 'SYSTEM', restrictions: [], canDownload: true }
 ];
 
 const OFFLINE_SEED_WORKORDERS = [
@@ -163,10 +220,207 @@ export const sheetsService = {
     let initial: any[] = [];
     if (sheetName === 'USERS') {
       initial = OFFLINE_SEED_USERS;
+    } else if (sheetName === 'ZONE') {
+      initial = [];
     } else if (sheetName === 'WORKORDER') {
       initial = OFFLINE_SEED_WORKORDERS;
     } else if (sheetName === 'SETTINGS' || sheetName === 'GLOBAL') {
       initial = mapDefaultSettingsToRows();
+    } else if (sheetName === 'INLINE' || sheetName === 'SEWING_DEFECT') {
+      initial = [
+        {
+          id: "sew-offline-mock-01",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "9 TO 10",
+          roundIndex: 1,
+          checkedQty: 50,
+          pcsChecked: 50,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "Stitches are clean and stable.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T09:12:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-02",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "10 TO 11",
+          roundIndex: 2,
+          checkedQty: 48,
+          pcsChecked: 48,
+          complaintPcs: 1,
+          failQty: 1,
+          remarks: "1 puckering issue corrected on collar attachment.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T10:15:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-03",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "11 TO 12",
+          roundIndex: 3,
+          checkedQty: 52,
+          pcsChecked: 52,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "Running steady, excellent tension.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T11:20:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-04",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "12 TO 1.30",
+          roundIndex: 4,
+          checkedQty: 50,
+          pcsChecked: 50,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "Operations clean.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T12:30:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-05",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "1.30 TO 2.30",
+          roundIndex: 5,
+          checkedQty: 49,
+          pcsChecked: 49,
+          complaintPcs: 1,
+          failQty: 1,
+          remarks: "1 needle skipped stitch, needle replaced.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T14:12:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-06",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "2.30 TO 3.30",
+          roundIndex: 6,
+          checkedQty: 51,
+          pcsChecked: 51,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "No issues observed.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T15:10:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-07",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "3.30 TO 4.30",
+          roundIndex: 7,
+          checkedQty: 48,
+          pcsChecked: 48,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "Consistent stitch spacing.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T16:15:00.000Z"
+        },
+        {
+          id: "sew-offline-mock-08",
+          zone: "KERALA",
+          wo: "WO-2026-001",
+          workorderNumber: "WO-2026-001",
+          checkingDate: "2026-06-17",
+          date: "2026-06-17",
+          worker: "John Doe",
+          machine: "M001",
+          round: "4.30 TO 5.30",
+          roundIndex: 8,
+          checkedQty: 50,
+          pcsChecked: 50,
+          complaintPcs: 0,
+          failQty: 0,
+          remarks: "Finished daily rounds.",
+          item: "ITEM 1",
+          style: "Polo Shirt",
+          color: "BLACK",
+          line: "LINE 1",
+          unit: "UNIT A",
+          inspector: "admin",
+          timestamp: "2026-06-17T17:15:00.000Z"
+        }
+      ];
     }
     localStorage.setItem(key, JSON.stringify(initial));
     return initial;
@@ -194,12 +448,19 @@ export const sheetsService = {
   updateOfflineData(sheetName: string, record: any) {
     const key = `bqos_local_sheet_${sheetName}`;
     const current = this.getOfflineData(sheetName);
-    const id = record.id || record.workorderNumber;
     
-    const idx = current.findIndex(item => 
-      String(item.id || item.workorderNumber) === String(id) || 
-      (record.userCode && String(item.userCode) === String(record.userCode))
-    );
+    const idx = current.findIndex(item => {
+      if (record.userCode && item.userCode) {
+        return String(item.userCode) === String(record.userCode);
+      }
+      if (record.id && item.id) {
+        return String(item.id) === String(record.id);
+      }
+      if (record.workorderNumber && item.workorderNumber) {
+        return String(item.workorderNumber) === String(record.workorderNumber);
+      }
+      return false;
+    });
 
     if (idx !== -1) {
       current[idx] = { ...current[idx], ...record };
@@ -326,8 +587,7 @@ export const sheetsService = {
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
     const metadata = await this.request(spreadsheetId);
-    const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || []);
-    const existing = metadata.sheets?.some((s: any) => s.properties?.title === resolvedName);
+    const existing = metadata.sheets?.some((s: any) => String(s.properties?.title || '').toUpperCase().trim() === String(sheetName).toUpperCase().trim());
 
     if (!existing) {
       await this.request(`${spreadsheetId}:batchUpdate`, {
@@ -362,7 +622,9 @@ export const sheetsService = {
       'ENDLINE QUALITY': ['ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
       'AQL REPORT': ['AQL REPORT', 'AQL INSPECTION', 'AQL', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
       'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL - KERALA', 'FINAL - TIRUPUR', 'FINAL - BANGLORE'],
-      'WORKORDER': ['WORKORDER', 'WORKORDERS']
+      'WORKORDER': ['WORKORDER', 'WORKORDERS'],
+      'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
+      'ZONE': ['ZONE', 'ZONES']
     };
 
     const canonicalKeys: { [key: string]: string } = {
@@ -389,7 +651,11 @@ export const sheetsService = {
       '8 ROUNDS': 'INLINE',
       '8ROUND_SYSTEM': 'INLINE',
       '8 ROUND SYSTEM': 'INLINE',
-      '8ROUND SYSTEM': 'INLINE'
+      '8ROUND SYSTEM': 'INLINE',
+      'REPORTS': 'REPORTS_SOP',
+      'SOP REPORTS': 'REPORTS_SOP',
+      'SOPS': 'REPORTS_SOP',
+      'REPORTS & SOPS': 'REPORTS_SOP'
     };
 
     let baseName = sheetName;
@@ -403,10 +669,13 @@ export const sheetsService = {
     }
 
     const normalizedBase = String(baseName || '').trim().toUpperCase();
-    if (normalizedBase === 'USERS' || normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL' || normalizedBase === 'ADMIN') {
-      if (normalizedBase === 'USERS') return 'USERS';
+    const isUserSheet = normalizedBase.indexOf('USER') !== -1;
+    if (isUserSheet || normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL' || normalizedBase === 'ADMIN' || normalizedBase === 'ZONE' || normalizedBase === 'UNIT') {
+      if (isUserSheet) return 'USERS';
       if (normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL') return 'SETTINGS';
       if (normalizedBase === 'ADMIN') return 'ADMIN';
+      if (normalizedBase === 'ZONE') return 'ZONE';
+      if (normalizedBase === 'UNIT') return 'UNIT';
       const synonyms = synonymsMap[baseName];
       if (synonyms) {
         for (const syn of synonyms) {
@@ -474,11 +743,13 @@ export const sheetsService = {
           'MATERIAL REPORT', 'MATERIAL REPORT - KERALA', 'MATERIAL REPORT - TIRUPUR', 'MATERIAL REPORT - BANGLORE'
         ],
         'CUTTING QUALITY': ['CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
-        'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE'],
+        'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'SEWING DEFECT', 'SEWING DEFECTS', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE', '8ROUND SYSTEM', '8ROUND SYSTEM - KERALA', '8ROUND SYSTEM - TIRUPUR', '8ROUND SYSTEM - BANGLORE', '8ROUND_SYSTEM', '8 ROUND SYSTEM', '8ROUND', '8 ROUNDS'],
         'ENDLINE QUALITY': ['ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
         'AQL REPORT': ['AQL REPORT', 'AQL INSPECTION', 'AQL', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
         'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL AUDIT - KERALA', 'FINAL AUDIT - TIRUPUR', 'FINAL AUDIT - BANGLORE'],
-        'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE']
+        'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE'],
+        'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
+        'ZONE': ['ZONE', 'ZONES']
       };
 
       const possibleNames = synonymsMap[sheetName] || [sheetName];
@@ -536,7 +807,7 @@ export const sheetsService = {
                   record['zone'] = val;
                 }
               }
-              if (normKey === 'zone') {
+              if (normKey === 'zone' || normKey === 'zones' || normKey === 'zonename' || normKey === 'zonenames') {
                 record['zone'] = val;
                 if (!hasLocationCol && record['location'] === undefined) {
                   record['location'] = val;
@@ -546,10 +817,19 @@ export const sheetsService = {
               if (normKey === 'candownload') record['canDownload'] = val;
 
               if (normKey === 'workordernumber' || normKey === 'workorderno') record['workorderNumber'] = val;
-              if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') record['orderQty'] = val;
+              if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') {
+                record['orderQty'] = val;
+                record['quantity'] = val;
+              }
               if (normKey === 'style' || normKey === 'stylename') {
                 record['style'] = val;
                 record['styleName'] = val;
+              }
+              if (normKey === 'size' || normKey === 'sizes') {
+                record['size'] = val;
+              }
+              if (normKey === 'cup' || normKey === 'cupsize' || normKey === 'cups') {
+                record['cup'] = val;
               }
               if (normKey === 'item') record['item'] = val;
               if (normKey === 'color' || normKey === 'colour') {
@@ -561,7 +841,7 @@ export const sheetsService = {
               if (normKey === 'shipdate') record['shipDate'] = val;
               if (normKey === 'status') record['status'] = val;
 
-              if (normKey === 'worker' || normKey === 'workername' || normKey === 'operator' || normKey === 'operatorname') {
+               if (normKey === 'worker' || normKey === 'workername' || normKey === 'operator' || normKey === 'operatorname') {
                 record['worker'] = val;
               }
               if (normKey === 'machine' || normKey === 'machineno' || normKey === 'machinenumber') {
@@ -570,14 +850,32 @@ export const sheetsService = {
               if (normKey === 'round' || normKey === 'roundlabel' || normKey === 'rounds' || normKey === 'hourlyround') {
                 record['round'] = val;
               }
-              if (normKey === 'checkingdate' || normKey === 'checkingDate') {
+              if (normKey === 'roundindex' || normKey === 'roundidx') {
+                record['roundIndex'] = parseInt(val, 10) || 0;
+              }
+              if (normKey === 'checkingdate' || normKey === 'checkingDate' || normKey === 'date' || normKey === 'checkingdatetime') {
                 record['checkingDate'] = val;
+                record['date'] = val;
+              }
+              if (normKey === 'checkedqty' || normKey === 'pcschecked' || normKey === 'pieceschecked') {
+                record['checkedQty'] = parseInt(val, 10) || 0;
+                record['pcsChecked'] = parseInt(val, 10) || 0;
+              }
+              if (normKey === 'complaintpcs' || normKey === 'failqty' || normKey === 'failedpieces') {
+                record['complaintPcs'] = parseInt(val, 10) || 0;
+                record['failQty'] = parseInt(val, 10) || 0;
               }
             }
 
-            const uniqueId = (sheetName === 'WORKORDER')
-              ? (record.id || record.workorderNumber)
-              : (record.id || record.userCode);
+            let uniqueId = undefined;
+            if (sheetName === 'USERS') {
+              uniqueId = record.id || record.userCode;
+            } else if (sheetName === 'WORKORDER') {
+              uniqueId = record.id || record.workorderNumber;
+            } else {
+              uniqueId = record.id;
+            }
+
             if (uniqueId) {
               if (seenIds.has(uniqueId)) continue;
               seenIds.add(uniqueId);
@@ -624,10 +922,10 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    await this.ensureSheetExists(sheetName);
-
     const metadata = await this.request(spreadsheetId);
     const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || [], record);
+
+    await this.ensureSheetExists(resolvedName);
 
     const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
     let headers: string[] = (existingRows.values && existingRows.values[0]) || [];
@@ -660,8 +958,14 @@ export const sheetsService = {
       
       // Dynamic columns healing for other sheets
       for (const key of Object.keys(record)) {
-        const cleanKey = String(key || '').trim().toLowerCase();
-        if (cleanKey && !normHeaders.includes(cleanKey)) {
+        let hasSynonym = false;
+        for (const h of headers) {
+          if (areSynonyms(h, key)) {
+            hasSynonym = true;
+            break;
+          }
+        }
+        if (key && !hasSynonym) {
           headers.push(key);
           headersChanged = true;
         }
@@ -699,10 +1003,10 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    await this.ensureSheetExists(sheetName);
-
     const metadata = await this.request(spreadsheetId);
-    const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || []);
+    const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || [], records[0]);
+
+    await this.ensureSheetExists(resolvedName);
 
     const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
     let headers: string[] = (existingRows.values && existingRows.values[0]) || [];
@@ -856,10 +1160,58 @@ export const sheetsService = {
   async getSettings(sheetName: string): Promise<any> {
     try {
       const isGlobal = (sheetName === 'GLOBAL' || sheetName === 'SETTINGS');
+      
+      const spreadsheetId = this.getSpreadsheetId();
+      let sheetTitles: string[] = [];
+      if (spreadsheetId) {
+        try {
+          const metadata = await this.request(spreadsheetId);
+          sheetTitles = (metadata.sheets || []).map((s: any) => String(s.properties?.title || '').trim().toUpperCase());
+        } catch (err) {
+          console.error("Failed to get spreadsheet metadata in getSettings:", err);
+        }
+      }
+
       let targetSheet = isGlobal ? 'SETTINGS' : sheetName;
 
+      if (!isGlobal) {
+        // Search in local USERS sheet first
+        const users = await this.getData('USERS').catch(() => []);
+        const user = users.find(u => String(u.userCode || '').trim() === String(sheetName).trim() || String(u.username || '').trim() === String(sheetName).trim());
+        if (user) {
+          // If the user belongs to a specific zone/location, check if there are zone-specific settings
+          const userZone = user.location || user.zone;
+          if (userZone && userZone !== 'ALL' && userZone !== 'SYSTEM') {
+            const zonedSettings = await this.getSettings('SETTINGS - ' + userZone.toUpperCase()).catch(() => null);
+            if (zonedSettings) return zonedSettings;
+          }
+
+          const uSheetName = String(sheetName || '').trim().toUpperCase();
+          const uUsername = String(user.username || '').trim().toUpperCase();
+          const hasUserSheet = sheetTitles.includes(uSheetName) || (user.username && sheetTitles.includes(uUsername));
+
+          if (!hasUserSheet) {
+            const rawSettings = user.userSettings || user.settings;
+            if (rawSettings) {
+              try {
+                const val = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
+                if (val && typeof val === 'object') {
+                  return val;
+                }
+              } catch (pErr) {
+                console.error("Error parsing user.settings from local users:", pErr);
+              }
+            }
+          } else {
+            targetSheet = sheetTitles.includes(uSheetName) ? sheetName : user.username;
+          }
+        }
+      }
+
       const records = await this.getData(targetSheet).catch(() => []);
-      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+      const categories = isGlobal ? 
+        ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
+        ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
       const settings: any = {};
       categories.forEach(cat => settings[cat] = []);
       
@@ -900,19 +1252,137 @@ export const sheetsService = {
         });
       });
 
-      const isEmpty = Object.values(settings).every((arr: any) => arr.length === 0);
-      if (isEmpty) {
-        if (!isGlobal) {
-          return await this.getSettings('SETTINGS');
+      let finalSettings = settings;
+      if (!isGlobal) {
+        const globalSettings = await this.getSettings('SETTINGS').catch(() => ({}));
+        categories.forEach(cat => {
+          if (!settings[cat] || settings[cat].length === 0) {
+            settings[cat] = globalSettings[cat] || [];
+          }
+        });
+        finalSettings = settings;
+      } else {
+        const isEmpty = Object.values(settings).every((arr: any) => arr.length === 0);
+        if (isEmpty) {
+          finalSettings = { ...DEFAULT_SETTINGS };
         }
-        return DEFAULT_SETTINGS;
       }
-      return settings;
+
+       try {
+        const zoneRows = await this.getData('ZONE').catch(() => []);
+        
+        // Build a dictionary of ZMAP-ID -> Human Name
+        const zoneIdToNameMap = new Map<string, string>();
+        for (const row of zoneRows) {
+          const z = String(row.zone || '').trim().toUpperCase();
+          const id = String(row.id || '').trim().toUpperCase();
+          if (z.startsWith('ZMAP-') && id && !id.startsWith('ZMAP-')) {
+            zoneIdToNameMap.set(z, id);
+          } else if (id.startsWith('ZMAP-') && z && !z.startsWith('ZMAP-')) {
+            zoneIdToNameMap.set(id, z);
+          }
+        }
+
+        const validZoneRows = zoneRows.filter((r: any) => {
+          let z = String(r.zone || '').trim().toUpperCase();
+          if (z.startsWith('ZMAP-')) {
+            z = zoneIdToNameMap.get(z) || z;
+          }
+          return z && !z.startsWith('ZMAP-');
+        });
+
+        const dynamicZones = Array.from(
+          new Set(
+            validZoneRows.map((r: any) => {
+              let z = String(r.zone || '').trim().toUpperCase();
+              if (z.startsWith('ZMAP-')) {
+                z = zoneIdToNameMap.get(z) || z;
+              }
+              return z;
+            }).filter(z => z && !z.startsWith('ZMAP-'))
+          )
+        );
+
+        const dynamicUnits = Array.from(
+          new Set(
+            validZoneRows
+              .filter((r: any) => String(r.unit || '').trim())
+              .map((r: any) => String(r.unit || '').trim().toUpperCase())
+              .filter(Boolean)
+          )
+        );
+
+        finalSettings = {
+          ...finalSettings as any,
+          ZONE: dynamicZones.length > 0 ? (dynamicZones as string[]) : (finalSettings.ZONE && finalSettings.ZONE.length > 0 ? finalSettings.ZONE : []),
+          ZONES: dynamicZones.length > 0 ? (dynamicZones as string[]) : (finalSettings.ZONES && finalSettings.ZONES.length > 0 ? finalSettings.ZONES : []),
+          UNIT: dynamicUnits.length > 0 ? (dynamicUnits as string[]) : (finalSettings.UNIT && finalSettings.UNIT.length > 0 ? finalSettings.UNIT : []),
+          UNITS: dynamicUnits.length > 0 ? (dynamicUnits as string[]) : (finalSettings.UNITS && finalSettings.UNITS.length > 0 ? finalSettings.UNITS : [])
+        };
+      } catch (zoneErr) {
+        console.error("Failed to load dynamic zones/units:", zoneErr);
+      }
+
+      return finalSettings;
     } catch (e) {
       if (sheetName !== 'SETTINGS' && sheetName !== 'GLOBAL') {
         return await this.getSettings('SETTINGS');
       }
-      return DEFAULT_SETTINGS;
+      
+      let fallback: any = { ...DEFAULT_SETTINGS };
+      try {
+        const zoneRows = await this.getData('ZONE').catch(() => []);
+        
+        // Build a dictionary of ZMAP-ID -> Human Name
+        const zoneIdToNameMap = new Map<string, string>();
+        for (const row of zoneRows) {
+          const z = String(row.zone || '').trim().toUpperCase();
+          const id = String(row.id || '').trim().toUpperCase();
+          if (z.startsWith('ZMAP-') && id && !id.startsWith('ZMAP-')) {
+            zoneIdToNameMap.set(z, id);
+          } else if (id.startsWith('ZMAP-') && z && !z.startsWith('ZMAP-')) {
+            zoneIdToNameMap.set(id, z);
+          }
+        }
+
+        const validZoneRows = zoneRows.filter((r: any) => {
+          let z = String(r.zone || '').trim().toUpperCase();
+          if (z.startsWith('ZMAP-')) {
+            z = zoneIdToNameMap.get(z) || z;
+          }
+          return z && !z.startsWith('ZMAP-');
+        });
+
+        const dynamicZones = Array.from(
+          new Set(
+            validZoneRows.map((r: any) => {
+              let z = String(r.zone || '').trim().toUpperCase();
+              if (z.startsWith('ZMAP-')) {
+                z = zoneIdToNameMap.get(z) || z;
+              }
+              return z;
+            }).filter(z => z && !z.startsWith('ZMAP-'))
+          )
+        );
+
+        const dynamicUnits = Array.from(
+          new Set(
+            validZoneRows
+              .filter((r: any) => String(r.unit || '').trim())
+              .map((r: any) => String(r.unit || '').trim().toUpperCase())
+              .filter(Boolean)
+          )
+        );
+
+        fallback = {
+          ...fallback as any,
+          ZONE: dynamicZones.length > 0 ? (dynamicZones as string[]) : (fallback.ZONE && fallback.ZONE.length > 0 ? fallback.ZONE : []),
+          ZONES: dynamicZones.length > 0 ? (dynamicZones as string[]) : (fallback.ZONES && fallback.ZONES.length > 0 ? fallback.ZONES : []),
+          UNIT: dynamicUnits.length > 0 ? (dynamicUnits as string[]) : (fallback.UNIT && fallback.UNIT.length > 0 ? fallback.UNIT : []),
+          UNITS: dynamicUnits.length > 0 ? (dynamicUnits as string[]) : (fallback.UNITS && fallback.UNITS.length > 0 ? fallback.UNITS : [])
+        };
+      } catch (zErr) {}
+      return fallback;
     }
   },
 
@@ -925,13 +1395,32 @@ export const sheetsService = {
         let found = false;
         localUsers.forEach((u: any) => {
           if (u.userCode === sheetName || u.username === sheetName) {
-            u.settings = settings;
+            u.settings = typeof settings === 'string' ? settings : JSON.stringify(settings);
             found = true;
           }
         });
         if (found) {
           localStorage.setItem('bqos_local_sheet_USERS', JSON.stringify(localUsers));
         }
+
+        // Also save to separate local sheet for the user
+        const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+        let maxLen = 0;
+        categories.forEach(cat => {
+          if (settings[cat] && settings[cat].length > maxLen) maxLen = settings[cat].length;
+        });
+
+        const records: any[] = [];
+        for (let i = 0; i < maxLen; i++) {
+          const record: any = {};
+          categories.forEach(cat => {
+            const list = settings[cat];
+            const val = list && list[i];
+            record[cat] = val !== undefined && val !== null ? val : "";
+          });
+          records.push(record);
+        }
+        localStorage.setItem(`bqos_local_sheet_${sheetName.toUpperCase()}`, JSON.stringify(records));
         return { success: true };
       }
 
@@ -956,12 +1445,27 @@ export const sheetsService = {
     }
 
     if (!isGlobal) {
+      // 1. Save locally to USERS row as fallback/compatibility
+      try {
+        const users = await this.getData('USERS');
+        const user = users.find(u => String(u.userCode || '').trim() === String(sheetName).trim() || String(u.username || '').trim() === String(sheetName).trim());
+        if (user) {
+          user.userSettings = typeof settings === 'string' ? JSON.parse(settings) : settings;
+          user.settings = typeof settings === 'string' ? settings : JSON.stringify(settings);
+          await this.updateData('USERS', user);
+        }
+      } catch (e) {
+        console.warn("Failed to update fallback USERS settings cell:", e);
+      }
+
+      // 2. Feed directly to the dedicated sheet for this user!
+      const targetSheetName = sheetName;
       const spreadsheetId = this.getSpreadsheetId();
       if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-      await this.ensureSheetExists(sheetName);
+      await this.ensureSheetExists(targetSheetName);
 
-      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
 
       let maxLen = 0;
       categories.forEach(cat => {
@@ -977,11 +1481,11 @@ export const sheetsService = {
          rows.push(row);
       }
 
-      await this.request(`${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A1:Z5000:clear`, {
+      await this.request(`${spreadsheetId}/values/${encodeURIComponent(targetSheetName)}!A1:Z5000:clear`, {
         method: 'POST'
       });
 
-      await this.request(`${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A1?valueInputOption=USER_ENTERED`, {
+      await this.request(`${spreadsheetId}/values/${encodeURIComponent(targetSheetName)}!A1?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         body: JSON.stringify({ values: rows })
       });
@@ -1020,5 +1524,56 @@ export const sheetsService = {
     });
 
     return { success: true };
+  },
+
+  async uploadFileToDrive(file: File, customName?: string): Promise<string> {
+    const accessToken = getAccessToken();
+    if (!accessToken) throw new Error('Authorization required to upload to Google Drive.');
+
+    const name = customName || file.name;
+    const metadata = {
+      name: name,
+      mimeType: file.type || 'application/octet-stream'
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    const uploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink';
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: form
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Google Drive upload failed: ${errText}`);
+    }
+
+    const resJson = await res.json();
+    const fileId = resJson.id;
+
+    // Set permissions to reader for anyone (optional/graceful)
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone'
+        })
+      });
+    } catch (permErr) {
+      console.warn("Failed to set public reader permission on Drive file:", permErr);
+    }
+
+    return resJson.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
   }
 };

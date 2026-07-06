@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { api } from '../services/api';
-import { ZONES } from '../constants';
+import { ZONES, COLORS, SIZES, CUPSIZES } from '../constants';
 import Icon from './Icon';
 
 interface WorkorderDashboardProps {
@@ -14,12 +14,33 @@ interface WorkorderDashboardProps {
 }
 
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
-  const currentSizes = settings?.SIZE || settings?.SIZES || [];
-  const currentCups = settings?.CUPSIZE || settings?.CUPSIZES || [];
-  const currentColors = settings?.COLOR || settings?.COLORS || settings?.COLOUR || settings?.COLOURS || [];
-  const currentStyles = settings?.STYLE_NAME || settings?.['STYLE_NAME'] || settings?.['STYLE NAME'] || settings?.STYLE || settings?.STYLES || [];
-  const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones && currentZones.length > 0 ? currentZones[0] : ZONES[0])));
+  const getParsedSettingList = (keys: string[], defaultVal: string[] = []) => {
+    const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+    const fallbackVal = hasSpreadsheet ? [] : defaultVal;
+    if (!settings) return fallbackVal;
+    for (const key of keys) {
+      const raw = settings[key] || settings[key.toUpperCase()] || settings[key.toLowerCase()];
+      if (raw !== undefined && raw !== null) {
+        if (typeof raw === 'string') {
+          return raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+        }
+        if (Array.isArray(raw)) {
+          return raw.map((s: any) => String(s).trim()).filter(Boolean);
+        }
+      }
+    }
+    return fallbackVal;
+  };
+
+  const currentZones = React.useMemo(() => {
+    const list = getParsedSettingList(['ZONE', 'ZONES'], ZONES);
+    return list;
+  }, [settings]);
+  const currentSizes = React.useMemo(() => getParsedSettingList(['SIZE', 'SIZES', 'SIZE_RANGE', 'SIZE RANGE'], SIZES), [settings]);
+  const currentCups = React.useMemo(() => getParsedSettingList(['CUPSIZE', 'CUPSIZES', 'CUP', 'CUPS'], CUPSIZES), [settings]);
+  const currentColors = React.useMemo(() => getParsedSettingList(['COLOR', 'COLORS', 'COLOUR', 'COLOURS'], COLORS), [settings]);
+  const currentStyles = React.useMemo(() => getParsedSettingList(['STYLE_NAME', 'STYLE NAME', 'STYLE NAMES', 'STYLE_NAMES', 'STYLE', 'STYLES'], ['STYLE A', 'STYLE B', 'STYLE C']), [settings]);
+  const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones && currentZones.length > 0 ? currentZones[0] : '')));
 
   const getStyleLabel = () => {
     if (settings) {
@@ -53,12 +74,75 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     sizeTo: '',
     cup: '', 
     quantity: '', 
-    colour: ''
+    colour: '',
+    status: 'CUTTING'
   });
+
   const [search, setSearch] = useState('');
   const [selectedWO, setSelectedWO] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const displayStyles = React.useMemo(() => {
+    const list = [...currentStyles];
+    if (form.style && !list.includes(form.style)) {
+      list.push(form.style);
+    }
+    return list;
+  }, [currentStyles, form.style]);
+
+  const displayColors = React.useMemo(() => {
+    const list = [...currentColors];
+    if (form.colour && !list.includes(form.colour)) {
+      list.push(form.colour);
+    }
+    return list;
+  }, [currentColors, form.colour]);
+
+  const displayCups = React.useMemo(() => {
+    const list = [...currentCups];
+    if (form.cup && !list.includes(form.cup)) {
+      list.push(form.cup);
+    }
+    return list;
+  }, [currentCups, form.cup]);
+
+  const displaySizesFrom = React.useMemo(() => {
+    const list = [...currentSizes];
+    if (form.sizeFrom && !list.includes(form.sizeFrom)) {
+      list.push(form.sizeFrom);
+    }
+    return list;
+  }, [currentSizes, form.sizeFrom]);
+
+  const displaySizesTo = React.useMemo(() => {
+    const list = [...currentSizes];
+    if (form.sizeTo && !list.includes(form.sizeTo)) {
+      list.push(form.sizeTo);
+    }
+    return list;
+  }, [currentSizes, form.sizeTo]);
+
+  React.useEffect(() => {
+    if (isEditing) return;
+    setForm(prev => ({
+      ...prev,
+      style: prev.style || currentStyles[0] || '',
+      colour: prev.colour || currentColors[0] || '',
+      sizeFrom: prev.sizeFrom || currentSizes[0] || '',
+      sizeTo: prev.sizeTo || currentSizes[0] || '',
+      cup: prev.cup || currentCups[0] || ''
+    }));
+  }, [currentStyles, currentColors, currentSizes, currentCups, isEditing]);
+
+  React.useEffect(() => {
+    if (isEditing) return;
+    if (globalZone && globalZone !== 'ALL') {
+      setForm(prev => ({ ...prev, zone: globalZone }));
+    } else if (currentZones && currentZones.length > 0 && (!form.zone || !currentZones.includes(form.zone))) {
+      setForm(prev => ({ ...prev, zone: currentZones[0] }));
+    }
+  }, [globalZone, currentZones, form.zone, isEditing]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +171,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         quantity: form.quantity,
         colour: form.colour,
         id: isEditing ? selectedWO.id : Date.now(), 
-        status: isEditing ? selectedWO.status : 'CUTTING',
+        status: form.status,
         createdAt: isEditing ? selectedWO.createdAt : new Date().toISOString() 
       };
 
@@ -106,14 +190,15 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       }
 
       setForm({ 
-        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones[0] || ZONES[0]))), 
+        zone: (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones[0] || ''))), 
         workorderNumber: '', 
         style: '', 
         sizeFrom: '', 
         sizeTo: '', 
         cup: '',
         quantity: '', 
-        colour: ''
+        colour: '',
+        status: 'CUTTING'
       });
       setIsEditing(false);
       setSelectedWO(null);
@@ -153,7 +238,8 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       sizeTo,
       cup: wo.cup || '',
       quantity: wo.quantity || '',
-      colour: wo.colour || ''
+      colour: wo.colour || '',
+      status: wo.status || 'CUTTING'
     });
     setSelectedWO(wo);
     setIsEditing(true);
@@ -191,38 +277,69 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <label>Workorder Number</label>
                   <input type="text" placeholder="Enter WO Number" className="w-full" value={form.workorderNumber} onChange={e => setForm({...form, workorderNumber: e.target.value})} required />
                 </div>
-                <div>
-                  <label>{getStyleLabel()}</label>
-                  {currentStyles.length > 0 ? (
-                    <select className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required>
-                      <option value="">Select {getStyleLabel()}</option>
-                      {currentStyles.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  ) : (
-                    <input type="text" placeholder={`Enter ${getStyleLabel()}`} className="w-full" value={form.style} onChange={e => setForm({...form, style: e.target.value})} required />
-                  )}
-                </div>
                  <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label>{getStyleLabel()}</label>
+                    <select 
+                      className="w-full" 
+                      value={form.style} 
+                      onChange={e => setForm({...form, style: e.target.value})} 
+                      required 
+                    >
+                      <option value="">Select Style</option>
+                      {displayStyles.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label>{getColorLabel()}</label>
+                    <select 
+                      className="w-full" 
+                      value={form.colour} 
+                      onChange={e => setForm({...form, colour: e.target.value})} 
+                      required 
+                    >
+                      <option value="">Select Colour</option>
+                      {displayColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label>Size From</label>
-                    <input type="text" placeholder="e.g. 32 / S" className="w-full" value={form.sizeFrom} onChange={e => setForm({...form, sizeFrom: e.target.value})} required />
+                    <select 
+                      className="w-full" 
+                      value={form.sizeFrom} 
+                      onChange={e => setForm({...form, sizeFrom: e.target.value})} 
+                      required 
+                    >
+                      <option value="">Select Size From</option>
+                      {displaySizesFrom.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label>Size To</label>
-                    <input type="text" placeholder="e.g. 42 / XL" className="w-full" value={form.sizeTo} onChange={e => setForm({...form, sizeTo: e.target.value})} required />
+                    <select 
+                      className="w-full" 
+                      value={form.sizeTo} 
+                      onChange={e => setForm({...form, sizeTo: e.target.value})} 
+                      required 
+                    >
+                      <option value="">Select Size To</option>
+                      {displaySizesTo.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label>Cup (Optional)</label>
-                    {currentCups.length > 0 ? (
-                      <select className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})}>
-                        <option value="">Select Cup</option>
-                        {currentCups.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : (
-                      <input type="text" placeholder="Cup" className="w-full" value={form.cup} onChange={e => setForm({...form, cup: e.target.value})} />
-                    )}
+                    <select 
+                      className="w-full" 
+                      value={form.cup} 
+                      onChange={e => setForm({...form, cup: e.target.value})} 
+                    >
+                      <option value="">Select Cup (Optional)</option>
+                      {displayCups.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label>Quantity</label>
@@ -230,15 +347,16 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   </div>
                 </div>
                 <div>
-                  <label>{getColorLabel()}</label>
-                  {currentColors.length > 0 ? (
-                    <select className="w-full" value={form.colour} onChange={e => setForm({...form, colour: e.target.value})} required>
-                      <option value="">Select {getColorLabel()}</option>
-                      {currentColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <input type="text" placeholder={`Enter ${getColorLabel()}`} className="w-full" value={form.colour} onChange={e => setForm({...form, colour: e.target.value})} required />
-                  )}
+                  <label>Workflow Status</label>
+                  <select className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
+                    <option value="CUTTING">CUTTING</option>
+                    <option value="INLINE">INLINE</option>
+                    <option value="ENDLINE">ENDLINE</option>
+                    <option value="INLINE_AND_ENDLINE">INLINE & ENDLINE</option>
+                    <option value="AQL">AQL</option>
+                    <option value="FINAL">FINAL AUDIT</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                  </select>
                 </div>
                 <div className="flex gap-2">
                   <button 
@@ -248,7 +366,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   >
                     {isSubmitting ? 'SAVING...' : (isEditing ? 'UPDATE WO' : 'SUBMIT WO')}
                   </button>
-                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || ZONES[0], workorderNumber: '', style: '', sizeFrom: '', sizeTo: '', cup: '', quantity: '', colour: '' }); }} className="btn-secondary mt-4">CANCEL</button>}
+                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || '', workorderNumber: '', style: '', sizeFrom: '', sizeTo: '', cup: '', quantity: '', colour: '', status: 'CUTTING' }); }} className="btn-secondary mt-4">CANCEL</button>}
                 </div>
               </form>
             </div>

@@ -9,8 +9,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 const provider = new GoogleAuthProvider();
-// Request full spreadsheet access
+// Request spreadsheet and drive.file access
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 let cachedAccessToken: string | null = localStorage.getItem('GOOGLE_ACCESS_TOKEN');
 let isSigningIn = false;

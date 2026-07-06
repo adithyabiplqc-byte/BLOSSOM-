@@ -8,7 +8,11 @@ interface IconProps {
 }
 
 const Icon: React.FC<IconProps> = ({ name, size = 24, className = '' }) => {
-  const LucideIcon = (LucideIcons as any)[name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (g) => g[1].toUpperCase())];
+  const pascalName = name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+  const LucideIcon = (LucideIcons as any)[pascalName];
   
   if (!LucideIcon) {
     console.warn(`Icon "${name}" not found in lucide-react`);

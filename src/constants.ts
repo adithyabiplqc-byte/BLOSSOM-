@@ -1,5 +1,5 @@
-export const ZONES = ['KERALA', 'TIRUPUR', 'BANGLORE'];
-export const UNITS = ['UNIT A', 'UNIT B', 'UNIT C', 'UNIT D'];
+export const ZONES: string[] = [];
+export const UNITS: string[] = [];
 export const ROLES = ['ADMIN', 'USER', 'WORKORDER'];
 export const SUPPLIERS = ['SUPPLIER A', 'SUPPLIER B', 'SUPPLIER C', 'SUPPLIER D'];
 export const ITEMS = ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
@@ -24,6 +24,7 @@ export const SUBMODULES = [
   { id: 'A4', module: 'A', name: 'Endline Quality' },
   { id: 'A5', module: 'A', name: 'AQL Inspection' },
   { id: 'A6', module: 'A', name: 'Final Audit' },
+  { id: 'A7', module: 'A', name: 'Reports & SOPs' },
   { id: 'B1', module: 'B', name: 'Material Report' },
   { id: 'B2', module: 'B', name: 'Cutting Report' },
   { id: 'B3', module: 'B', name: 'Inline Report' },
@@ -32,12 +33,11 @@ export const SUBMODULES = [
   { id: 'B6', module: 'B', name: 'Final Audit Report' },
   { id: 'B7', module: 'B', name: 'User Management' },
   { id: 'B8', module: 'B', name: 'Workorder Data' },
+  { id: 'B9', module: 'B', name: 'SOP & Audit Documents' },
   { id: 'C1', module: 'C', name: 'Daily Report' },
-  { id: 'C2', module: 'C', name: 'Production Summary' },
   { id: 'C3', module: 'C', name: 'Quality Analysis' },
   { id: 'C4', module: 'C', name: 'Defect Report' },
   { id: 'C5', module: 'C', name: 'Factory Performance' },
-  { id: 'C6', module: 'C', name: 'Audit Summary' },
   { id: 'C7', module: 'C', name: 'Worker Analysis' },
-  { id: 'C8', module: 'C', name: 'Material Analysis' }
+  { id: 'C9', module: 'C', name: 'Blossom AI Analysis' }
 ];

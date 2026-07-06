@@ -10,6 +10,7 @@ import UserDashboard from './components/UserDashboard';
 import SubmoduleContainer from './components/SubmoduleContainer';
 
 import ConnectionGuide from './components/ConnectionGuide';
+import { ZONES } from './constants';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>('splash');
@@ -25,6 +26,34 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
+
+  const getParsedSettingList = useCallback((keys: string[], defaultVal: string[] = []) => {
+    if (!settings) return defaultVal;
+    for (const key of keys) {
+      const raw = settings[key] || settings[key.toUpperCase()] || settings[key.toLowerCase()];
+      if (raw !== undefined && raw !== null) {
+        if (typeof raw === 'string') {
+          return raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+        }
+        if (Array.isArray(raw)) {
+          return raw.map((s: any) => String(s).trim()).filter(Boolean);
+        }
+      }
+    }
+    return defaultVal;
+  }, [settings]);
+
+  const currentZones = React.useMemo(() => {
+    const list = getParsedSettingList(['ZONE', 'ZONES'], ZONES);
+    return list.filter((z: string) => z && !z.toUpperCase().startsWith('ZMAP-'));
+  }, [getParsedSettingList]);
+
+  // Auto-select zone if exactly one zone exists in the settings
+  useEffect(() => {
+    if (currentZones.length === 1 && globalZone !== currentZones[0]) {
+      setGlobalZone(currentZones[0]);
+    }
+  }, [currentZones, globalZone]);
 
   const triggerSuccess = (message: string) => {
     setSuccessMessage(message);
@@ -54,11 +83,14 @@ const App: React.FC = () => {
     
     setLoading(true);
     try {
-      const zoneToFetch = customZone || (user.role === 'ADMIN' ? globalZone : (user.zone || user.location));
-      const data = await api.run('api_getInitialData', { zone: zoneToFetch }) as any;
+      const zoneToFetch = customZone || ((user.role === 'ADMIN' || user.zone === 'COMMON') ? globalZone : (user.zone || user.location));
+      const data = await api.run('api_getInitialData', { zone: zoneToFetch, userCode: user?.userCode }) as any;
         if (data) {
           setUsers(Array.isArray(data.users) ? data.users : []);
           setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
+          if (data.settings) {
+            setSettings(data.settings);
+          }
         setConnectionError(null);
         return data;
       }
@@ -147,18 +179,10 @@ const App: React.FC = () => {
         
         let allUsers = initialData?.users || [];
         if (allUsers.length === 0) {
-          try {
-            const stored = localStorage.getItem('bqos_local_sheet_USERS');
-            if (stored) {
-              allUsers = JSON.parse(stored);
-            }
-          } catch (e) {}
-        }
-        if (allUsers.length === 0) {
           allUsers = [
-            { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "KERALA", restrictions: [], canDownload: true },
-            { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "KERALA", restrictions: [], canDownload: true },
-            { userCode: "W001", username: "wo1", password: "123", role: "WORKORDER", location: "KERALA", restrictions: [], canDownload: true }
+            { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "SYSTEM", restrictions: [], canDownload: true },
+            { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "SYSTEM", restrictions: [], canDownload: true },
+            { userCode: "W001", username: "wo1", password: "123", role: "WORKORDER", location: "SYSTEM", restrictions: [], canDownload: true }
           ];
         }
         setUsers(allUsers);
@@ -271,14 +295,22 @@ const App: React.FC = () => {
     switch (view) {
       case 'splash':
         return (
-          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-800 p-6">
-            <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-200 animate-bounce">
-              <Icon name="clipboard-check" size={48} className="text-white" />
+          <div className="splash-screen flex flex-col items-center justify-center min-h-screen bg-white text-slate-800 p-6 relative overflow-hidden">
+            {/* Cute ambient background circles */}
+            <div className="absolute top-10 left-10 w-32 h-32 bg-indigo-50 rounded-full blur-2xl opacity-70 pointer-events-none" />
+            <div className="absolute bottom-10 right-10 w-48 h-48 bg-purple-50 rounded-full blur-3xl opacity-80 pointer-events-none" />
+            
+            <div className="relative">
+              <div className="absolute inset-0 bg-indigo-100/40 rounded-full blur-xl scale-125 animate-pulse" />
+              <div className="relative w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-100 animate-bounce">
+                <Icon name="clipboard-check" size={48} className="text-white" />
+              </div>
             </div>
+            
             <h1 className="text-4xl font-black tracking-tighter mb-2 text-slate-800">BQOS <span className="text-indigo-600 font-extrabold">APP</span></h1>
             
             {connectionError ? (
-              <div className="max-w-md w-full animate-fade-in text-center">
+              <div className="max-w-md w-full animate-fade-in text-center relative z-10">
                 <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl mb-4 text-rose-800">
                    <p className="text-rose-600 font-bold text-xs uppercase tracking-widest mb-2">Connection Error</p>
                    <p className="text-sm font-medium text-slate-600">{connectionError}</p>
@@ -296,7 +328,7 @@ const App: React.FC = () => {
                        localStorage.removeItem('VITE_GAS_URL');
                        setConnectionError("CONFIGURATION_MODE");
                     }}
-                    className="w-full bg-slate-200 text-slate-800 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-300 flex items-center justify-center gap-2"
+                    className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 flex items-center justify-center gap-2"
                   >
                     <Icon name="settings" size={14} />
                     Reset & Setup Again
@@ -304,31 +336,31 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex gap-2">
+              <div className="flex flex-col items-center gap-4 relative z-10">
+                <div className="flex gap-2.5">
                   {[0, 1, 2].map((i) => (
                     <motion.div
                       key={i}
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                      className="w-2.5 h-2.5 bg-indigo-500 rounded-full"
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4], y: [0, -4, 0] }}
+                      transition={{ duration: 1.0, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+                      className="w-3 h-3 bg-indigo-600 rounded-full"
                     />
                   ))}
                 </div>
                 <div className="text-center space-y-4">
                   <div>
-                    <p className="text-slate-800 font-black text-sm uppercase tracking-[0.3em] mb-1">
+                    <p className="text-slate-800 font-black text-xs uppercase tracking-[0.3em] mb-1 pl-1">
                       Connecting to System
                     </p>
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    <p className="text-indigo-650 font-black text-[9px] uppercase tracking-widest animate-pulse">
                       Updating Cloud Spreadsheet
                     </p>
                   </div>
-
+            
                   {showSkip && (
                     <button 
                       onClick={() => setLoading(false)}
-                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-colors border border-indigo-200 bg-indigo-50 px-6 py-3 rounded-xl animate-fade-in"
+                      className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-colors border border-indigo-100 bg-indigo-50/50 px-6 py-2.5 rounded-xl animate-fade-in block mx-auto"
                     >
                       Continue anyway
                     </button>
@@ -378,16 +410,18 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* CENTRAL DASHBOARD SWITCHER (ADMIN ONLY) */}
-                {user?.role === 'ADMIN' && (
+                {/* CENTRAL DASHBOARD SWITCHER (ONLY ADMINS CAN SWITCH DASHBOARDS) */}
+                {user && user.role === 'ADMIN' && (
                   <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200 justify-center">
-                    <button
-                      onClick={() => { setView('admin'); setSelectedSubmodule(''); }}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
-                    >
-                      <Icon name="shield" size={12} />
-                      Admin Panel
-                    </button>
+                    {user?.role === 'ADMIN' && (
+                      <button
+                        onClick={() => { setView('admin'); setSelectedSubmodule(''); }}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                      >
+                        <Icon name="shield" size={12} />
+                        Admin Panel
+                      </button>
+                    )}
                     <button
                       onClick={() => { setView('workorder'); setSelectedSubmodule(''); }}
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'workorder' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
@@ -406,9 +440,9 @@ const App: React.FC = () => {
                 )}
 
                 <div className="flex items-center justify-between gap-2 md:gap-4 self-end md:self-auto">
-                  {user?.role === 'ADMIN' && (
+                  {(user?.role === 'ADMIN' || user?.zone === 'COMMON') && currentZones.length > 0 && (
                     <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                      {['ALL', ...(settings?.ZONE || ['KERALA', 'TIRUPUR', 'BANGLORE'])].map(z => (
+                      {['ALL', ...currentZones].map(z => (
                         <button
                           key={z}
                           onClick={() => setGlobalZone(z)}
@@ -447,9 +481,9 @@ const App: React.FC = () => {
                   </button>
                 </div>
               </div>
-              {user?.role === 'ADMIN' && (
+              {(user?.role === 'ADMIN' || user?.zone === 'COMMON') && currentZones.length > 0 && (
                 <div className="sm:hidden mt-2 bg-slate-100 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
-                  {['ALL', ...(settings?.ZONE || ['KERALA', 'TIRUPUR', 'BANGLORE'])].map(z => (
+                  {['ALL', ...currentZones].map(z => (
                     <button
                       key={z}
                       onClick={() => setGlobalZone(z)}
@@ -541,6 +575,8 @@ const App: React.FC = () => {
                   onBack={() => setView('user')} 
                   triggerSuccess={triggerSuccess}
                   globalZone={globalZone}
+                  onNavigate={(newSubId) => setSelectedSubmodule(newSubId)}
+                  refreshData={fetchData}
                 />
               )}
             </main>

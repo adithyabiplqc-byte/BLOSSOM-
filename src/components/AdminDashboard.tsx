@@ -83,13 +83,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     password: '', 
     role: 'USER', 
     location: '', 
-    zone: (globalZone && globalZone !== 'ALL') ? globalZone : ZONES[0]
+    zone: (globalZone && globalZone !== 'ALL') ? globalZone : ''
   });
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [settingsSubTab, setSettingsSubTab] = useState<'hierarchy' | 'userwise'>('hierarchy');
 
   React.useEffect(() => {
     if (tab === 'server' && serverUrl) {
@@ -127,6 +128,260 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const [selectedUserCode, setSelectedUserCode] = useState('');
+  const [isResettingDb, setIsResettingDb] = useState(false);
+
+  const handleFactoryReset = async () => {
+    const confirmation1 = window.confirm("🚨 WARNING: This will delete ALL zones, units, operators, and quality data from the connected spreadsheet!\n\nAre you sure you want to perform a full factory reset?");
+    if (!confirmation1) return;
+    
+    const confirmation2 = window.prompt("To proceed, type 'WIPE DATABASE' in all capitals below:");
+    if (confirmation2 !== 'WIPE DATABASE') {
+      alert("Verification failed. Reset aborted.");
+      return;
+    }
+
+    setIsResettingDb(true);
+    try {
+      const res = await api.run('api_resetAllDatabase');
+      if (res && res.success) {
+        if (triggerSuccess) triggerSuccess("🚨 ALL DATA WIPED SUCCESSFULLY! RE-INITIALIZING SYSTEM...");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        alert("Wipe failed: " + (res?.error || "Unknown error"));
+      }
+    } catch (e: any) {
+      alert("Error: " + (e.message || "Failed to wipe database"));
+    } finally {
+      setIsResettingDb(false);
+    }
+  };
+  const [zoneMappings, setZoneMappings] = useState<any[]>([]);
+  const [loadingZoneMappings, setLoadingZoneMappings] = useState(false);
+  const [isSavingZone, setIsSavingZone] = useState(false);
+  const [isSavingUnit, setIsSavingUnit] = useState(false);
+  const [isSavingWorker, setIsSavingWorker] = useState(false);
+
+  const [newZoneName, setNewZoneName] = useState('');
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitZone, setNewUnitZone] = useState('');
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerZone, setNewWorkerZone] = useState('');
+  const [newWorkerUnit, setNewWorkerUnit] = useState('');
+
+  const fetchZoneMappings = async () => {
+    setLoadingZoneMappings(true);
+    try {
+      const res = await api.run('api_getZoneMappings');
+      if (Array.isArray(res)) {
+        setZoneMappings(res);
+      }
+    } catch (e) {
+      console.error("Failed to load zone mappings:", e);
+    } finally {
+      setLoadingZoneMappings(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchZoneMappings();
+  }, []);
+
+  const handleSaveZone = async () => {
+    if (isSavingZone) return;
+    if (!newZoneName.trim()) return alert("Please enter a zone name.");
+    const isDup = zoneMappings.some(z => String(z.zone || '').toUpperCase() === newZoneName.trim().toUpperCase());
+    if (isDup) return alert("Zone already exists.");
+    
+    setIsSavingZone(true);
+    try {
+      const res = await api.run('api_saveZoneMapping', {
+        zone: newZoneName.trim().toUpperCase(),
+        unit: '',
+        worker: ''
+      });
+      if (res) {
+        setNewZoneName('');
+        await fetchZoneMappings();
+        await refreshData?.().catch(() => {});
+        triggerSuccess?.("Zone added successfully!");
+      }
+    } catch (e) {
+      alert("Failed to save zone: " + String(e));
+    } finally {
+      setIsSavingZone(false);
+    }
+  };
+
+  const handleSaveUnit = async () => {
+    if (isSavingUnit) return;
+    if (!newUnitName.trim()) return alert("Please enter a unit name.");
+    if (!newUnitZone) return alert("Please select a zone for this unit.");
+    
+    // Check if unit already exists in this zone
+    const isDup = zoneMappings.some(z => 
+      String(z.zone || '').toUpperCase() === newUnitZone.toUpperCase() && 
+      String(z.unit || '').toUpperCase() === newUnitName.trim().toUpperCase()
+    );
+    if (isDup) return alert("Unit already exists in this zone.");
+
+    setIsSavingUnit(true);
+    try {
+      const res = await api.run('api_saveZoneMapping', {
+        zone: newUnitZone.toUpperCase(),
+        unit: newUnitName.trim().toUpperCase(),
+        worker: ''
+      });
+      if (res) {
+        setNewUnitName('');
+        await fetchZoneMappings();
+        await refreshData?.().catch(() => {});
+        triggerSuccess?.("Unit added successfully!");
+      }
+    } catch (e) {
+      alert("Failed to save unit: " + String(e));
+    } finally {
+      setIsSavingUnit(false);
+    }
+  };
+
+  const handleSaveWorker = async () => {
+    if (isSavingWorker) return;
+    if (!newWorkerName.trim()) return alert("Please enter a worker name.");
+    if (!newWorkerZone) return alert("Please select a zone.");
+    if (!newWorkerUnit) return alert("Please select a unit.");
+
+    // Check if worker already exists in this unit and zone
+    const isDup = zoneMappings.some(z => 
+      String(z.zone || '').toUpperCase() === newWorkerZone.toUpperCase() && 
+      String(z.unit || '').toUpperCase() === newWorkerUnit.toUpperCase() &&
+      String(z.worker || '').toUpperCase() === newWorkerName.trim().toUpperCase()
+    );
+    if (isDup) return alert("Worker already exists in this unit.");
+
+    setIsSavingWorker(true);
+    try {
+      const res = await api.run('api_saveZoneMapping', {
+        zone: newWorkerZone.toUpperCase(),
+        unit: newWorkerUnit.toUpperCase(),
+        worker: newWorkerName.trim().toUpperCase()
+      });
+      if (res) {
+        setNewWorkerName('');
+        await fetchZoneMappings();
+        await refreshData?.().catch(() => {});
+        triggerSuccess?.("Worker added successfully!");
+      }
+    } catch (e) {
+      alert("Failed to save worker: " + String(e));
+    } finally {
+      setIsSavingWorker(false);
+    }
+  };
+
+  const handleDeleteZoneMapping = async (item: any) => {
+    if (!window.confirm("Are you sure you want to delete this mapping?")) return;
+    try {
+      await api.run('api_deleteZoneMapping', item);
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.("Mapping deleted successfully.");
+    } catch (e) {
+      alert("Failed to delete mapping: " + String(e));
+    }
+  };
+
+  const handleDeleteZone = async (zone: string) => {
+    if (!window.confirm(`Are you sure you want to delete the zone "${zone}"? This will delete all units and workers in this zone, and delete their sheets.`)) return;
+    try {
+      await api.run('api_deleteZoneMapping', { zone });
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.(`Zone "${zone}" deleted successfully.`);
+    } catch (e) {
+      alert("Failed to delete zone: " + String(e));
+    }
+  };
+
+  const handleDeleteUnit = async (zone: string, unit: string) => {
+    if (!window.confirm(`Are you sure you want to delete the unit "${unit}"? This will delete all workers in this unit, and delete the sheet "${unit}".`)) return;
+    try {
+      await api.run('api_deleteZoneMapping', { zone, unit });
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.(`Unit "${unit}" deleted successfully.`);
+    } catch (e) {
+      alert("Failed to delete unit: " + String(e));
+    }
+  };
+
+  const handleDeleteWorker = async (zone: string, unit: string, worker: string) => {
+    if (!window.confirm(`Are you sure you want to delete the worker "${worker}" from unit "${unit}"?`)) return;
+    try {
+      const item = zoneMappings.find(z => 
+        String(z.zone || '').toUpperCase() === zone.toUpperCase() && 
+        String(z.unit || '').toUpperCase() === unit.toUpperCase() && 
+        String(z.worker || '').toUpperCase() === worker.toUpperCase()
+      );
+      await api.run('api_deleteZoneMapping', item || { zone, unit, worker });
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.(`Worker "${worker}" deleted successfully.`);
+    } catch (e) {
+      alert("Failed to delete worker: " + String(e));
+    }
+  };
+
+  const uniqueZones = React.useMemo(() => {
+    const fromMap = zoneMappings
+      .filter(z => String(z.zone || '').trim())
+      .map(z => z.zone);
+    const combined = Array.from(new Set(fromMap));
+    return combined
+      .map(z => String(z).toUpperCase())
+      .filter(z => !z.startsWith('ZMAP-'));
+  }, [zoneMappings]);
+
+  const currentZones = React.useMemo(() => {
+    let zonesList: string[] = [];
+    if (settings?.ZONE) {
+      if (Array.isArray(settings.ZONE)) {
+        zonesList = settings.ZONE;
+      } else if (typeof settings.ZONE === 'string') {
+        zonesList = settings.ZONE.split(/[\n,]/).map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    const combined = [...zonesList, ...uniqueZones];
+    const filtered = combined
+      .map(z => String(z).toUpperCase())
+      .filter(z => z && !z.startsWith('ZMAP-'));
+    if (filtered.length === 0) {
+      return Array.from(new Set(ZONES.map(z => String(z).toUpperCase()).filter(z => !z.startsWith('ZMAP-'))));
+    }
+    return Array.from(new Set(filtered));
+  }, [settings, uniqueZones]);
+
+  const getUnitsForZone = React.useCallback((zone: string) => {
+    if (String(zone || '').toUpperCase() === 'COMMON') {
+      const allUnits = zoneMappings.map(z => z.unit).filter(Boolean);
+      return Array.from(new Set(['COMMON', ...allUnits])).map(u => String(u).toUpperCase());
+    }
+    const fromMap = zoneMappings
+      .filter(z => String(z.zone || '').toUpperCase() === String(zone || '').toUpperCase() && z.unit)
+      .map(z => z.unit);
+    return Array.from(new Set(['COMMON', ...fromMap])).map(u => String(u).toUpperCase());
+  }, [zoneMappings]);
+
+  const getWorkersForUnit = React.useCallback((zone: string, unit: string) => {
+    return zoneMappings
+      .filter(z => 
+        String(z.zone || '').toUpperCase() === String(zone || '').toUpperCase() && 
+        String(z.unit || '').toUpperCase() === String(unit || '').toUpperCase() && 
+        z.worker
+      )
+      .map(z => z.worker);
+  }, [zoneMappings]);
   const [userSettings, setUserSettings] = useState(INITIAL_USER_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -200,7 +455,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         throw new Error(result?.error || "Server failed to save user");
       }
       
-      setNewUser({ username: '', password: '', role: 'USER', location: '', zone: ZONES[0] });
+      setNewUser({ username: '', password: '', role: 'USER', location: '', zone: currentZones[0] || '' });
       await refreshData();
       await logActivity('ADD USER', `Created user ${userCode} (${cleanUsername})`);
       triggerSuccess(`USER ${userCode} CREATED SUCCESSFULLY`);
@@ -431,18 +686,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Zone</label>
-                <select value={newUser.zone} onChange={e => setNewUser({...newUser, zone: e.target.value})}>
-                  {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                <select 
+                  value={newUser.zone} 
+                  onChange={e => {
+                    const nextZone = e.target.value;
+                    const units = getUnitsForZone(nextZone);
+                    setNewUser({
+                      ...newUser, 
+                      zone: nextZone, 
+                      location: units.length > 0 ? units[0] : ''
+                    });
+                  }}
+                >
+                  <option value="">Select Zone...</option>
+                  <option value="COMMON">COMMON (All Zones)</option>
+                  {currentZones.map(z => <option key={z} value={z}>{z}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
-                <input 
-                  type="text" 
-                  placeholder="Enter Unit or Location Name" 
+                <select 
                   value={newUser.location} 
-                  onChange={e => setNewUser({...newUser, location: e.target.value})} 
-                />
+                  onChange={e => setNewUser({...newUser, location: e.target.value})}
+                >
+                  <option value="">Select Unit...</option>
+                  {getUnitsForZone(newUser.zone).map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
               </div>
               <button 
                 type="button"
@@ -477,21 +748,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <label>Username</label>
                     <input type="text" value={editingUser.username} onChange={e => {
                       const updated = { ...editingUser, username: e.target.value };
-                      setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                     }} />
                   </div>
                   <div>
                     <label>Password</label>
                     <input type="password" value={editingUser.password} onChange={e => {
                       const updated = { ...editingUser, password: e.target.value };
-                      setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                     }} />
                   </div>
                   <div>
                     <label>Role</label>
                     <select value={editingUser.role} onChange={e => {
                       const updated = { ...editingUser, role: e.target.value };
-                      setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                     }}>
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
@@ -499,23 +770,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div>
                     <label>Zone</label>
                     <select value={editingUser.zone || ''} onChange={e => {
-                      const updated = { ...editingUser, zone: e.target.value };
-                      setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                      const nextZone = e.target.value;
+                      const units = getUnitsForZone(nextZone);
+                      const updated = { 
+                        ...editingUser, 
+                        zone: nextZone, 
+                        location: units.length > 0 ? units[0] : '' 
+                      };
+                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                     }}>
-                      {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                      <option value="">Select Zone...</option>
+                      <option value="COMMON">COMMON (All Zones)</option>
+                      {currentZones.map(z => <option key={z} value={z}>{z}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
-                    <input 
-                      type="text" 
-                      placeholder="Enter Unit or Location Name" 
+                    <select 
                       value={editingUser.location || ''} 
                       onChange={e => {
                         const updated = { ...editingUser, location: e.target.value };
-                        setUsers(users.map(u => u.userCode === updated.userCode ? updated : u));
+                        setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                       }} 
-                    />
+                    >
+                      <option value="">Select Unit...</option>
+                      {getUnitsForZone(editingUser.zone || '').map(u => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
                   </div>
                   <button 
                     onClick={handleUpdate} 
@@ -604,116 +886,423 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {tab === 'settings' && (
-          <div className="space-y-6">
-            <div className="max-w-xs">
-              <label>Select User to Configure</label>
-              <select 
-                value={selectedUserCode} 
-                onChange={e => fetchUserSettings(e.target.value)}
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Sub-tabs toggler inside User Data */}
+            <div className="flex border-b border-slate-200 pb-px gap-6">
+              <button
+                type="button"
+                onClick={() => setSettingsSubTab('hierarchy')}
+                className={`pb-3 text-sm font-black uppercase tracking-wider transition-all border-b-2 ${
+                  settingsSubTab === 'hierarchy'
+                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
               >
-                <option value="">Select Target...</option>
-                <option value="GLOBAL">🌐 SYSTEM GLOBAL SETTINGS</option>
-                {filteredUsers.map(u => (
-                  <option key={u.userCode} value={u.userCode}>{u.username} ({u.userCode})</option>
-                ))}
-              </select>
+                1. Zone, Unit & Worker Setup
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsSubTab('userwise')}
+                className={`pb-3 text-sm font-black uppercase tracking-wider transition-all border-b-2 ${
+                  settingsSubTab === 'userwise'
+                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                2. Userwise Dropbox Settings (Old Style)
+              </button>
             </div>
 
-            {selectedUserCode && (
-              <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Settings Categories (Grouped & Collapsed by Default)
-                  </span>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setOpenGroups(['product', 'factory', 'workshop', 'defects'])}
-                      className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-indigo-600 hover:bg-slate-50 transition-colors"
-                    >
-                      Expand All
-                    </button>
-                    <button 
-                      onClick={() => setOpenGroups([])}
-                      className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
-                    >
-                      Collapse All
-                    </button>
+            {settingsSubTab === 'hierarchy' && (
+              <div className="space-y-6">
+                {/* Zone, Unit & Worker Hierarchy Settings Panel */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in duration-200">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Icon name="layers" size={20} className="text-indigo-600" />
+                      Zone, Unit & Worker Hierarchy Dropbox Settings
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Manage the hierarchical association of zones, units, and workers. These configurations are persisted globally to the <strong>ZONE</strong> sheet, and individual unit-specific sheets.
+                    </p>
+                  </div>
+
+                  {/* 3 Forms Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                    
+                    {/* Option 1: Add Zone */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Option 1: Add Zone</span>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Zone Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. KERALA, TIRUPUR" 
+                            value={newZoneName}
+                            onChange={e => setNewZoneName(e.target.value)}
+                            className="bg-white border-slate-200"
+                          />
+                        </div>
+                        <button 
+                          onClick={handleSaveZone}
+                          disabled={isSavingZone || !newZoneName.trim()}
+                          className="btn-primary text-[10px] uppercase font-black py-3 mt-1 w-full"
+                        >
+                          {isSavingZone ? 'Adding Zone...' : 'Add Zone'}
+                        </button>
+
+                        <div className="pt-3 border-t border-slate-200">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Existing Zones ({uniqueZones.length})</span>
+                          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                            {uniqueZones.map(zone => (
+                              <div key={zone} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                <span className="text-[11px] font-bold text-slate-700">{zone}</span>
+                                <button 
+                                  onClick={() => handleDeleteZone(zone)}
+                                  className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
+                                  title={`Delete zone ${zone} and all its units`}
+                                >
+                                  <Icon name="trash-2" size={11} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Option 2: Add Unit */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block">Option 2: Add Unit</span>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
+                          <select 
+                            value={newUnitZone} 
+                            onChange={e => setNewUnitZone(e.target.value)}
+                            className="bg-white border-slate-200"
+                          >
+                            <option value="">Select Zone...</option>
+                            {uniqueZones.map(z => (
+                              <option key={z} value={z}>{z}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Unit Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. UNIT A, UNIT B" 
+                            value={newUnitName}
+                            onChange={e => setNewUnitName(e.target.value)}
+                            className="bg-white border-slate-200"
+                          />
+                        </div>
+                        <button 
+                          onClick={handleSaveUnit}
+                          disabled={isSavingUnit || !newUnitName.trim() || !newUnitZone}
+                          className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-[10px] uppercase font-black py-3 mt-1 w-full"
+                        >
+                          {isSavingUnit ? 'Adding Unit...' : 'Add Unit'}
+                        </button>
+
+                        {newUnitZone && (
+                          <div className="pt-3 border-t border-slate-200">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Units in {newUnitZone} ({getUnitsForZone(newUnitZone).length})</span>
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                              {getUnitsForZone(newUnitZone).length === 0 ? (
+                                <span className="text-[10px] text-slate-400 italic">No units registered in this zone yet.</span>
+                              ) : (
+                                getUnitsForZone(newUnitZone).map(unit => (
+                                  <div key={unit} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                    <span className="text-[11px] font-medium text-slate-700">{unit}</span>
+                                    <button 
+                                      onClick={() => handleDeleteUnit(newUnitZone, unit)}
+                                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
+                                      title={`Delete unit ${unit} and all its workers`}
+                                    >
+                                      <Icon name="trash-2" size={11} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Option 3: Add Worker */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 block">Option 3: Add Worker</span>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
+                          <select 
+                            value={newWorkerZone} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNewWorkerZone(val);
+                              const units = getUnitsForZone(val);
+                              setNewWorkerUnit(units.length > 0 ? units[0] : '');
+                            }}
+                            className="bg-white border-slate-200"
+                          >
+                            <option value="">Select Zone...</option>
+                            {uniqueZones.map(z => (
+                              <option key={z} value={z}>{z}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Unit</label>
+                          <select 
+                            value={newWorkerUnit} 
+                            onChange={e => setNewWorkerUnit(e.target.value)}
+                            className="bg-white border-slate-200"
+                            disabled={!newWorkerZone}
+                          >
+                            <option value="">Select Unit...</option>
+                            {getUnitsForZone(newWorkerZone).map(u => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Worker Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. JOHN SMITH" 
+                            value={newWorkerName}
+                            onChange={e => setNewWorkerName(e.target.value)}
+                            className="bg-white border-slate-200"
+                            disabled={!newWorkerUnit}
+                          />
+                        </div>
+                        <button 
+                          onClick={handleSaveWorker}
+                          disabled={isSavingWorker || !newWorkerName.trim() || !newWorkerZone || !newWorkerUnit}
+                          className="btn-primary bg-amber-600 hover:bg-amber-700 text-[10px] uppercase font-black py-3 mt-1 w-full"
+                        >
+                          {isSavingWorker ? 'Adding Worker...' : 'Add Worker'}
+                        </button>
+
+                        {newWorkerZone && newWorkerUnit && (
+                          <div className="pt-3 border-t border-slate-200">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Workers in {newWorkerUnit} ({getWorkersForUnit(newWorkerZone, newWorkerUnit).length})</span>
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                              {getWorkersForUnit(newWorkerZone, newWorkerUnit).length === 0 ? (
+                                <span className="text-[10px] text-slate-400 italic">No workers mapped to this unit yet.</span>
+                              ) : (
+                                getWorkersForUnit(newWorkerZone, newWorkerUnit).map(worker => (
+                                  <div key={worker} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                    <span className="text-[11px] font-mono text-slate-600">{worker}</span>
+                                    <button 
+                                      onClick={() => handleDeleteWorker(newWorkerZone, newWorkerUnit, worker)}
+                                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
+                                      title={`Delete worker ${worker}`}
+                                    >
+                                      <Icon name="trash-2" size={11} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Grouped Hierarchy Table */}
+                  <div className="pt-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+                        Current Sheet Mappings ({zoneMappings.length})
+                      </h4>
+                      <button 
+                        onClick={fetchZoneMappings}
+                        className="text-[10px] uppercase font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                      >
+                        <Icon name="refresh-cw" size={12} className={loadingZoneMappings ? 'animate-spin' : ''} />
+                        Refresh
+                      </button>
+                    </div>
+
+                    <div className="border border-slate-100 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black tracking-wider">
+                          <tr>
+                            <th className="p-3">Zone</th>
+                            <th className="p-3">Unit</th>
+                            <th className="p-3">Worker / Operator</th>
+                            <th className="p-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {zoneMappings.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-slate-400 italic">
+                                No custom hierarchies mapped yet in the ZONE and Unit-specific sheets.
+                              </td>
+                            </tr>
+                          ) : (
+                            zoneMappings.map((item) => (
+                              <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-3 font-bold text-slate-700">{item.zone}</td>
+                                <td className="p-3 text-slate-600">{item.unit || <span className="text-slate-300 italic">- None -</span>}</td>
+                                <td className="p-3 font-mono text-slate-500">{item.worker || <span className="text-slate-300 italic">- None -</span>}</td>
+                                <td className="p-3 text-right">
+                                  <button 
+                                    onClick={() => handleDeleteZoneMapping(item)}
+                                    className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                                    title="Delete Mapping"
+                                  >
+                                    <Icon name="trash-2" size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {[
-                  {
-                    id: 'product',
-                    name: 'Product Details (Styles, Sizes, Items, Colors)',
-                    keys: ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'ITEMS'],
-                    icon: 'shirt'
-                  },
-                  {
-                    id: 'factory',
-                    name: 'Factory Organization (Zones, Units, Lines)',
-                    keys: ['ZONE', 'UNIT', 'LINE'],
-                    icon: 'milestone'
-                  },
-                  {
-                    id: 'workshop',
-                    name: 'Workshop Floor (Workers, Machines, Operations)',
-                    keys: ['WORKERS', 'MACHINE', 'OPERATION'],
-                    icon: 'wrench'
-                  },
-                  {
-                    id: 'defects',
-                    name: 'Quality Controls (Defects, Suppliers)',
-                    keys: ['DEFECTS', 'SUPPLIER'],
-                    icon: 'shield-alert'
-                  }
-                ].map(group => {
-                  const isOpen = openGroups.includes(group.id);
-                  return (
-                    <div key={group.id} className="border border-slate-150 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpenGroups(prev => 
-                            prev.includes(group.id) ? prev.filter(id => id !== group.id) : [...prev, group.id]
-                          );
-                        }}
-                        className="w-full text-left p-4 bg-slate-50 flex items-center justify-between border-b border-slate-100 font-bold text-slate-700 hover:bg-slate-100/70 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Icon name={group.icon} size={18} className="text-indigo-600 shrink-0" />
-                          <span className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-700">{group.name}</span>
-                        </div>
-                        <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={16} className="text-slate-400" />
-                      </button>
-
-                      {isOpen && (
-                        <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                          {group.keys.map(key => (
-                            <div key={key} className="space-y-2">
-                              <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{key} (One per line)</label>
-                              <textarea 
-                                rows={4} 
-                                className="text-sm font-mono border-slate-200 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl"
-                                value={userSettings[key as keyof typeof userSettings] || ''} 
-                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <div className="pt-6 border-t border-slate-100 flex justify-end">
-                  <button 
-                    onClick={handleSaveSettings} 
-                    disabled={savingSettings}
-                    className="btn-primary px-12 py-4"
-                  >
-                    {savingSettings ? 'SAVING CONFIG...' : 'SAVE CONFIGURATION'}
-                  </button>
+            {settingsSubTab === 'userwise' && (
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in duration-200">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <Icon name="database" size={20} className="text-indigo-600" />
+                    User Wise Settings (Dropdown Options)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Configure standard drop-down options for individual users or system-wide global values. Note that <strong>Zone</strong>, <strong>Unit</strong>, and <strong>Workers</strong> are managed dynamically through the Zone, Unit & Worker Setup module.
+                  </p>
                 </div>
+
+                <div className="max-w-xs">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select User to Configure</label>
+                  <select 
+                    value={selectedUserCode} 
+                    onChange={e => fetchUserSettings(e.target.value)}
+                    className="bg-white border-slate-200 w-full rounded-xl"
+                  >
+                    <option value="">Select Target...</option>
+                    <option value="GLOBAL">🌐 SYSTEM GLOBAL SETTINGS</option>
+                    {filteredUsers.map(u => (
+                      <option key={u.userCode} value={u.userCode}>{u.username} ({u.userCode})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedUserCode && (
+                  <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Settings Categories (Grouped & Collapsed by Default)
+                      </span>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setOpenGroups(['product', 'factory', 'workshop', 'defects'])}
+                          className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-indigo-600 hover:bg-slate-50 transition-colors"
+                        >
+                          Expand All
+                        </button>
+                        <button 
+                          onClick={() => setOpenGroups([])}
+                          className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
+                        >
+                          Collapse All
+                        </button>
+                      </div>
+                    </div>
+
+                    {[
+                      {
+                        id: 'product',
+                        name: 'Product Details (Styles, Sizes, Items, Colors)',
+                        keys: ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'ITEMS'],
+                        icon: 'shirt'
+                      },
+                      {
+                        id: 'factory',
+                        name: 'Factory Organization (Lines Only)',
+                        keys: ['LINE'],
+                        icon: 'milestone'
+                      },
+                      {
+                        id: 'workshop',
+                        name: 'Workshop Floor (Machines, Operations Only)',
+                        keys: ['MACHINE', 'OPERATION'],
+                        icon: 'wrench'
+                      },
+                      {
+                        id: 'defects',
+                        name: 'Quality Controls (Defects, Suppliers)',
+                        keys: ['DEFECTS', 'SUPPLIER'],
+                        icon: 'shield-alert'
+                      }
+                    ].map(group => {
+                      const isOpen = openGroups.includes(group.id);
+                      return (
+                        <div key={group.id} className="border border-slate-150 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenGroups(prev => 
+                                prev.includes(group.id) ? prev.filter(id => id !== group.id) : [...prev, group.id]
+                              );
+                            }}
+                            className="w-full text-left p-4 bg-slate-50 flex items-center justify-between border-b border-slate-100 font-bold text-slate-700 hover:bg-slate-100/70 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Icon name={group.icon} size={18} className="text-indigo-600 shrink-0" />
+                              <span className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-700">{group.name}</span>
+                            </div>
+                            <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={16} className="text-slate-400" />
+                          </button>
+
+                          {isOpen && (
+                            <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                              {group.keys.map(key => (
+                                <div key={key} className="space-y-2">
+                                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
+                                    <span>{key.replace('_', ' ')} (One per line)</span>
+                                    <span className="text-indigo-600 font-mono text-[10px]">
+                                      ({(userSettings[key as keyof typeof userSettings] ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length : 0)} items)
+                                    </span>
+                                  </label>
+                                  <textarea 
+                                    rows={6} 
+                                    className="text-sm font-mono border-slate-200 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl w-full"
+                                    value={userSettings[key as keyof typeof userSettings] || ''} 
+                                    onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="pt-6 border-t border-slate-100 flex justify-end">
+                      <button 
+                        onClick={handleSaveSettings} 
+                        disabled={savingSettings}
+                        className="btn-primary px-12 py-4"
+                      >
+                        {savingSettings ? 'SAVING CONFIG...' : 'SAVE CONFIGURATION'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -814,6 +1403,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <li className="text-indigo-900 font-bold">For a permanent connection, set the VITE_GAS_URL environment variable in your server settings.</li>
                      </ol>
                    </div>
+                </div>
+
+                {/* FACTORY RESET DANGER ZONE */}
+                <div className="bg-rose-50 p-6 rounded-xl border border-rose-200 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <Icon name="alert-triangle" className="text-rose-600 mt-0.5 shrink-0" size={20} />
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest">DANGER ZONE: FACTORY RESET</h4>
+                      <p className="text-[10px] text-rose-700 leading-relaxed font-semibold">
+                        This action will permanently delete ALL recorded data, inspections, zones, units, workers, and custom sheets across the connected spreadsheet.
+                        Your spreadsheet will be reset to a brand-new pristine state so you can start clean from scratch.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleFactoryReset}
+                    disabled={isResettingDb}
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-xs tracking-wider py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Icon name={isResettingDb ? "refresh-cw" : "trash-2"} size={14} className={isResettingDb ? "animate-spin" : ""} />
+                    {isResettingDb ? "Resetting Database..." : "WIPE ALL DATA & RESET APP"}
+                  </button>
                 </div>
               </div>
             </div>

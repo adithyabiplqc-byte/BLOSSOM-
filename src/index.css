@@ -59,31 +59,31 @@ label {
 }
 
 .splash-screen {
-  @apply fixed inset-0 bg-slate-900 flex items-center justify-center z-[9999];
+  @apply fixed inset-0 bg-white flex items-center justify-center z-[9999];
 }
 
 .splash-content {
-  @apply text-center space-y-6 animate-fade-in animate-zoom-in duration-700;
+  @apply text-center space-y-6 animate-fade-in animate-zoom-in duration-750;
 }
 
 .splash-logo {
-  @apply w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto shadow-2xl shadow-indigo-500/20 rotate-6;
+  @apply w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white mx-auto shadow-2xl shadow-indigo-200 rotate-6;
 }
 
 .splash-text h1 {
-  @apply text-4xl font-black text-white tracking-tighter mt-4;
+  @apply text-4xl font-black text-slate-800 tracking-tighter mt-4;
 }
 
 .splash-text h1 span {
-  @apply text-indigo-500;
+  @apply text-indigo-600;
 }
 
 .loading-bar {
-  @apply w-48 h-1.5 bg-white/10 rounded-full mx-auto mt-6 overflow-hidden;
+  @apply w-48 h-1.5 bg-slate-100 rounded-full mx-auto mt-6 overflow-hidden;
 }
 
 .loading-progress {
-  @apply h-full bg-indigo-500 rounded-full;
+  @apply h-full bg-indigo-600 rounded-full;
   animation: progress 2s ease-in-out infinite;
 }
 

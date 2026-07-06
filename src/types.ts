@@ -12,7 +12,7 @@ export interface User {
 
 export interface Workorder {
   id: string;
-  zone: 'KERALA' | 'TIRUPUR' | 'BANGLORE';
+  zone: string;
   workorderNumber: string;
   style: string;
   sizeRange: string;

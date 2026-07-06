@@ -13,8 +13,25 @@ interface FinalAuditProps {
 }
 
 const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
-  const currentUnits = settings?.UNIT || settings?.UNITS || UNITS || [];
+  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+  const currentZones = React.useMemo(() => {
+    const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
+    if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
+      return [userZone];
+    }
+    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
+    return list;
+  }, [settings, hasSpreadsheet, user]);
+  const currentUnits = React.useMemo(() => {
+    const userLoc = String(user?.location || '').trim().toUpperCase();
+    if (user?.role !== 'ADMIN' && userLoc && userLoc !== 'COMMON' && userLoc !== 'SYSTEM') {
+      return [userLoc];
+    }
+
+    const rawUnits = settings?.UNIT || settings?.UNITS || (hasSpreadsheet ? [] : UNITS);
+    const list = Array.isArray(rawUnits) ? rawUnits : [];
+    return Array.from(new Set(['COMMON', ...list.map(u => String(u).toUpperCase())]));
+  }, [settings, user, hasSpreadsheet]);
 
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
@@ -30,8 +47,18 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
       setForm(prev => ({ ...prev, zone: globalZone }));
+    } else if (currentZones && currentZones.length > 0 && (!form.zone || !currentZones.includes(form.zone))) {
+      setForm(prev => ({ ...prev, zone: currentZones[0] }));
     }
-  }, [globalZone]);
+  }, [globalZone, currentZones, form.zone]);
+
+  React.useEffect(() => {
+    if (currentUnits.length === 1 && form.unit !== currentUnits[0]) {
+      setForm(prev => ({ ...prev, unit: currentUnits[0] }));
+    } else if (!form.unit && currentUnits.length > 0) {
+      setForm(prev => ({ ...prev, unit: currentUnits[0] }));
+    }
+  }, [currentUnits, form.unit]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));

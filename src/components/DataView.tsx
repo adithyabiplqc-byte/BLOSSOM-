@@ -1,8 +1,77 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import html2canvas from 'html2canvas';
 import { api } from '../services/api';
-import { SUBMODULES } from '../constants';
+import { SUBMODULES, ZONES } from '../constants';
 import Icon from './Icon';
+
+const HOURLY_ROUNDS = [
+  { index: 1, label: '9 TO 10' },
+  { index: 2, label: '10 TO 11' },
+  { index: 3, label: '11 TO 12' },
+  { index: 4, label: '12 TO 1.30' },
+  { index: 5, label: '1.30 TO 2.30' },
+  { index: 6, label: '2.30 TO 3.30' },
+  { index: 7, label: '3.30 TO 4.30' },
+  { index: 8, label: '4.30 TO 5.30' }
+];
+
+const normalizeDateToYYYYMMDD = (val: any): string => {
+  if (!val) return '';
+  if (val instanceof Date) {
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const s = String(val).trim();
+  
+  // If it's a full ISO timestamp or contains time (contains 'T'), parse as a Date 
+  // and offset it to Indian Standard Time (UTC+5:30) to match Google Apps Script's timezone representation.
+  if (s.includes('T')) {
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const istTime = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+        const year = istTime.getUTCFullYear();
+        const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(istTime.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (e) {}
+  }
+
+  const datePartOnly = s.split(/[ T]/)[0];
+  const normalizedStr = datePartOnly.replace(/[\/.]/g, '-');
+  const parts = normalizedStr.split('-');
+  
+  if (parts.length === 3) {
+    let year = 0;
+    let month = 0;
+    let day = 0;
+    const p0 = parseInt(parts[0], 10);
+    const p1 = parseInt(parts[1], 10);
+    const p2 = parseInt(parts[2], 10);
+    
+    if (parts[0].length === 4) {
+      year = p0;
+      month = p1;
+      day = p2;
+    } else if (parts[2].length === 4) {
+      year = p2;
+      month = p1;
+      day = p0;
+    } else {
+      year = parts[2].length === 2 ? 2000 + p2 : p2;
+      month = p1;
+      day = p0;
+    }
+    if (year >= 2000 && year < 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return s.substring(0, 10);
+};
 
 interface DataViewProps {
   id: string;
@@ -12,7 +81,7 @@ interface DataViewProps {
 }
 
 const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) => {
-  const currentZones = settings?.ZONE || settings?.ZONES || ['KERALA', 'TIRUPUR', 'BANGLORE'];
+  const currentZones = settings?.ZONE || settings?.ZONES || ZONES;
   const currentItems = settings?.ITEMS || settings?.ITEM || ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
 
   const [data, setData] = useState<any[]>([]);
@@ -22,8 +91,61 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
   const [activeSearch, setActiveSearch] = useState('');
   const [selectedZone, setSelectedZone] = useState<string>(globalZone || user.zone || user.location || 'ALL');
   const [selectedItem, setSelectedItem] = useState<string>('ALL');
+  const [selectedMatrixDate, setSelectedMatrixDate] = useState<string>('ALL');
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; row: any }>({ isOpen: false, row: null });
   const [deleting, setDeleting] = useState(false);
+  const [isExportingImage, setIsExportingImage] = useState(false);
+
+  const exportMatrixToImage = async (mode: 'DOWNLOAD' | 'DRIVE') => {
+    const element = document.getElementById('dataview-matrix-board-container');
+    if (!element) {
+      alert("Matrix board container not found.");
+      return;
+    }
+    
+    setIsExportingImage(true);
+    try {
+      await new Promise(r => setTimeout(r, 200));
+      const canvas = await html2canvas(element, {
+        useCORS: true,
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      if (mode === 'DOWNLOAD') {
+        const link = document.createElement('a');
+        link.download = `DataView_Matrix_Report_${selectedZone}_${selectedMatrixDate}.png`;
+        link.href = dataUrl;
+        link.click();
+        alert("Success: PNG Image report downloaded!");
+      } else {
+        const rawBase64 = dataUrl.split(',')[1];
+        const res = await api.run(
+          'api_uploadSOPFile', 
+          `DataView_Matrix_Report_${selectedZone}_${selectedMatrixDate}.png`, 
+          rawBase64, 
+          'image/png'
+        ) as any;
+        
+        if (res && res.success) {
+          alert("Successfully uploaded image report to Google Drive!");
+          if (res.url) {
+            window.open(res.url, '_blank');
+          }
+        } else {
+          throw new Error(res?.error || "Unknown Apps Script Drive upload error.");
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to export image report: " + err.message);
+    } finally {
+      setIsExportingImage(false);
+    }
+  };
 
   // Sync with globalZone if it changes
   useEffect(() => {
@@ -160,16 +282,64 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
 
   // Define which columns to hide
   const hiddenColumns = useMemo(() => {
-    const base = ['id', 'restrictions', 'canDownload'];
+    const base = ['id', 'ID', 'restrictions', 'canDownload', 'createdAt', 'userCode', 'location'];
     if (id === 'B1') {
       base.push('style');
     }
     return base;
   }, [id]);
 
-  const filteredData = useMemo(() => {
+  const normalizedData = useMemo(() => {
     if (!Array.isArray(data)) return [];
-    return data.filter(row => {
+    return data.map(r => {
+      if (!r) return null;
+      const row = { ...r };
+
+      // Standardize ID fields
+      if (row.ID !== undefined && row.id === undefined) {
+        row.id = row.ID;
+      }
+
+      // Dynamic comprehensive synonym map for key unification
+      const canonicalKeys: { [canonical: string]: string[] } = {
+        wo: ['wo', 'workorder', 'workordernumber', 'workorderno', 'wonum', 'wonumber', 'workorderNo', 'workOrderNumber', 'work_order_number', 'wo_number', 'woNo', 'wono', 'WO'],
+        checkedQty: ['checkedqty', 'pcschecked', 'pcs_checked', 'checkedquantity', 'checked_quantity', 'pcscheckedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty', 'CHECKEDQTY', 'pcsChecked', 'checkedQty', 'checkedQuantity'],
+        failQty: ['failqty', 'complaintpcs', 'complaint_pcs', 'rejectedquantity', 'rejected_quantity', 'rejectedqty', 'rejected_qty', 'fail_qty', 'failqtypcs', 'failedpieces', 'rejected', 'reject', 'failedqty', 'FAILQTY', 'failQty', 'complaintPcs'],
+        passQty: ['passqty', 'passedquantity', 'passquantity', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity', 'passedqty', 'PASSQTY', 'passQty', 'passedQty'],
+        style: ['style', 'stylename', 'style_name', 'styles', 'stylenames', 'styleName'],
+        color: ['color', 'colour', 'colors', 'colours'],
+        size: ['size', 'sizes'],
+        cupsize: ['cupsize', 'cup', 'cups', 'cupSize', 'cup_size'],
+        remarks: ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
+        checkingDate: ['checkingdate', 'date', 'receiveddate', 'checkingDate'],
+        unit: ['unit', 'units'],
+        line: ['line', 'lines'],
+        worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName']
+      };
+
+      // For each canonical target, find and unify matching keys in the row
+      Object.entries(canonicalKeys).forEach(([canonical, synonyms]) => {
+        const matchedKeys = Object.keys(row).filter(k => {
+          if (k === canonical) return false; // Don't match itself
+          const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return synonyms.some(syn => syn.toLowerCase().replace(/[^a-z0-9]/g, '') === kNorm);
+        });
+        
+        matchedKeys.forEach(k => {
+          if (row[canonical] === undefined || row[canonical] === null || row[canonical] === '') {
+            row[canonical] = row[k];
+          }
+          delete row[k];
+        });
+      });
+
+      return row;
+    }).filter(Boolean) as any[];
+  }, [data]);
+
+  const filteredData = useMemo(() => {
+    if (!Array.isArray(normalizedData)) return [];
+    return normalizedData.filter(row => {
       if (!row) return false;
       // Zone filter
       const zoneMatch = selectedZone === 'ALL' || 
@@ -191,7 +361,141 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
 
       return zoneMatch && itemMatch && searchMatch;
     });
-  }, [data, selectedZone, selectedItem, activeSearch]);
+  }, [normalizedData, selectedZone, selectedItem, activeSearch]);
+
+  const uniqueDatesInInline = useMemo(() => {
+    if (id !== 'B3' || !Array.isArray(normalizedData)) return [];
+    const dates = new Set<string>();
+    normalizedData.forEach(r => {
+      const d = normalizeDateToYYYYMMDD(r.checkingDate || r.date || r.CHECKINGDATE || r.DATE || r.timestamp);
+      if (d) dates.add(d);
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [normalizedData, id]);
+
+  const inlineMatrixData = useMemo(() => {
+    if (id !== 'B3' || !Array.isArray(filteredData)) return [];
+    const grouped: { [key: string]: {
+      date: string;
+      worker: string;
+      machine: string;
+      wo: string;
+      style: string;
+      color: string;
+      size: string;
+      cup: string;
+      checkers: string[];
+      rounds: { [key: number]: any };
+      totalChecked: number;
+      totalDefects: number;
+      remarks: string[];
+    }} = {};
+
+    filteredData.forEach(r => {
+      // Find operator / worker
+      const workerName = String(r.worker || r.Worker || r.operator || r.operatorName || r.WORKER || '').trim();
+      if (!workerName) return;
+
+      const dateStr = normalizeDateToYYYYMMDD(r.checkingDate || r.date || r.CHECKINGDATE || r.DATE || r.timestamp);
+      if (!dateStr) return;
+
+      // Filter by selected matrix date
+      if (selectedMatrixDate !== 'ALL' && dateStr !== selectedMatrixDate) return;
+
+      const machineVal = String(r.machine || r.machineNo || r.machineNumber || r.MACHINE || r.Machine || '').trim();
+      const woVal = String(r.workorderNumber || r.wo || r.WO || '').trim();
+      const styleVal = String(r.style || r.styleName || r.STYLE || '').trim();
+      const colorVal = String(r.color || r.colour || r.COLOR || '').trim();
+      const sizeVal = String(r.size || r.sizeRange || r.SIZE || '').trim();
+      const cupVal = String(r.cup || r.cupSize || r.cupsize || r.CUP || '').trim();
+
+      const key = `${dateStr}_${workerName.toUpperCase()}_${machineVal.toUpperCase()}_${woVal.toUpperCase()}_${styleVal.toUpperCase()}_${colorVal.toUpperCase()}_${sizeVal.toUpperCase()}_${cupVal.toUpperCase()}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          date: dateStr,
+          worker: workerName,
+          machine: machineVal || '-',
+          wo: woVal || '-',
+          style: styleVal,
+          color: colorVal,
+          size: sizeVal,
+          cup: cupVal,
+          checkers: [],
+          rounds: {},
+          totalChecked: 0,
+          totalDefects: 0,
+          remarks: []
+        };
+      }
+
+      const ins = String(r.inspector || r.checker || r.INSPECTOR || r.user || '').trim();
+      if (ins && !grouped[key].checkers.includes(ins)) {
+        grouped[key].checkers.push(ins);
+      }
+
+      // Map to round index
+      let rdIdx = Number(r.roundIndex || r.ROUNDINDEX || r.round_index || 0);
+      if (isNaN(rdIdx) || rdIdx < 1 || rdIdx > 8) {
+        const rLabel = String(r.round || r.ROUND || '').trim().toUpperCase().replace(/\s+/g, '');
+        const matchedRound = HOURLY_ROUNDS.find(hr => {
+          const lClean = hr.label.toUpperCase().replace(/\s+/g, '');
+          return rLabel === lClean || rLabel.includes(lClean) || lClean.includes(rLabel);
+        });
+        if (matchedRound) {
+          rdIdx = matchedRound.index;
+        } else {
+          const match = String(r.round || r.ROUND || '').match(/\d+/);
+          if (match) {
+            const parsedVal = Number(match[0]);
+            if (parsedVal >= 1 && parsedVal <= 8) {
+              rdIdx = parsedVal;
+            }
+          }
+        }
+      }
+
+      if (!isNaN(rdIdx) && rdIdx >= 1 && rdIdx <= 8) {
+        if (!grouped[key].rounds[rdIdx]) {
+          grouped[key].rounds[rdIdx] = {
+            checkedQty: 0,
+            complaintPcs: 0,
+            remarks: [],
+            inspectors: []
+          };
+        }
+        
+        const existingRound = grouped[key].rounds[rdIdx];
+        existingRound.checkedQty += Number(r.checkedQty || r.pcsChecked || 0);
+        existingRound.complaintPcs += Number(r.complaintPcs || r.failQty || 0);
+        
+        const rem = String(r.remarks || r.itemRemarks || r.generalRemarks || '').trim();
+        if (rem && !existingRound.remarks.includes(rem)) {
+          existingRound.remarks.push(rem);
+        }
+        
+        if (ins && !existingRound.inspectors.includes(ins)) {
+          existingRound.inspectors.push(ins);
+        }
+
+        grouped[key].totalChecked += Number(r.checkedQty || r.pcsChecked || 0);
+        grouped[key].totalDefects += Number(r.complaintPcs || r.failQty || 0);
+      }
+
+      // Collect remarks at upper level too
+      const rRemarks = String(r.remarks || r.REMARKS || r.itemRemarks || r.generalRemarks || r.item_remarks || '').trim();
+      if (rRemarks && !grouped[key].remarks.includes(rRemarks)) {
+        grouped[key].remarks.push(rRemarks);
+      }
+    });
+
+    // Sort by date desc, then worker name asc
+    return Object.values(grouped).sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return a.worker.localeCompare(b.worker);
+    });
+  }, [filteredData, id, selectedMatrixDate]);
 
   const headers = useMemo(() => {
     if (filteredData.length === 0) return [];
@@ -203,8 +507,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
       });
     });
     
-    if (id === 'B1') {
-      const b1Order = [
+    const customOrders: { [key: string]: string[] } = {
+      'B1': [
         'timestamp',
         'receivedDate',
         'checkingDate',
@@ -214,16 +518,112 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
         'itemName',
         'style',
         'receivedQuantity',
-        'checkedQuantity',
-        'passQuantity',
-        'rejectedQuantity',
+        'checkedQty',
+        'passQty',
+        'failQty',
         'itemRemarks',
         'generalRemarks',
         'zone',
         'inspector'
-      ];
-      const orderedHeaders = b1Order.filter(k => allKeys.has(k));
-      const remainingHeaders = Array.from(allKeys).filter(k => !b1Order.includes(k));
+      ],
+      'B2': [
+        'timestamp',
+        'checkingDate',
+        'wo',
+        'style',
+        'color',
+        'size',
+        'totalQty',
+        'checkedQty',
+        'passQty',
+        'reworkQty',
+        'failQty',
+        'remarks',
+        'inspector',
+        'zone'
+      ],
+      'B3': [
+        'timestamp',
+        'checkingDate',
+        'wo',
+        'style',
+        'color',
+        'size',
+        'cupsize',
+        'line',
+        'unit',
+        'worker',
+        'machine',
+        'round',
+        'checkedQty',
+        'failQty',
+        'remarks',
+        'inspector',
+        'zone'
+      ],
+      'B4': [
+        'timestamp',
+        'checkingDate',
+        'wo',
+        'style',
+        'color',
+        'size',
+        'cupsize',
+        'line',
+        'unit',
+        'totalQty',
+        'openQty',
+        'checkedQty',
+        'passQty',
+        'reworkQty',
+        'failQty',
+        'worker',
+        'operation',
+        'defect',
+        'machineWorker',
+        'remarks',
+        'inspector',
+        'zone'
+      ],
+      'B5': [
+        'timestamp',
+        'checkingDate',
+        'wo',
+        'style',
+        'color',
+        'size',
+        'totalQty',
+        'sampleSize',
+        'allowedDefects',
+        'foundDefects',
+        'status',
+        'remarks',
+        'inspector',
+        'zone'
+      ],
+      'B6': [
+        'timestamp',
+        'checkingDate',
+        'wo',
+        'style',
+        'color',
+        'size',
+        'totalQty',
+        'checkedQty',
+        'cartonsChecked',
+        'passQty',
+        'failQty',
+        'status',
+        'remarks',
+        'inspector',
+        'zone'
+      ]
+    };
+
+    const targetOrder = customOrders[id];
+    if (targetOrder) {
+      const orderedHeaders = targetOrder.filter(k => allKeys.has(k));
+      const remainingHeaders = Array.from(allKeys).filter(k => !targetOrder.includes(k));
       return [...orderedHeaders, ...remainingHeaders];
     }
     
@@ -258,6 +658,35 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
       zone: 'ZONE',
       inspector: 'INSPECTOR',
       id: 'ID',
+      wo: 'WORKORDER #',
+      workorderNumber: 'WORKORDER #',
+      color: 'COLOR',
+      size: 'SIZE',
+      cupsize: 'CUP SIZE',
+      line: 'LINE',
+      unit: 'UNIT',
+      checkedQty: 'CHECKED QTY',
+      passQty: 'PASS QTY',
+      reworkQty: 'REWORK QTY',
+      failQty: 'FAIL QTY',
+      totalQty: 'TOTAL QTY',
+      openQty: 'OPEN QTY',
+      sampleSize: 'SAMPLE SIZE',
+      allowedDefects: 'ALLOWED DEFECTS',
+      foundDefects: 'FOUND DEFECTS',
+      status: 'STATUS',
+      remarks: 'REMARKS',
+      worker: 'WORKER / OPERATOR',
+      machine: 'MACHINE #',
+      round: 'ROUND',
+      pcsChecked: 'PCS CHECKED',
+      complaintPcs: 'COMPLAINT PCS',
+      passedQty: 'PASSED QTY',
+      rejectedQty: 'REJECTED QTY',
+      cartonsChecked: 'CARTONS CHECKED',
+      operation: 'OPERATION',
+      defect: 'DEFECT',
+      machineWorker: 'MACHINE WORKER',
     };
     if (mappings[h]) return mappings[h];
     const result = h.replace(/([A-Z])/g, ' $1');
@@ -377,19 +806,6 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
               {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
             </select>
           </div>
-          {id !== 'B1' && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Item:</span>
-              <select 
-                className="py-1 px-3 text-xs w-32"
-                value={selectedItem}
-                onChange={e => setSelectedItem(e.target.value)}
-              >
-                <option value="ALL">ALL ITEMS</option>
-                {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
-              </select>
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1 pr-2 w-full md:w-64">
@@ -422,6 +838,213 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
           </button>
         </div>
       </div>
+
+      {id === 'B3' && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-6 animate-fade-in animate-duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-md font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                <Icon name="grid" size={18} className="text-indigo-600 text-violet-600" />
+                Hourly 8-Round Quality Matrix Report Board
+              </h3>
+              <p className="text-xs text-slate-500 font-sans mt-0.5">
+                Aggregated operator quality logs across rounds matching active filters.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => exportMatrixToImage('DOWNLOAD')}
+                disabled={isExportingImage || inlineMatrixData.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer animate-in fade-in"
+              >
+                <Icon name="download" size={13} /> Export PNG
+              </button>
+
+              {/* Matrix Date Selector Filter */}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl shadow-sm self-start sm:self-auto">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <Icon name="calendar" size={12} className="text-slate-400" />
+                  Date Filter:
+                </span>
+                <select 
+                  value={selectedMatrixDate}
+                  onChange={e => setSelectedMatrixDate(e.target.value)}
+                  className="py-0.5 px-2 text-xs bg-transparent border-none font-bold text-slate-700 focus:ring-0 cursor-pointer"
+                >
+                  <option value="ALL">ALL RECORDS</option>
+                  {uniqueDatesInInline.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div id="dataview-matrix-board-container" className="p-4 bg-white border border-slate-100 rounded-2xl space-y-6">
+            <div className="flex justify-between items-center border-b pb-2 border-slate-100">
+              <div>
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest">{selectedZone !== 'ALL' ? selectedZone : 'ALL'} ZONE MATRIX ANALYSIS</h4>
+                <p className="text-[10px] text-slate-400">Date Filter: {selectedMatrixDate}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">BQOS Quality Analytics</span>
+              </div>
+            </div>
+
+            {/* METRICS ROW */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Operators</div>
+                <div className="text-xl font-black text-slate-700 mt-0.5">{inlineMatrixData.length}</div>
+              </div>
+              <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100/50 text-center">
+                <div className="text-[10px] font-black text-violet-400 uppercase tracking-wider">Inspected Pcs</div>
+                <div className="text-xl font-black text-violet-700 mt-0.5">
+                  {inlineMatrixData.reduce((acc, r) => acc + r.totalChecked, 0)}
+                </div>
+              </div>
+              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100/50 text-center">
+                <div className="text-[10px] font-black text-rose-400 uppercase tracking-wider">Defect Pcs</div>
+                <div className="text-xl font-black text-rose-600 mt-0.5">
+                  {inlineMatrixData.reduce((acc, r) => acc + r.totalDefects, 0)}
+                </div>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100/50 text-center">
+                <div className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">Overall Defect Rate</div>
+                <div className="text-xl font-black text-emerald-700 mt-0.5">
+                  {(() => {
+                    const tot = inlineMatrixData.reduce((acc, r) => acc + r.totalChecked, 0);
+                    const def = inlineMatrixData.reduce((acc, r) => acc + r.totalDefects, 0);
+                    return tot > 0 ? ((def / tot) * 100).toFixed(1) + "%" : "0.0%";
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {inlineMatrixData.length === 0 ? (
+              <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                <p className="text-xs text-slate-400 font-medium italic">No compiled matrix data found for the active criteria.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-150">
+                <table className="w-full text-left border-collapse border-spacing-0">
+                  <thead>
+                    <tr className="bg-slate-50/80 backdrop-blur text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-200">
+                      {selectedMatrixDate === 'ALL' && <th className="py-3 px-4">Date</th>}
+                      <th className="py-3 px-4">Operator / Worker</th>
+                      <th className="py-3 px-2">M/C</th>
+                      <th className="py-3 px-2">Workorder</th>
+                      <th className="py-3 px-2">Style</th>
+                      <th className="py-3 px-2 text-indigo-600 font-bold">Size/Cup</th>
+                      <th className="py-3 px-2">Color</th>
+                      <th className="py-3 px-2">Checker</th>
+                      {HOURLY_ROUNDS.map(r => (
+                        <th key={r.index} className="py-3 px-2 text-center" title={r.label}>R{r.index}</th>
+                      ))}
+                      <th className="py-3 px-2 text-center">Checked</th>
+                      <th className="py-3 px-2 text-center">Defects</th>
+                      <th className="py-3 px-4 text-center">Defect %</th>
+                      <th className="py-3 px-4">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {inlineMatrixData.map((row, idx) => {
+                      const defectRate = row.totalChecked > 0 ? ((row.totalDefects / row.totalChecked) * 100) : 0;
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/55 transition-colors animate-fade-in">
+                          {selectedMatrixDate === 'ALL' && (
+                            <td className="py-3 px-4 font-mono font-bold text-slate-500 text-[11px]">{row.date}</td>
+                          )}
+                          <td className="py-3 px-4 font-black text-slate-800 uppercase flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
+                            <span>{row.worker}</span>
+                          </td>
+                          <td className="py-3 px-2 text-slate-500 font-mono font-medium lowercase">{row.machine}</td>
+                          <td className="py-3 px-2 text-indigo-650 font-mono font-bold">#{row.wo}</td>
+                          <td className="py-3 px-2 text-slate-500 font-medium truncate max-w-[100px]" title={row.style}>{row.style || '-'}</td>
+                          <td className="py-3 px-2 text-indigo-700 font-bold font-mono text-[11px] whitespace-nowrap">
+                            {row.size || '-'}{row.cup ? ` / ${row.cup}` : ''}
+                          </td>
+                          <td className="py-3 px-2 text-slate-500 font-medium truncate max-w-[80px]" title={row.color}>{row.color || '-'}</td>
+                          <td className="py-3 px-2 text-slate-500 font-mono text-[10px] font-medium" title={row.checkers.join(', ')}>
+                            {row.checkers.length > 0 ? row.checkers.join(', ') : '-'}
+                          </td>
+                          
+                          {/* 8 ROUNDS RENDERING */}
+                          {HOURLY_ROUNDS.map(round => {
+                            const roundCheck = row.rounds[round.index];
+                            if (!roundCheck) {
+                              return (
+                                <td key={round.index} className="py-3 px-2 text-center text-slate-300 font-mono">-</td>
+                              );
+                            }
+                            const defects = Number(roundCheck.complaintPcs || roundCheck.failQty || 0);
+                            const chk = Number(roundCheck.checkedQty || roundCheck.pcsChecked || 0);
+                            
+                            if (defects > 0) {
+                              return (
+                                <td key={round.index} className="py-2 px-1 text-center">
+                                  <div className="inline-flex flex-col items-center justify-center bg-rose-50 text-rose-750 min-w-12 px-2 py-1 rounded-lg border border-rose-200 shadow-sm leading-none" title={`${chk} checked / ${defects} defects`}>
+                                    <span className="font-bold text-[10px]">{chk}</span>
+                                    <span className="text-[8px] font-black mt-0.5 text-rose-600 block">🚨 {defects}</span>
+                                  </div>
+                                </td>
+                              );
+                            } else {
+                              return (
+                                <td key={round.index} className="py-2 px-1 text-center">
+                                  <div className="inline-flex flex-col items-center justify-center bg-emerald-50 text-emerald-750 min-w-12 px-2 py-1 rounded-lg border border-emerald-200 shadow-sm leading-none" title={`${chk} pieces OK`}>
+                                    <span className="font-bold text-[10px]">{chk}</span>
+                                    <span className="text-[8px] font-black mt-0.5 text-emerald-600 block">✓</span>
+                                  </div>
+                                </td>
+                              );
+                            }
+                          })}
+
+                          <td className="py-3 px-2 text-center font-black text-slate-700 font-mono">{row.totalChecked}</td>
+                          <td className={`py-3 px-2 text-center font-black font-mono ${row.totalDefects > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                            {row.totalDefects}
+                          </td>
+                          <td className="py-3 px-4 text-center font-black font-mono">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-black ${
+                              defectRate > 0 
+                                ? 'bg-rose-50 text-rose-700 border-rose-150' 
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-150'
+                            }`}>
+                              {defectRate.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-medium whitespace-normal max-w-xs break-words">
+                            {row.remarks.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {row.remarks.map((rem, remIdx) => (
+                                  <span key={remIdx} className="inline-block bg-slate-50 text-slate-600 text-[9px] px-1.5 py-0.5 rounded border border-slate-155 shadow-sm">
+                                    {rem}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          
+          <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Transactional Log Records Ledger</span>
+            <span className="text-[10px] text-slate-400 font-medium">Below is the historical raw inspection ledger</span>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto glass-card">
         <table className="w-full text-left border-collapse">

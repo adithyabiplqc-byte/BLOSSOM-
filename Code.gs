@@ -274,11 +274,12 @@ function findExistingSheetBySynonym(targetName) {
     'USERS': ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'],
     'MATERIAL': ['MATERIAL', 'MATERIAL REPORT', 'MATERIAL QUALITY', 'MATERIAL INSPECTION', 'STORE MATERIAL INSPECTION DATA'],
     'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT'],
-    'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS'],
+    'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS', '8ROUND SYSTEM', '8ROUND', '8 ROUND SYSTEM', '8ROUND_SYSTEM', '8 ROUNDS'],
     'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
     'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
     'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'WORKORDERS DATA', 'WORKORDER DATA'],
-    'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT']
+    'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT'],
+    'ZONE': ['ZONE', 'ZONES', 'ZONE_MAPPINGS']
   };
   
   // Split base and zone suffix if matching " - ZONE" or space-separated zone suffix
@@ -289,7 +290,24 @@ function findExistingSheetBySynonym(targetName) {
     basePart = targetNorm.slice(0, hyphenIdx).trim();
     zonePart = targetNorm.slice(hyphenIdx).trim();
   } else {
-    const zones = ['KERALA', 'TIRUPUR', 'BANGLORE', 'TAMILNADU'];
+    let zones = [];
+    try {
+      const zoneSheet = getSS().getSheetByName('ZONE');
+      if (zoneSheet && zoneSheet.getLastRow() >= 2) {
+        const rangeVals = zoneSheet.getDataRange().getValues();
+        const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
+        const zoneColIdx = headers.indexOf('ZONE');
+        if (zoneColIdx !== -1) {
+          for (let r = 1; r < rangeVals.length; r++) {
+            const zVal = rangeVals[r][zoneColIdx];
+            if (zVal) zones.push(String(zVal).trim().toUpperCase());
+          }
+        }
+      }
+    } catch (e) {}
+    if (zones.length === 0) {
+      zones = ['KERALA', 'TIRUPUR', 'BANGLORE', 'TAMILNADU'];
+    }
     for (let k = 0; k < zones.length; k++) {
       if (targetNorm.endsWith(' ' + zones[k])) {
         basePart = targetNorm.slice(0, targetNorm.length - zones[k].length - 1).trim();
@@ -315,6 +333,11 @@ function findExistingSheetBySynonym(targetName) {
     'INLINE REPORT': 'INLINE',
     'SEWING DEFECT': 'INLINE',
     'SEWING DEFECTS': 'INLINE',
+    '8ROUND SYSTEM': 'INLINE',
+    '8ROUND': 'INLINE',
+    '8 ROUND SYSTEM': 'INLINE',
+    '8ROUND_SYSTEM': 'INLINE',
+    '8 ROUNDS': 'INLINE',
     'ENDLINE': 'ENDLINE',
     'ENDLINE QUALITY': 'ENDLINE',
     'ENDLINE REPORT': 'ENDLINE',
@@ -377,6 +400,11 @@ function getReportSheetName(baseName, data) {
     'SEWING DEFECTS': 'INLINE',
     'INLINE REPORT': 'INLINE',
     'INLINE QUALITY': 'INLINE',
+    '8ROUND SYSTEM': 'INLINE',
+    '8 ROUND SYSTEM': 'INLINE',
+    '8ROUND_SYSTEM': 'INLINE',
+    '8ROUND': 'INLINE',
+    '8 ROUNDS': 'INLINE',
     'ENDLINE QUALITY': 'ENDLINE',
     'ENDLINE REPORT': 'ENDLINE',
     'AQL REPORT': 'AQL',
@@ -402,10 +430,14 @@ function getReportSheetName(baseName, data) {
   
   const prefix = modulePrefixes[lookupKey.toUpperCase()] || lookupKey;
   
-  // Prevent split zoned sheets for USERS
-  const isUserSheet = (prefix.trim().toUpperCase() === 'USERS' || prefix.trim().toUpperCase() === 'USER' || prefix.trim().toUpperCase() === 'SERVER USERS');
-  if (isUserSheet) {
-    return 'USERS';
+  // Prevent split zoned sheets for system/configuration sheets
+  const normPrefix = prefix.trim().toUpperCase();
+  const isSystemSheet = (normPrefix.indexOf('USER') !== -1) || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN'].indexOf(normPrefix) !== -1;
+  if (isSystemSheet) {
+    if (normPrefix.indexOf('USER') !== -1) return 'USERS';
+    if (normPrefix === 'ZONES') return 'ZONE';
+    if (normPrefix === 'UNITS') return 'UNIT';
+    return normPrefix;
   }
   
   const zone = (data?.zone || data?.location || '').toString().trim().toUpperCase();
@@ -430,6 +462,36 @@ function getReportSheetName(baseName, data) {
   return prefix;
 }
 
+function areSynonyms(h1, h2) {
+  if (!h1 || !h2) return false;
+  var norm1 = h1.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+  var norm2 = h2.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (norm1 === norm2) return true;
+
+  var groups = [
+    ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty'],
+    ['checkedquantity', 'checkedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty'],
+    ['passedquantity', 'passquantity', 'passqty', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity'],
+    ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty'],
+    ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
+    ['style', 'stylename', 'style_name', 'styles', 'stylenames'],
+    ['color', 'colour', 'colors', 'colours'],
+    ['workordernumber', 'workorderno', 'workorderNumber', 'workorderNo', 'wo', 'wonum', 'wonumber'],
+    ['unit', 'units'],
+    ['line', 'lines'],
+    ['size', 'sizes'],
+    ['cupsize', 'cup', 'cups']
+  ];
+
+  for (var i = 0; i < groups.length; i++) {
+    var group = groups[i];
+    var hasNorm1 = group.indexOf(norm1) !== -1;
+    var hasNorm2 = group.indexOf(norm2) !== -1;
+    if (hasNorm1 && hasNorm2) return true;
+  }
+  return false;
+}
+
 function resolveSynonymValue(header, record) {
   if (!record) return "";
   var normHeader = header.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -437,7 +499,7 @@ function resolveSynonymValue(header, record) {
   var groups = [
     {
       canonical: 'totalquantity',
-      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited']
+      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty']
     },
     {
       canonical: 'checkedquantity',
@@ -458,6 +520,34 @@ function resolveSynonymValue(header, record) {
     {
       canonical: 'remarks',
       synonyms: ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment']
+    },
+    {
+      canonical: 'style',
+      synonyms: ['style', 'stylename', 'style_name', 'styles', 'stylenames']
+    },
+    {
+      canonical: 'color',
+      synonyms: ['color', 'colour', 'colors', 'colours']
+    },
+    {
+      canonical: 'workordernumber',
+      synonyms: ['workordernumber', 'workorderno', 'workorderNumber', 'workorderNo', 'wo', 'wonum', 'wonumber']
+    },
+    {
+      canonical: 'unit',
+      synonyms: ['unit', 'units']
+    },
+    {
+      canonical: 'line',
+      synonyms: ['line', 'lines']
+    },
+    {
+      canonical: 'size',
+      synonyms: ['size', 'sizes']
+    },
+    {
+      canonical: 'cupsize',
+      synonyms: ['cupsize', 'cup', 'cups']
     }
   ];
 
@@ -531,7 +621,14 @@ function saveDataToSheet(sheetName, data, adminActivity = false, admin = 'SYSTEM
       for (var k = 0; k < keys.length; k++) {
         var key = keys[k];
         var cleanKey = String(key || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (cleanKey && normHeaders.indexOf(cleanKey) === -1) {
+        var hasSynonym = false;
+        for (var hIdx = 0; hIdx < headers.length; hIdx++) {
+          if (areSynonyms(headers[hIdx], key)) {
+            hasSynonym = true;
+            break;
+          }
+        }
+        if (cleanKey && !hasSynonym) {
           sheet.getRange(1, headers.length + 1).setValue(key);
           headers.push(key);
           normHeaders.push(cleanKey);
@@ -609,7 +706,7 @@ function getDataFromSheet(sheetName) {
             obj['zone'] = cellVal;
           }
         }
-        if (normKey === 'zone') {
+        if (normKey === 'zone' || normKey === 'zones' || normKey === 'zonename' || normKey === 'zonenames') {
           obj['zone'] = cellVal;
           if (!hasLocationCol) {
             obj['location'] = cellVal;
@@ -621,16 +718,64 @@ function getDataFromSheet(sheetName) {
         if (normKey === 'usersettings') obj['userSettings'] = cellVal;
 
         if (normKey === 'workordernumber' || normKey === 'workorderno') obj['workorderNumber'] = cellVal;
-        if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') obj['orderQty'] = cellVal;
-        if (normKey === 'style') obj['style'] = cellVal;
+        if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') {
+          obj['orderQty'] = cellVal;
+          obj['quantity'] = cellVal;
+        }
+        if (normKey === 'style' || normKey === 'stylename') {
+          obj['style'] = cellVal;
+          obj['styleName'] = cellVal;
+        }
+        if (normKey === 'size' || normKey === 'sizes') {
+          obj['size'] = cellVal;
+        }
+        if (normKey === 'cup' || normKey === 'cupsize' || normKey === 'cups') {
+          obj['cup'] = cellVal;
+        }
         if (normKey === 'item') obj['item'] = cellVal;
         if (normKey === 'color' || normKey === 'colour') obj['color'] = cellVal;
         if (normKey === 'unit') obj['unit'] = cellVal;
         if (normKey === 'line') obj['line'] = cellVal;
         if (normKey === 'shipdate') obj['shipDate'] = cellVal;
         if (normKey === 'status') obj['status'] = cellVal;
+        
+        // Inline / Sewing defect mapping normalizations
+        if (normKey === 'worker' || normKey === 'workername' || normKey === 'operator' || normKey === 'operatorname') {
+          obj['worker'] = cellVal;
+        }
+        if (normKey === 'machine' || normKey === 'machineno' || normKey === 'machinenumber') {
+          obj['machine'] = cellVal;
+        }
+        if (normKey === 'round' || normKey === 'roundlabel' || normKey === 'rounds' || normKey === 'hourlyround') {
+          obj['round'] = cellVal;
+        }
+        if (normKey === 'roundindex' || normKey === 'roundidx') {
+          obj['roundIndex'] = parseInt(cellVal, 10) || 0;
+        }
+        if (normKey === 'checkingdate' || normKey === 'checkingdate' || normKey === 'date' || normKey === 'checkingdatetime') {
+          obj['checkingDate'] = cellVal;
+          obj['date'] = cellVal;
+        }
+        if (normKey === 'checkedqty' || normKey === 'pcschecked' || normKey === 'pieceschecked') {
+          obj['checkedQty'] = parseInt(cellVal, 10) || 0;
+          obj['pcsChecked'] = parseInt(cellVal, 10) || 0;
+        }
+        if (normKey === 'complaintpcs' || normKey === 'failqty' || normKey === 'failedpieces') {
+          obj['complaintPcs'] = parseInt(cellVal, 10) || 0;
+          obj['failQty'] = parseInt(cellVal, 10) || 0;
+        }
       }
-      data.push(obj);
+      let isRowEmpty = true;
+      for (let j = 0; j < headers.length; j++) {
+        const valCheck = values[i][j];
+        if (valCheck !== undefined && valCheck !== null && String(valCheck).trim() !== "") {
+          isRowEmpty = false;
+          break;
+        }
+      }
+      if (!isRowEmpty) {
+        data.push(obj);
+      }
     }
     
     return data;
@@ -655,9 +800,12 @@ function getConsolidatedUserSheetName() {
 
 function ensureSheetHasSettingsColumns(sheet) {
   try {
-    const lastCol = sheet.getLastColumn();
-    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+    const isGlobal = (sheet.getName() === 'SETTINGS');
+    const categories = isGlobal ? 
+      ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
+      ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
     
+    const lastCol = sheet.getLastColumn();
     if (lastCol === 0) {
       // Empty sheet, initialize with default global settings
       const globalSettings = api_getGlobalSettings();
@@ -665,25 +813,37 @@ function ensureSheetHasSettingsColumns(sheet) {
       return;
     }
     
-    // Non-empty sheet. Let's make sure all categories are present as headers!
-    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
-      return String(h || '').trim().toUpperCase();
-    });
+    const currentSettings = readSettingsFromSheetColumns(sheet);
     
-    const missingCategories = [];
-    categories.forEach(function(cat) {
-      if (headers.indexOf(cat.toUpperCase()) === -1) {
-        missingCategories.push(cat);
-      }
-    });
-    
-    if (missingCategories.length > 0) {
-      // Append missing columns
-      missingCategories.forEach(function(cat) {
-        const nextColIdx = sheet.getLastColumn() + 1;
-        sheet.getRange(1, nextColIdx).setValue(cat);
+    // Check if the headers are exactly matching in the correct order
+    let headersMatch = true;
+    if (lastCol === categories.length) {
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
+        return String(h || '').trim().toUpperCase();
       });
-      SpreadsheetApp.flush();
+      for (let i = 0; i < categories.length; i++) {
+        if (headers[i] !== categories[i]) {
+          headersMatch = false;
+          break;
+        }
+      }
+    } else {
+      headersMatch = false;
+    }
+    
+    if (!headersMatch) {
+      // Re-align the sheet!
+      // If the sheet was completely empty, populate with global settings as fallback
+      const isEmpty = categories.every(function(cat) {
+        return !currentSettings[cat] || currentSettings[cat].length === 0;
+      });
+      
+      if (isEmpty) {
+        const globalSettings = api_getGlobalSettings();
+        saveSettingsToSheetColumns(sheet, globalSettings);
+      } else {
+        saveSettingsToSheetColumns(sheet, currentSettings);
+      }
     }
   } catch (err) {
     console.error("Error in ensureSheetHasSettingsColumns for " + sheet.getName() + ":", err);
@@ -693,32 +853,98 @@ function ensureSheetHasSettingsColumns(sheet) {
 function ensureAllUserSheetsExist() {
   try {
     const ss = getSS();
-    const sheets = ss.getSheets();
-    const sheetNamesSet = new Set(sheets.map(function(s) { return s.getName().trim(); }));
-    
-    // Fetch users directly to check for individual tab sheets
     const users = api_getUsers();
-    
     users.forEach(function(u) {
-      if (!u.userCode) return;
-      const target = String(u.userCode).trim();
-      
-      let uSheet = ss.getSheetByName(target);
-      if (!uSheet) {
-        try {
-          uSheet = ss.insertSheet(target);
-          SpreadsheetApp.flush();
-        } catch (shErr) {
-          console.error("Failed to insert individual sheet for " + target + ":", shErr);
+      const uCode = u.userCode ? String(u.userCode).trim().toUpperCase() : '';
+      if (uCode) {
+        let sh = ss.getSheetByName(uCode);
+        if (!sh) {
+          sh = ss.insertSheet(uCode);
         }
-      }
-      
-      if (uSheet) {
-        ensureSheetHasSettingsColumns(uSheet);
+        ensureSheetHasSettingsColumns(sh);
       }
     });
   } catch (err) {
     console.error("Error in ensureAllUserSheetsExist:", err);
+  }
+  mergeAndCleanUserSheets();
+}
+
+function mergeAndCleanUserSheets() {
+  try {
+    const ss = getSS();
+    const sheets = ss.getSheets();
+    let mainUsersSheet = ss.getSheetByName('USERS');
+    
+    // Find sheets that are synonyms for users but not exactly 'USERS'
+    const synonyms = ['USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
+    const synonymSheets = [];
+    
+    sheets.forEach(function(sh) {
+      const name = sh.getName();
+      const nameUpper = name.trim().toUpperCase();
+      if (nameUpper !== 'USERS' && synonyms.indexOf(nameUpper) !== -1) {
+        synonymSheets.push(sh);
+      }
+    });
+    
+    if (synonymSheets.length === 0) return;
+    
+    if (!mainUsersSheet) {
+      // If we don't have 'USERS' but have e.g. 'USER', rename the first synonym sheet to 'USERS'
+      mainUsersSheet = synonymSheets.shift();
+      mainUsersSheet.setName('USERS');
+      console.log("Renamed sheet " + mainUsersSheet.getName() + " to USERS");
+    }
+    
+    // If we still have other synonym sheets, merge their data into 'USERS' and delete them
+    if (synonymSheets.length > 0) {
+      // Fetch existing user codes in mainUsersSheet
+      const existingUserCodes = {};
+      const existingUsernames = {};
+      try {
+        const mainData = getDataFromSheet('USERS');
+        mainData.forEach(function(u) {
+          if (u.userCode) existingUserCodes[String(u.userCode).trim().toUpperCase()] = true;
+          if (u.username) existingUsernames[String(u.username).trim().toUpperCase()] = true;
+        });
+      } catch (e) {
+        console.error("Error reading main USERS sheet for merge:", e);
+      }
+      
+      synonymSheets.forEach(function(synSheet) {
+        try {
+          const name = synSheet.getName();
+          const synData = getDataFromSheet(name);
+          synData.forEach(function(u) {
+            const uCode = u.userCode ? String(u.userCode).trim().toUpperCase() : '';
+            const uName = u.username ? String(u.username).trim().toUpperCase() : '';
+            
+            // If user code and username are both empty, skip
+            if (!uCode && !uName) return;
+            
+            // Check if user already exists
+            const codeExists = uCode && existingUserCodes[uCode];
+            const nameExists = uName && existingUsernames[uName];
+            
+            if (!codeExists && !nameExists) {
+              // Add to USERS
+              api_saveUser(u, 'SYSTEM_MERGE');
+              if (uCode) existingUserCodes[uCode] = true;
+              if (uName) existingUsernames[uName] = true;
+            }
+          });
+          
+          // Delete synonym sheet
+          ss.deleteSheet(synSheet);
+          console.log("Merged and deleted user synonym sheet: " + name);
+        } catch (err) {
+          console.error("Error merging synonym sheet: " + synSheet.getName(), err);
+        }
+      });
+    }
+  } catch (globalErr) {
+    console.error("Global error in mergeAndCleanUserSheets:", globalErr);
   }
 }
 
@@ -727,12 +953,30 @@ function api_createSheets() {
     const required = [
       'USERS', 
       'SETTINGS', 
-      'ADMIN'
+      'ADMIN',
+      'ZONE',
+      'UNIT'
     ];
     
-    const zones = ['KERALA', 'TIRUPUR', 'BANGLORE'];
+    let zones = [];
+    const zoneSheet = findExistingSheetBySynonym('ZONE') || getSS().getSheetByName('ZONE');
+    if (zoneSheet && zoneSheet.getLastRow() >= 2) {
+      const rangeVals = zoneSheet.getDataRange().getValues();
+      const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
+      const zoneColIdx = headers.indexOf('ZONE');
+      if (zoneColIdx !== -1) {
+        const rawZones = [];
+        for (let r = 1; r < rangeVals.length; r++) {
+          const zVal = rangeVals[r][zoneColIdx];
+          if (zVal !== "" && zVal !== null && zVal !== undefined) {
+            rawZones.push(String(zVal).trim().toUpperCase());
+          }
+        }
+        zones = Array.from(new Set(rawZones));
+      }
+    }
     
-    // Auto-create zoned sheets for material, cutting, inline, endline, aql, and workorder
+    // Auto-create zoned sheets for material, cutting, inline, endline, aql, and workorder based on active zones only!
     zones.forEach(function(zone) {
       required.push('MATERIAL - ' + zone);
       required.push('CUTTING - ' + zone);
@@ -742,10 +986,21 @@ function api_createSheets() {
       required.push('WORKORDER - ' + zone);
     });
     
+    required.push('INLINE');
     required.push('FINAL AUDIT');
     
     required.forEach(s => getOrCreateSheet(s));
     
+    // Explicit headers for unified ZONE sheet showing units
+    if (zoneSheet && zoneSheet.getLastColumn() === 0) {
+      zoneSheet.appendRow(['id', 'zone', 'unit', 'timestamp']);
+    }
+
+    const unitSheet = findExistingSheetBySynonym('UNIT') || getSS().getSheetByName('UNIT');
+    if (unitSheet && unitSheet.getLastColumn() === 0) {
+      unitSheet.appendRow(['id', 'unit', 'zone', 'timestamp']);
+    }
+
     // Explicit headers for MATERIAL zoned sheets
     const materialHeaders = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
     zones.forEach(function(zone) {
@@ -764,7 +1019,7 @@ function api_createSheets() {
         username: 'admin',
         password: 'admin123',
         role: 'ADMIN',
-        location: 'KERALA',
+        location: 'SYSTEM',
         restrictions: []
       });
     }
@@ -798,7 +1053,7 @@ function api_getInitialData(params) {
         username: 'user1',
         password: 'pass1',
         role: 'USER',
-        location: 'KERALA',
+        location: 'SYSTEM',
         restrictions: []
       };
       const defaultAdmin = {
@@ -806,7 +1061,7 @@ function api_getInitialData(params) {
         username: 'admin',
         password: 'admin123',
         role: 'ADMIN',
-        location: 'KERALA',
+        location: 'SYSTEM',
         restrictions: []
       };
       const defaultWO = {
@@ -814,7 +1069,7 @@ function api_getInitialData(params) {
         username: 'wo1',
         password: '123',
         role: 'WORKORDER',
-        location: 'KERALA',
+        location: 'SYSTEM',
         restrictions: []
       };
       api_saveUser(defaultUser);
@@ -826,7 +1081,7 @@ function api_getInitialData(params) {
     const zone = params && params.zone;
     // If zone is a specific one (not ALL), try to fetch from that sheet first, then fallback to WORKORDER
     let workorders = [];
-    if (zone && zone !== 'ALL') {
+    if (zone && zone !== 'ALL' && zone !== 'COMMON') {
       workorders = api_getWorkorders(zone);
       if (workorders.length === 0) {
         // Filter global workorders by zone instead
@@ -869,6 +1124,8 @@ function api_getAdminLogs() {
 function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dropdown Update') {
   try {
     const isGlobal = (target === 'GLOBAL' || target === 'SETTINGS');
+    const isZone = String(target).startsWith('ZONE_');
+    
     if (isGlobal) {
       const ss = getSS();
       const sheetName = 'SETTINGS';
@@ -879,31 +1136,36 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
       }
       saveSettingsToSheetColumns(sheet, settings);
       SpreadsheetApp.flush();
-    } else {
-      // It is a user-specific settings update. Save inside their individual sheet as well!
-      try {
-        const ss = getSS();
-        const sheetName = String(target).trim();
-        clearSheetCache(sheetName);
-        let sheet = ss.getSheetByName(sheetName);
-        if (!sheet) {
-          sheet = ss.insertSheet(sheetName);
-        }
-        saveSettingsToSheetColumns(sheet, settings);
-        SpreadsheetApp.flush();
-      } catch (sheetErr) {
-        console.error("Error saving settings to individual sheet for " + target + ":", sheetErr);
+    } else if (isZone) {
+      const zoneName = String(target).replace('ZONE_', '').trim().toUpperCase();
+      const ss = getSS();
+      const sheetName = 'SETTINGS - ' + zoneName;
+      clearSheetCache(sheetName);
+      let sheet = ss.getSheetByName(sheetName);
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
       }
-
-      // Save inside the USERS sheet as a fallback/redundant copy
+      saveSettingsToSheetColumns(sheet, settings);
+      SpreadsheetApp.flush();
+    } else {
+      // It is a user-specific settings update. Save inside the USERS sheet row as fallback
       const users = api_getUsers();
-      const user = users.find(u => String(u.userCode || '').trim() === String(target).trim());
+      const user = users.find(u => String(u.userCode || '').trim() === String(target).trim() || String(u.username || '').trim() === String(target).trim());
       if (user) {
         user.userSettings = settings;
         api_updateUser(user, admin);
-      } else {
-        return { success: false, error: "User not found to update settings: " + target };
       }
+      
+      // And ALSO feed directly to the dedicated sheet for this user!
+      const ss = getSS();
+      const sheetName = String(target).trim().toUpperCase();
+      clearSheetCache(sheetName);
+      let sheet = ss.getSheetByName(sheetName);
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+      }
+      saveUserSpecificSettingsToSheetColumns(sheet, settings);
+      SpreadsheetApp.flush();
     }
     
     saveDataToSheet('ADMIN', {
@@ -923,7 +1185,10 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
 
 function saveSettingsToSheetColumns(sheet, settings) {
   sheet.clear();
-  const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+  const isGlobal = (sheet.getName() === 'SETTINGS');
+  const categories = isGlobal ? 
+    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
+    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
   
   const normalizedSettings = {};
   categories.forEach(function(cat) {
@@ -955,6 +1220,10 @@ function saveSettingsToSheetColumns(sheet, settings) {
 
   const range = sheet.getRange(1, 1, rows.length, categories.length);
   range.setValues(rows);
+}
+
+function saveUserSpecificSettingsToSheetColumns(sheet, settings) {
+  saveSettingsToSheetColumns(sheet, settings);
 }
 
 // Alias for compatibility
@@ -1062,6 +1331,14 @@ function api_deleteUser(userCode, reason, admin = 'SYSTEM') {
     }
 
     if (deletedAny) {
+      try {
+        const uCodeUpper = String(userCode).trim().toUpperCase();
+        const shToDelete = ss.getSheetByName(uCodeUpper);
+        if (shToDelete) {
+          ss.deleteSheet(shToDelete);
+        }
+      } catch (err) {}
+
       saveDataToSheet('ADMIN', {
         timestamp: new Date().toISOString(),
         module: 'USER_MGMT',
@@ -1112,7 +1389,11 @@ function aggregateZonedData(baseName) {
       'AQL REPORT': 'AQL',
       'WORKORDER': 'WORKORDER',
       'FINAL AUDIT': 'FINAL AUDIT',
-      '8ROUND SYSTEM': 'INLINE'
+      '8ROUND SYSTEM': 'INLINE',
+      '8ROUND': 'INLINE',
+      '8 ROUND SYSTEM': 'INLINE',
+      '8ROUND_SYSTEM': 'INLINE',
+      '8 ROUNDS': 'INLINE'
     };
     
     const canonicalPrefix = canonicalMapping[baseName] || baseName;
@@ -1122,7 +1403,7 @@ function aggregateZonedData(baseName) {
       'USERS': ['USERS', 'USER'],
       'MATERIAL': ['MATERIAL', 'MATERIAL REPORT'],
       'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT'],
-      'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT'],
+      'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS', '8ROUND SYSTEM', '8ROUND_SYSTEM', '8ROUND', '8 ROUNDS', '8 ROUND SYSTEM'],
       'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
       'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
       'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER'],
@@ -1213,7 +1494,7 @@ function api_getWorkorders(params) {
   
   const allData = aggregateZonedData(baseName);
   
-  if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
+  if (zone && zone !== 'ALL' && zone !== 'WORKORDER' && zone !== 'COMMON') {
     const zoneUpper = zone.toUpperCase().trim();
     return allData.filter(wo => {
        const zVal = String(wo.zone || wo.location || "").toUpperCase().trim();
@@ -1408,7 +1689,7 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
 
 function api_saveCUTTINGQUALITY(report) { 
   const res = saveDataToSheet('CUTTING QUALITY', report);
-  if (res.success && report.moveToInline && report.wo) {
+  if (res.success && report.wo) {
     internal_updateWorkorderStatus(report.wo, report.zone || report.location, 'INLINE_AND_ENDLINE');
   }
   return res;
@@ -1418,7 +1699,146 @@ function api_saveSEWINGDEFECT(report) {
   // Do not update workorder status; keep it in INLINE_AND_ENDLINE so it stays visible in both
   return res;
 }
+function normalizeDateToYYYYMMDD_GAS(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+  const s = String(val).trim();
+  const datePartOnly = s.split(/[ T]/)[0];
+  const normalizedStr = datePartOnly.replace(/[\/.]/g, '-');
+  const parts = normalizedStr.split('-');
+  
+  if (parts.length === 3) {
+    let year = 0, month = 0, day = 0;
+    const p0 = parseInt(parts[0], 10);
+    const p1 = parseInt(parts[1], 10);
+    const p2 = parseInt(parts[2], 10);
+    
+    if (parts[0].length === 4) {
+      year = p0; month = p1; day = p2;
+    } else if (parts[2].length === 4) {
+      year = p2; month = p1; day = p0;
+    } else if (parts[2].length === 2) {
+      year = 2000 + p2; month = p1; day = p0;
+    } else if (parts[0].length === 2 && p0 > 31) {
+      year = 2000 + p0; month = p1; day = p2;
+    } else {
+      year = parts[2].length === 2 ? 2000 + p2 : p2; month = p1; day = p0;
+    }
+    if (month > 12 && day <= 12) {
+      const temp = month; month = day; day = temp;
+    }
+    if (year >= 2000 && year < 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+  }
+  return s.substring(0, 10);
+}
+
 function api_save8ROUNDSYSTEM(report) { 
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000); // Wait up to 15 seconds for previous writes to complete safely
+  } catch (e) {
+    console.warn("Concurrency lock acquisition timed out: " + e.toString());
+  }
+  try {
+    const sheetName = getReportSheetName('INLINE', report);
+    const ss = getSS();
+    const sheet = findExistingSheetBySynonym(sheetName) || ss.getSheetByName(sheetName);
+    if (sheet && sheet.getLastRow() >= 2) {
+      const values = sheet.getDataRange().getValues();
+      const headers = values[0];
+      const normHeaders = headers.map(function(h) { return String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''); });
+      
+      const workerColIdx = normHeaders.indexOf('worker');
+      const roundIdxColIdx = normHeaders.indexOf('roundindex');
+      const roundColIdx = normHeaders.indexOf('round');
+      const zoneColIdx = normHeaders.indexOf('zone');
+      const inspectorColIdx = normHeaders.indexOf('inspector');
+      
+      let dateColIdx = normHeaders.indexOf('checkingdate');
+      if (dateColIdx === -1) dateColIdx = normHeaders.indexOf('date');
+      
+      const machineColIdx = normHeaders.indexOf('machine');
+      const woColIdx = normHeaders.indexOf('workordernumber') !== -1 ? normHeaders.indexOf('workordernumber') : normHeaders.indexOf('wo');
+      const styleColIdx = normHeaders.indexOf('style') !== -1 ? normHeaders.indexOf('style') : normHeaders.indexOf('stylename');
+      const colorColIdx = normHeaders.indexOf('color') !== -1 ? normHeaders.indexOf('color') : normHeaders.indexOf('colour');
+      const sizeColIdx = normHeaders.indexOf('size');
+      const cupColIdx = normHeaders.indexOf('cup') !== -1 ? normHeaders.indexOf('cup') : normHeaders.indexOf('cupsize');
+      
+      if (workerColIdx !== -1 && dateColIdx !== -1) {
+        const sWorker = String(report.worker || '').trim().toUpperCase();
+        const sRoundIdx = Number(report.roundIndex || 0);
+        const sRound = String(report.round || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const sDate = normalizeDateToYYYYMMDD_GAS(report.checkingDate || report.date);
+        const sZone = String(report.zone || report.location || '').trim().toUpperCase();
+        const sInspector = String(report.inspector || report.checker || '').trim().toUpperCase();
+        
+        const sMachine = String(report.machine || report.machineNo || report.machineNumber || '').trim().toUpperCase();
+        const sWo = String(report.workorderNumber || report.wo || '').trim().toUpperCase();
+        const sStyle = String(report.style || report.styleName || '').trim().toUpperCase();
+        const sColor = String(report.color || report.colour || '').trim().toUpperCase();
+        const sSize = String(report.size || report.sizeRange || '').trim().toUpperCase();
+        const sCup = String(report.cup || report.cupSize || report.cupsize || '').trim().toUpperCase();
+        
+        let duplicateRowIdx = -1;
+        for (let i = 1; i < values.length; i++) {
+          const row = values[i];
+          const rWorker = String(row[workerColIdx] || '').trim().toUpperCase();
+          const rRoundIdx = roundIdxColIdx !== -1 ? Number(row[roundIdxColIdx] || 0) : 0;
+          const rRound = roundColIdx !== -1 ? String(row[roundColIdx] || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+          const rDate = normalizeDateToYYYYMMDD_GAS(row[dateColIdx]);
+          const rZone = zoneColIdx !== -1 ? String(row[zoneColIdx] || '').trim().toUpperCase() : '';
+          const rInspector = inspectorColIdx !== -1 ? String(row[inspectorColIdx] || '').trim().toUpperCase() : '';
+          
+          const rMachine = machineColIdx !== -1 ? String(row[machineColIdx] || '').trim().toUpperCase() : '';
+          const rWo = woColIdx !== -1 ? String(row[woColIdx] || '').trim().toUpperCase() : '';
+          if (rWo !== sWo && woColIdx !== -1) {
+            // Check synonyms
+          }
+          const rStyle = styleColIdx !== -1 ? String(row[styleColIdx] || '').trim().toUpperCase() : '';
+          const rColor = colorColIdx !== -1 ? String(row[colorColIdx] || '').trim().toUpperCase() : '';
+          const rSize = sizeColIdx !== -1 ? String(row[sizeColIdx] || '').trim().toUpperCase() : '';
+          const rCup = cupColIdx !== -1 ? String(row[cupColIdx] || '').trim().toUpperCase() : '';
+          
+          const roundMatches = (rRoundIdx === sRoundIdx) || (rRound === sRound && rRound !== '');
+          const dateMatches = (rDate === sDate);
+          const zoneMatches = (rZone === sZone || sZone === '' || rZone === '');
+          
+          const otherFieldsMatch = 
+            (machineColIdx === -1 || rMachine === sMachine) &&
+            (woColIdx === -1 || rWo === sWo) &&
+            (styleColIdx === -1 || rStyle === sStyle) &&
+            (colorColIdx === -1 || rColor === sColor) &&
+            (sizeColIdx === -1 || rSize === sSize) &&
+            (cupColIdx === -1 || rCup === sCup);
+          
+          if (rWorker === sWorker && roundMatches && dateMatches && zoneMatches && rWorker !== '' && rDate !== '') {
+            duplicateRowIdx = i + 1; // 1-indexed row number in sheet
+            break;
+          }
+        }
+        
+        if (duplicateRowIdx !== -1) {
+          return { 
+            success: false, 
+            error: "A quality check has already been logged for worker " + report.worker + " in Round " + report.round + " on this date. Re-submission is blocked." 
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error in duplicate check:", e);
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+  }
   const res = saveDataToSheet('INLINE', report);
   return res;
 }
@@ -1622,33 +2042,69 @@ function api_getUserSettings(userCode) {
       return api_getGlobalSettings();
     }
     
-    // Attempt to read from the user's individual sheet first as a live source of truth
+    let settings = null;
     const ss = getSS();
-    const targetSheet = ss.getSheetByName(String(userCode).trim());
-    if (targetSheet) {
-      const settings = readSettingsFromSheetColumns(targetSheet);
-      if (settings && Object.keys(settings).length > 0) {
-        // Also ensure STYLE_NAME is there
-        if (!settings.STYLE_NAME) settings.STYLE_NAME = [];
-        return settings;
+    
+    const isZone = String(userCode).startsWith('ZONE_');
+    if (isZone) {
+      const zoneName = String(userCode).replace('ZONE_', '').trim().toUpperCase();
+      const sheetName = 'SETTINGS - ' + zoneName;
+      const sheet = ss.getSheetByName(sheetName);
+      if (sheet) {
+        settings = readSettingsFromSheetColumns(sheet);
       }
     }
-    
-    // Search for user in the consolidated USERS list as a secondary backup/fallback
+
+    // Search for user in the consolidated USERS list as the primary source of truth
     const users = api_getUsers();
     const user = users.find(u => String(u.userCode || '').trim() === String(userCode).trim());
-    if (user && user.userSettings) {
+    
+    if (!settings && user) {
+      // Check if user belongs to a zone/location and if there's a common settings sheet for that zone
+      const userZone = String(user.location || user.zone || '').trim().toUpperCase();
+      if (userZone && userZone !== 'ALL' && userZone !== 'SYSTEM') {
+        const sheetName = 'SETTINGS - ' + userZone;
+        const sheet = ss.getSheetByName(sheetName);
+        if (sheet) {
+          settings = readSettingsFromSheetColumns(sheet);
+        }
+      }
+    }
+
+    if (!settings) {
+      // Check for user-specific sheet
+      const uCodeUpper = String(userCode).trim().toUpperCase();
+      const userSheet = ss.getSheetByName(uCodeUpper);
+      if (userSheet) {
+        settings = readSettingsFromSheetColumns(userSheet);
+      }
+    }
+
+    if (!settings && user && user.userSettings) {
       try {
         const val = typeof user.userSettings === 'string' ? JSON.parse(user.userSettings) : user.userSettings;
         if (val && typeof val === 'object') {
-          return val;
+          settings = val;
         }
       } catch (pErr) {
         console.error("Error parsing userSettings from USERS row:", pErr);
       }
     }
     
-    return api_getGlobalSettings();
+    if (!settings) {
+      return api_getGlobalSettings();
+    }
+
+    // Merge with global settings so any missing categories get global values
+    const globalSettings = api_getGlobalSettings();
+    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+    categories.forEach(function(cat) {
+      if (!settings[cat] || settings[cat].length === 0) {
+        settings[cat] = globalSettings[cat] || [];
+      }
+    });
+
+    return settings;
   } catch (e) {
     console.error("Error getting settings for " + userCode + ":", e);
     return api_getGlobalSettings();
@@ -1658,7 +2114,10 @@ function api_getUserSettings(userCode) {
 function readSettingsFromSheetColumns(sheet) {
   const values = sheet.getDataRange().getValues();
   const settings = {};
-  const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
+  const isGlobal = (sheet.getName() === 'SETTINGS');
+  const categories = isGlobal ? 
+    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
+    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
   categories.forEach(function(cat) { settings[cat] = []; });
   
   if (values.length > 0) {
@@ -1711,7 +2170,7 @@ function api_getGlobalSettings() {
     const sheetNames = sheets.map(s => s.getName());
     
     const defaults = {
-      ZONE: ['KERALA', 'TIRUPUR', 'BANGLORE'],
+      ZONE: [],
       SUPPLIER: ['SUPPLIER A', 'SUPPLIER B'],
       ITEMS: ['ITEM 1', 'ITEM 2'],
       COLOR: ['BLACK', 'WHITE', 'NAVY'],
@@ -1721,7 +2180,7 @@ function api_getGlobalSettings() {
       OPERATION: ['OP 1', 'OP 2'],
       SIZE: ['S', 'M', 'L', 'XL'],
       CUPSIZE: ['A', 'B', 'C'],
-      UNIT: ['UNIT 1', 'UNIT 2'],
+      UNIT: [],
       LINE: ['LINE 1', 'LINE 2'],
       STYLE_NAME: ['STYLE A', 'STYLE B', 'STYLE C', 'STYLE 1', 'STYLE 2']
     };
@@ -1756,7 +2215,46 @@ function api_getGlobalSettings() {
         if (sheetNames.includes(name)) {
           const sheet = ss.getSheetByName(name);
           if (sheet.getLastRow() >= 2) {
-            const vals = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().filter(v => v !== "" && v !== null);
+            let vals = [];
+            if (name === 'ZONE') {
+              const rangeVals = sheet.getDataRange().getValues();
+              const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
+              const zoneColIdx = headers.indexOf('ZONE');
+              const idColIdx = headers.indexOf('ID');
+              const unitColIdx = headers.indexOf('UNIT');
+              
+              // Build a map of ZMAP-ID -> Human Name
+              const zoneIdToNameMap = {};
+              if (zoneColIdx !== -1 && idColIdx !== -1) {
+                for (let r = 1; r < rangeVals.length; r++) {
+                  const z = String(rangeVals[r][zoneColIdx] || '').trim().toUpperCase();
+                  const id = String(rangeVals[r][idColIdx] || '').trim().toUpperCase();
+                  if (z.indexOf('ZMAP-') === 0 && id && id.indexOf('ZMAP-') !== 0) {
+                    zoneIdToNameMap[z] = rangeVals[r][idColIdx]; // Keep original case
+                  } else if (id.indexOf('ZMAP-') === 0 && z && z.indexOf('ZMAP-') !== 0) {
+                    zoneIdToNameMap[id] = rangeVals[r][zoneColIdx]; // Keep original case
+                  }
+                }
+              }
+
+              if (zoneColIdx !== -1) {
+                const rawZones = [];
+                for (let r = 1; r < rangeVals.length; r++) {
+                  let zVal = String(rangeVals[r][zoneColIdx] || '').trim();
+                  if (zVal.toUpperCase().indexOf('ZMAP-') === 0) {
+                    zVal = zoneIdToNameMap[zVal.toUpperCase()] || zVal;
+                  }
+                  if (zVal && zVal.toUpperCase().indexOf('ZMAP-') !== 0) {
+                    rawZones.push(zVal);
+                  }
+                }
+                vals = Array.from(new Set(rawZones));
+              } else {
+                vals = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().filter(v => v !== "" && v !== null);
+              }
+            } else {
+              vals = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().filter(v => v !== "" && v !== null);
+            }
             if (vals.length > 0) {
               finalSettings[cat] = vals;
               break; 
@@ -1765,6 +2263,28 @@ function api_getGlobalSettings() {
         }
       }
     });
+
+    // If UNIT is still empty, try to populate it from the 'ZONE' mapping sheet
+    if ((!finalSettings['UNIT'] || finalSettings['UNIT'].length === 0) && sheetNames.includes('ZONE')) {
+      const zoneSheet = ss.getSheetByName('ZONE');
+      if (zoneSheet.getLastRow() >= 2) {
+        const rangeVals = zoneSheet.getDataRange().getValues();
+        const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
+        const unitColIdx = headers.indexOf('UNIT');
+        if (unitColIdx !== -1) {
+          const rawUnits = [];
+          for (let r = 1; r < rangeVals.length; r++) {
+            const uVal = rangeVals[r][unitColIdx];
+            if (uVal !== "" && uVal !== null && uVal !== undefined) {
+              rawUnits.push(String(uVal).trim());
+            }
+          }
+          if (rawUnits.length > 0) {
+            finalSettings['UNIT'] = Array.from(new Set(rawUnits));
+          }
+        }
+      }
+    }
 
     // 3. Mirror plural/singular/aliases
     const aliasesGroup = [
@@ -1791,6 +2311,54 @@ function api_getGlobalSettings() {
       }
     });
 
+    // Dynamic Zone & Unit Override: ALWAYS fetch actual zones and units from the 'ZONE' sheet to maintain 100% integrity with user additions and deletions!
+    const dynamicZones = [];
+    const dynamicUnits = [];
+    if (sheetNames.includes('ZONE')) {
+      const zoneData = getDataFromSheet('ZONE') || [];
+      const seenZ = {};
+      const seenU = {};
+      
+      // Build a map of ZMAP-ID -> Human Name
+      const zoneIdToNameMap = {};
+      zoneData.forEach(function(row) {
+        const z = String(row.zone || '').trim().toUpperCase();
+        const id = String(row.id || '').trim().toUpperCase();
+        if (z.indexOf('ZMAP-') === 0 && id && id.indexOf('ZMAP-') !== 0) {
+          zoneIdToNameMap[z] = String(row.id).trim(); // Keep original case
+        } else if (id.indexOf('ZMAP-') === 0 && z && z.indexOf('ZMAP-') !== 0) {
+          zoneIdToNameMap[id] = String(row.zone).trim(); // Keep original case
+        }
+      });
+
+      for (let zIdx = 0; zIdx < zoneData.length; zIdx++) {
+        let zVal = String(zoneData[zIdx].zone || '').trim().toUpperCase();
+        const uVal = String(zoneData[zIdx].unit || '').trim().toUpperCase();
+        if (zVal.indexOf('ZMAP-') === 0) {
+          const mapped = zoneIdToNameMap[zVal];
+          if (mapped) {
+            zVal = mapped.toUpperCase();
+          }
+        }
+        if (zVal && zVal.indexOf('ZMAP-') !== 0) {
+          if (!seenZ[zVal]) {
+            seenZ[zVal] = true;
+            dynamicZones.push(zVal);
+          }
+        }
+        if (uVal) {
+          if (!seenU[uVal]) {
+            seenU[uVal] = true;
+            dynamicUnits.push(uVal);
+          }
+        }
+      }
+    }
+    finalSettings['ZONE'] = (dynamicZones.length > 0) ? dynamicZones : (finalSettings['ZONE'] && finalSettings['ZONE'].length > 0 ? finalSettings['ZONE'] : []);
+    finalSettings['ZONES'] = (dynamicZones.length > 0) ? dynamicZones : (finalSettings['ZONES'] && finalSettings['ZONES'].length > 0 ? finalSettings['ZONES'] : []);
+    finalSettings['UNIT'] = (dynamicUnits.length > 0) ? dynamicUnits : (finalSettings['UNIT'] && finalSettings['UNIT'].length > 0 ? finalSettings['UNIT'] : []);
+    finalSettings['UNITS'] = (dynamicUnits.length > 0) ? dynamicUnits : (finalSettings['UNITS'] && finalSettings['UNITS'].length > 0 ? finalSettings['UNITS'] : []);
+
     return finalSettings;
   } catch (e) {
     console.error("Error in getGlobalSettings:", e);
@@ -1807,3 +2375,650 @@ function arraysEqual(a, b) {
   }
   return true;
 }
+
+/**
+ * Uploads a base64 encoded document (like a PDF) directly to the Google Drive of the Apps Script owner,
+ * making Google Sheets / Google Drive a real document storage server.
+ */
+function api_uploadSOPFile(fileName, base64Data, mimeType) {
+  try {
+    var decoded = Utilities.base64Decode(base64Data);
+    var blob = Utilities.newBlob(decoded, mimeType, fileName);
+    var file = DriveApp.createFile(blob);
+    try {
+      // Set access permissons to allow anyone with url to read
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      console.error("Warning: setting file sharing permissions failed in Apps Script", shareErr);
+    }
+    return {
+      success: true,
+      url: file.getUrl(),
+      name: file.getName(),
+      id: file.getId()
+    };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+/**
+ * Saves an SOP document metadata row directly to Google Sheets database.
+ * Supports updating an existing row if `report.id` matches.
+ */
+function api_saveREPORTS_SOP(report) {
+  try {
+    const sheet = getOrCreateSheet('REPORTS_SOP');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    const idIdx = normHeaders.indexOf('id');
+    
+    // Generate an ID if not exists
+    if (!report.id) {
+      report.id = 'sop-' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    // Check if we are updating an existing row
+    if (idIdx !== -1 && data.length > 1) {
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idIdx]) === String(report.id)) {
+          // Found matching row to update. Generate row array matching original headers
+          const updatedRow = headers.map(function(header) {
+            const val = resolveSynonymValue(header, report);
+            return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
+          });
+          sheet.getRange(i + 1, 1, 1, headers.length).setValues([updatedRow]);
+          clearSheetCache('REPORTS_SOP');
+          return { success: true, id: report.id };
+        }
+      }
+    }
+    
+    // Fallback: Use standard append row route
+    const res = saveDataToSheet('REPORTS_SOP', report);
+    if (res.success) {
+      res.id = report.id;
+    }
+    return res;
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Retrieves all registered SOP and PDF document nodes in Google Sheets.
+ */
+function api_getREPORTS_SOPData(params) {
+  return getDataFromSheet('REPORTS_SOP');
+}
+
+/**
+ * Removes an SOP spreadsheet row by its custom ID.
+ */
+function api_deleteREPORTS_SOP(id) {
+  try {
+    const sheet = getOrCreateSheet('REPORTS_SOP');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    const idIdx = normHeaders.indexOf('id');
+    
+    if (idIdx !== -1) {
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idIdx]) === String(id)) {
+          sheet.deleteRow(i + 1);
+          clearSheetCache('REPORTS_SOP');
+          return { success: true };
+        }
+      }
+    }
+    return { success: false, error: "Record not found with ID " + id };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Retrieves all registered Zone/Unit/Worker mapping records in Google Sheets.
+ */
+function api_getZoneMappings() {
+  try {
+    const ss = getSS();
+    const zoneSheet = ss.getSheetByName('ZONE') || getOrCreateSheet('ZONE');
+    
+    // Ensure the sheet has the proper headers if it's empty
+    const lastCol = zoneSheet.getLastColumn();
+    if (lastCol === 0) {
+      zoneSheet.appendRow(['id', 'zone', 'unit', 'timestamp']);
+      SpreadsheetApp.flush();
+    }
+    
+    const zoneRows = getDataFromSheet('ZONE') || [];
+    const result = [];
+    
+    // Build a map of ZMAP-ID -> Human Name
+    const zoneIdToNameMap = {};
+    zoneRows.forEach(function(row) {
+      const z = String(row.zone || '').trim().toUpperCase();
+      const id = String(row.id || '').trim().toUpperCase();
+      if (z.indexOf('ZMAP-') === 0 && id && id.indexOf('ZMAP-') !== 0) {
+        zoneIdToNameMap[z] = String(row.id).trim(); // Keep original case
+      } else if (id.indexOf('ZMAP-') === 0 && z && z.indexOf('ZMAP-') !== 0) {
+        zoneIdToNameMap[id] = String(row.zone).trim(); // Keep original case
+      }
+    });
+    
+    // Step 1: Gather workers from each unit-specific sheet mapped in ZONE
+    zoneRows.forEach(function(row) {
+      const unitName = String(row.unit || '').trim().toUpperCase();
+      let zoneName = String(row.zone || '').trim().toUpperCase();
+      let idValue = String(row.id || '').trim();
+
+      if (zoneName.indexOf('ZMAP-') === 0) {
+        const mapped = zoneIdToNameMap[zoneName];
+        if (mapped) {
+          zoneName = mapped.toUpperCase();
+        }
+      } else if (zoneName.indexOf('ZMAP-') === 0 && idValue && idValue.toUpperCase().indexOf('ZMAP-') !== 0) {
+        var temp = zoneName;
+        zoneName = idValue.toUpperCase();
+        idValue = temp;
+      }
+
+      if (!zoneName || zoneName.indexOf('ZMAP-') === 0) return;
+      
+      if (unitName) {
+        const unitSpecSheet = findExistingSheetBySynonym(unitName);
+        if (unitSpecSheet) {
+          const workerRows = getDataFromSheet(unitName) || [];
+          var hasWorker = false;
+          workerRows.forEach(function(wRow) {
+            const workerName = String(wRow.worker || '').trim().toUpperCase();
+            if (!workerName) return;
+            hasWorker = true;
+            
+            const wId = wRow.id || ('zmap-' + Math.floor(Math.random() * 10000000));
+            result.push({
+              id: wId,
+              zone: zoneName,
+              unit: unitName,
+              worker: workerName,
+              timestamp: wRow.timestamp || new Date().toISOString()
+            });
+          });
+          
+          if (!hasWorker) {
+            // Include unit with empty worker
+            result.push({
+              id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+              zone: zoneName,
+              unit: unitName,
+              worker: '',
+              timestamp: row.timestamp || new Date().toISOString()
+            });
+          }
+        } else {
+          // No unit-specific sheet, still show unit
+          result.push({
+            id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+            zone: zoneName,
+            unit: unitName,
+            worker: '',
+            timestamp: row.timestamp || new Date().toISOString()
+          });
+        }
+      } else {
+        // Just a zone with no unit
+        result.push({
+          id: idValue || row.id || ('zmap-' + Math.floor(Math.random() * 10000000)),
+          zone: zoneName,
+          unit: '',
+          worker: '',
+          timestamp: row.timestamp || new Date().toISOString()
+        });
+      }
+    });
+    
+    return result;
+  } catch (e) {
+    console.error("Error in api_getZoneMappings:", e);
+    return [];
+  }
+}
+
+/**
+ * Saves a Zone/Unit/Worker mapping record in Google Sheets.
+ */
+function api_saveZoneMapping(record) {
+  try {
+    if (!record.id) {
+      record.id = 'zmap-' + Math.floor(Math.random() * 10000000);
+    }
+    if (!record.timestamp) {
+      record.timestamp = new Date().toISOString();
+    }
+    
+    const zone = String(record.zone || '').trim().toUpperCase();
+    const unit = String(record.unit || '').trim().toUpperCase();
+    const worker = String(record.worker || '').trim().toUpperCase();
+    
+    // Case 1: Saving a Worker
+    if (worker) {
+      if (!unit) {
+        return { success: false, error: "Unit is required to save a worker." };
+      }
+      // Save worker details inside the sheet named after the unit
+      const unitSheet = getOrCreateSheet(unit);
+      
+      // Initialize columns if empty
+      const lastCol = unitSheet.getLastColumn();
+      if (lastCol === 0) {
+        unitSheet.appendRow(['id', 'worker', 'timestamp']);
+        SpreadsheetApp.flush();
+      }
+      
+      const workerRecord = {
+        id: record.id,
+        worker: worker,
+        timestamp: record.timestamp
+      };
+      
+      return saveDataToSheet(unit, workerRecord);
+    }
+    
+    // Case 2: Saving a Unit
+    if (unit) {
+      if (!zone) {
+        return { success: false, error: "Zone is required to save a unit." };
+      }
+      // Save unit inside the unified 'ZONE' sheet
+      const zoneSheet = getOrCreateSheet('ZONE');
+      const lastCol = zoneSheet.getLastColumn();
+      if (lastCol === 0) {
+        zoneSheet.appendRow(['id', 'zone', 'unit', 'timestamp']);
+        SpreadsheetApp.flush();
+      }
+      
+      // Ensure unit sheet itself is also created (for adding workers later)
+      const unitSheet = getOrCreateSheet(unit);
+      const unitLastCol = unitSheet.getLastColumn();
+      if (unitLastCol === 0) {
+        unitSheet.appendRow(['id', 'worker', 'timestamp']);
+        SpreadsheetApp.flush();
+      }
+      
+      const unitRecord = {
+        id: record.id,
+        zone: zone,
+        unit: unit,
+        timestamp: record.timestamp
+      };
+      
+      saveDataToSheet('UNIT', unitRecord);
+      return saveDataToSheet('ZONE', unitRecord);
+    }
+    
+    // Case 3: Saving a Zone
+    if (zone) {
+      const zoneSheet = getOrCreateSheet('ZONE');
+      const lastCol = zoneSheet.getLastColumn();
+      if (lastCol === 0) {
+        zoneSheet.appendRow(['id', 'zone', 'unit', 'timestamp']);
+        SpreadsheetApp.flush();
+      }
+      
+      const zoneRecord = {
+        id: record.id,
+        zone: zone,
+        unit: '',
+        timestamp: record.timestamp
+      };
+      
+      return saveDataToSheet('ZONE', zoneRecord);
+    }
+    
+    return { success: false, error: "Invalid zone mapping record." };
+  } catch (e) {
+    console.error("Error in api_saveZoneMapping:", e);
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Removes a Zone/Unit/Worker mapping record in Google Sheets by ID or by name values as a fallback.
+ * Supports robust cascading deletion.
+ */
+function api_deleteZoneMapping(param) {
+  try {
+    const ss = getSS();
+    let targetIdStr = "";
+    let targetZone = "";
+    let targetUnit = "";
+    let targetWorker = "";
+    
+    if (param && typeof param === 'object') {
+      targetIdStr = String(param.id || '').trim();
+      targetZone = String(param.zone || '').trim().toUpperCase();
+      targetUnit = String(param.unit || '').trim().toUpperCase();
+      targetWorker = String(param.worker || '').trim().toUpperCase();
+    } else {
+      targetIdStr = String(param || '').trim();
+    }
+
+    // Case 1: If it's a Worker row (has a worker name and unit sheet)
+    if (targetWorker && targetUnit) {
+      const sheet = findExistingSheetBySynonym(targetUnit);
+      if (sheet && sheet.getLastRow() >= 2) {
+        const range = sheet.getDataRange();
+        const data = range.getValues();
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+        const idIdx = normHeaders.indexOf('id');
+        const workerIdx = normHeaders.indexOf('worker');
+        
+        let deleted = false;
+        for (let i = data.length - 1; i >= 1; i--) {
+          let match = false;
+          if (idIdx !== -1 && targetIdStr && String(data[i][idIdx]).trim() === targetIdStr) {
+            match = true;
+          } else if (workerIdx !== -1 && String(data[i][workerIdx]).trim().toUpperCase() === targetWorker) {
+            match = true;
+          }
+          if (match) {
+            sheet.deleteRow(i + 1);
+            deleted = true;
+          }
+        }
+        if (deleted) {
+          SpreadsheetApp.flush();
+          clearSheetCache(targetUnit);
+          return { success: true, details: "Deleted worker " + targetWorker + " from unit sheet " + targetUnit };
+        }
+      }
+    }
+
+    // Case 2: If it's a Unit row (has a unit name and zone, but no worker)
+    if (targetUnit && !targetWorker) {
+      const sheet = findExistingSheetBySynonym('ZONE');
+      if (sheet && sheet.getLastRow() >= 2) {
+        const range = sheet.getDataRange();
+        const data = range.getValues();
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+        const idIdx = normHeaders.indexOf('id');
+        const unitIdx = normHeaders.indexOf('unit');
+        const zoneIdx = normHeaders.indexOf('zone');
+        
+        let deleted = false;
+        for (let i = data.length - 1; i >= 1; i--) {
+          let match = false;
+          if (idIdx !== -1 && targetIdStr && String(data[i][idIdx]).trim() === targetIdStr) {
+            match = true;
+          } else if (unitIdx !== -1 && String(data[i][unitIdx]).trim().toUpperCase() === targetUnit) {
+            if (zoneIdx === -1 || !targetZone || String(data[i][zoneIdx]).trim().toUpperCase() === targetZone) {
+              match = true;
+            }
+          }
+          if (match) {
+            sheet.deleteRow(i + 1);
+            deleted = true;
+          }
+        }
+      }
+      
+      // Cascade delete: Delete the unit sheet as well to clean up workers
+      const unitSpecSheet = findExistingSheetBySynonym(targetUnit);
+      if (unitSpecSheet) {
+        try { ss.deleteSheet(unitSpecSheet); } catch(e) {}
+      }
+      
+      SpreadsheetApp.flush();
+      clearSheetCache('ZONE');
+      clearSheetCache(targetUnit);
+      return { success: true, details: "Deleted unit " + targetUnit + " and its worker sheet." };
+    }
+
+    // Case 3: If it's a Zone row (has a zone name, but no unit and no worker)
+    if (targetZone && !targetUnit && !targetWorker) {
+      // 1. Delete the zone and its associated units from ZONE sheet
+      const zoneSheet = findExistingSheetBySynonym('ZONE');
+      if (zoneSheet && zoneSheet.getLastRow() >= 2) {
+        const range = zoneSheet.getDataRange();
+        const data = range.getValues();
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+        const idIdx = normHeaders.indexOf('id');
+        const zoneIdx = normHeaders.indexOf('zone');
+        const unitIdx = normHeaders.indexOf('unit');
+        
+        for (let i = data.length - 1; i >= 1; i--) {
+          let match = false;
+          if (idIdx !== -1 && targetIdStr && String(data[i][idIdx]).trim() === targetIdStr) {
+            match = true;
+          } else if (zoneIdx !== -1 && String(data[i][zoneIdx]).trim().toUpperCase() === targetZone) {
+            match = true;
+          }
+          if (match) {
+            const unitName = unitIdx !== -1 ? String(data[i][unitIdx] || '').trim() : '';
+            if (unitName) {
+              const unitSpecSheet = findExistingSheetBySynonym(unitName);
+              if (unitSpecSheet) {
+                try { ss.deleteSheet(unitSpecSheet); } catch(e) {}
+              }
+              try { clearSheetCache(unitName); } catch(e) {}
+            }
+            zoneSheet.deleteRow(i + 1);
+          }
+        }
+      }
+      
+      // 2. Delete or clear zone-specific sheets for this zone (e.g. MATERIAL - KERALA, CUTTING - KERALA, etc.)
+      const modules = ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER'];
+      modules.forEach(function(mod) {
+        const zoneSheetName = mod + ' - ' + targetZone;
+        const zSheet = findExistingSheetBySynonym(zoneSheetName);
+        if (zSheet) {
+          try { ss.deleteSheet(zSheet); } catch(e) {}
+        }
+        try { clearSheetCache(zoneSheetName); } catch(e) {}
+      });
+      
+      SpreadsheetApp.flush();
+      clearSheetCache('ZONE');
+      return { success: true, details: "Deleted zone " + targetZone + " and all its units/workers/quality data sheets." };
+    }
+
+    // Fallback: Search by pure ID across all sheets
+    if (targetIdStr) {
+      const sheetsToSearch = ['ZONE'];
+      const sheets = ss.getSheets();
+      sheets.forEach(function(sh) {
+        const name = sh.getName();
+        const nameUpper = name.toUpperCase();
+        const isSystemSheet = ['USERS', 'SETTINGS', 'ADMIN', 'FINAL AUDIT', 'MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER'].some(function(sys) {
+          return nameUpper === sys || nameUpper.startsWith(sys + " - ") || nameUpper.startsWith(sys + " ");
+        });
+        if (!isSystemSheet && nameUpper !== 'ZONE') {
+          sheetsToSearch.push(name);
+        }
+      });
+      
+      for (let s = 0; s < sheetsToSearch.length; s++) {
+        const sheetName = sheetsToSearch[s];
+        const sheet = ss.getSheetByName(sheetName);
+        if (!sheet || sheet.getLastRow() < 2) continue;
+        
+        const range = sheet.getDataRange();
+        const data = range.getValues();
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+        const idIdx = normHeaders.indexOf('id');
+        if (idIdx === -1) continue;
+        
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][idIdx]).trim() === targetIdStr) {
+            sheet.deleteRow(i + 1);
+            SpreadsheetApp.flush();
+            clearSheetCache(sheetName);
+            return { success: true, details: "Deleted by ID from fallback sheet: " + sheetName };
+          }
+        }
+      }
+    }
+    
+    return { success: false, error: "Mapping not found" };
+  } catch (e) {
+    console.error("Error in api_deleteZoneMapping:", e);
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Fully resets/wipes all zones and data, but preserves structural system sheets
+ * with their canonical headers, and re-seeds standard admin users and settings.
+ */
+function api_resetAllDatabase() {
+  try {
+    const ss = getSS();
+    const sheets = ss.getSheets();
+    const standardSheets = ['USERS', 'SETTINGS', 'ADMIN', 'ZONE', 'UNIT'];
+    
+    // 1. Delete all unit-specific worker sheets and other dynamically added sheets (including any legacy UNIT sheet)
+    sheets.forEach(function(sh) {
+      const name = sh.getName();
+      const nameUpper = name.toUpperCase();
+      
+      // Explicitly delete legacy / split users sheets (e.g. USERS - KERALA, USERS - HEAD OFFICE, or exact user codes like A001)
+      const isLegacyUserSheet = (nameUpper !== 'USERS') && (
+        nameUpper.startsWith('USERS - ') || 
+        nameUpper.startsWith('USERS ') || 
+        nameUpper.startsWith('USER - ') || 
+        nameUpper.startsWith('USER ') ||
+        /^[A-Z]\d{3,4}$/.test(nameUpper)
+      );
+
+      if (isLegacyUserSheet) {
+        try {
+          ss.deleteSheet(sh);
+        } catch (e) {
+          console.error("Could not delete legacy user sheet: " + name, e);
+        }
+        return;
+      }
+      
+      const isSystemSheet = standardSheets.indexOf(nameUpper) !== -1 ||
+        ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER', 'FINAL AUDIT'].some(function(sys) {
+          return nameUpper === sys || nameUpper.startsWith(sys + " - ") || nameUpper.startsWith(sys + " ");
+        });
+      
+      if (!isSystemSheet) {
+        try {
+          ss.deleteSheet(sh);
+        } catch (e) {
+          console.error("Could not delete custom sheet: " + name, e);
+        }
+      }
+    });
+
+    // Clear caches
+    try {
+      const cache = CacheService.getScriptCache();
+      sheets.forEach(function(sh) {
+        cache.remove(`BQOS_CACHE_${sh.getName().replace(/\s+/g, '_')}`);
+      });
+    } catch (e) {}
+
+    // 2. Re-initialize standard sheets by clearing rows below headers
+    const canonicalHeaders = {
+      'ZONE': ['id', 'zone', 'unit', 'timestamp'],
+      'UNIT': ['id', 'unit', 'zone', 'timestamp'],
+      'USERS': ['userCode', 'username', 'password', 'role', 'location', 'zone', 'restrictions', 'canDownload', 'userSettings'],
+      'ADMIN': ['timestamp', 'module', 'action', 'details', 'admin'],
+      'SETTINGS': ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME']
+    };
+
+    // Recreate/re-align standard sheets
+    standardSheets.forEach(function(shName) {
+      let sh = ss.getSheetByName(shName);
+      if (!sh) {
+        sh = ss.insertSheet(shName);
+      }
+      sh.clear();
+      const headers = canonicalHeaders[shName];
+      if (headers) {
+        sh.appendRow(headers);
+      }
+    });
+
+    // Explicitly allow UNIT to remain as a separate sheet as requested
+
+    // Clear contents of any leftover module sheets
+    const sheetsNow = ss.getSheets();
+    sheetsNow.forEach(function(sh) {
+      const name = sh.getName();
+      const nameUpper = name.toUpperCase();
+      const isStandard = standardSheets.indexOf(nameUpper) !== -1;
+      if (!isStandard) {
+        sh.clear();
+      }
+    });
+
+    // Let's run api_createSheets to re-build empty sheets with precise headers
+    api_createSheets();
+
+    // Re-seed standard users and settings
+    // 1. Seed USERS
+    const usersSheet = ss.getSheetByName('USERS');
+    if (usersSheet) {
+      usersSheet.clear();
+      usersSheet.appendRow(canonicalHeaders['USERS']);
+    }
+    
+    // Save Admin
+    api_saveUser({
+      userCode: 'A001',
+      username: 'admin',
+      password: 'admin123',
+      role: 'ADMIN',
+      location: 'SYSTEM',
+      restrictions: []
+    });
+    // Save default users
+    api_saveUser({
+      userCode: 'U001',
+      username: 'user1',
+      password: 'pass1',
+      role: 'USER',
+      location: 'SYSTEM',
+      restrictions: []
+    });
+    api_saveUser({
+      userCode: 'W001',
+      username: 'wo1',
+      password: '123',
+      role: 'WORKORDER',
+      location: 'SYSTEM',
+      restrictions: []
+    });
+
+    // 2. Seed SETTINGS
+    const settingsSheet = ss.getSheetByName('SETTINGS');
+    if (settingsSheet) {
+      settingsSheet.clear();
+      const defaultSettings = api_getGlobalSettings();
+      saveSettingsToSheetColumns(settingsSheet, defaultSettings);
+    }
+
+    // Force flush
+    SpreadsheetApp.flush();
+
+    return { success: true, details: "Wiped all data, zones, and custom sheets. Standard system sheets re-initialized." };
+  } catch (err) {
+    console.error("Wipe failed:", err);
+    return { success: false, error: err.toString() };
+  }
+}
+
+
+

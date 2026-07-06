@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
-import { SUPPLIERS, ITEMS, COLORS, SIZES } from '../constants';
+import { SUPPLIERS, ITEMS, COLORS, SIZES, ZONES } from '../constants';
 import Icon from './Icon';
 
 interface MaterialInspectionProps {
@@ -13,7 +13,11 @@ interface MaterialInspectionProps {
 const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings, triggerSuccess, globalZone }) => {
   const currentSuppliers = settings?.SUPPLIER || settings?.SUPPLIERS || [];
   const currentItems = settings?.ITEMS || settings?.ITEM || [];
-  const currentZones = settings?.ZONE || settings?.ZONES || ['KERALA', 'TIRUPUR', 'BANGLORE'];
+  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+  const currentZones = React.useMemo(() => {
+    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
+    return list;
+  }, [settings, hasSpreadsheet]);
   const currentStyles = settings?.STYLE_NAME || settings?.['STYLE_NAME'] || settings?.['STYLE NAME'] || settings?.STYLE || settings?.STYLES || [];
 
   const [header, setHeader] = useState({
@@ -46,10 +50,10 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
       setHeader(prev => ({ ...prev, zone: globalZone }));
-    } else if (!header.zone && currentZones.length > 0) {
+    } else if (currentZones && currentZones.length > 0 && (!header.zone || !currentZones.includes(header.zone))) {
       setHeader(prev => ({ ...prev, zone: currentZones[0] }));
     }
-  }, [globalZone, currentZones]);
+  }, [globalZone, currentZones, header.zone]);
 
   const addItem = () => {
     setItems([...items, { itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }]);

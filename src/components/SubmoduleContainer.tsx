@@ -7,8 +7,10 @@ import InlineQuality from './InlineQuality';
 import EndlineQuality from './EndlineQuality';
 import AQLInspection from './AQLInspection';
 import FinalAudit from './FinalAudit';
+import ReportsSOPs from './ReportsSOPs';
 import DataView from './DataView';
 import MISView from './MISView';
+import BlossomAIView from './BlossomAIView';
 import { api } from '../services/api';
 
 interface SubmoduleContainerProps {
@@ -20,9 +22,11 @@ interface SubmoduleContainerProps {
   users: any[];
   triggerSuccess: (message: string) => void;
   globalZone?: string;
+  onNavigate?: (newSubId: string) => void;
+  refreshData?: () => void;
 }
 
-const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone }) => {
+const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, onNavigate, refreshData }) => {
   const isRestricted = user?.role !== 'ADMIN' && (
     (user?.restrictions || []).includes(id) || 
     (user?.restrictions || []).includes(id.charAt(0))
@@ -52,15 +56,18 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
       );
     }
 
-    const commonProps = { user, settings, workorders, triggerSuccess, globalZone };
+    const commonProps = { user, settings, workorders, triggerSuccess, globalZone, refreshData };
 
     if (id === 'A1') return <MaterialInspection {...commonProps} />;
     if (id === 'A2') return <CuttingQuality {...commonProps} />;
     if (id === 'A3') return <InlineQuality {...commonProps} />;
-    if (id === 'A4') return <EndlineQuality {...commonProps} users={users} />;
+    if (id === 'A4') return <EndlineQuality {...commonProps} users={users} onNavigate={onNavigate} refreshData={refreshData} />;
     if (id === 'A5') return <AQLInspection {...commonProps} />;
     if (id === 'A6') return <FinalAudit {...commonProps} />;
+    if (id === 'A7') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="entry" />;
+    if (id === 'B9') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="view" readOnly={true} />;
     if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} settings={settings} />;
+    if (id === 'C9') return <BlossomAIView globalZone={globalZone} user={user} />;
     if (id.startsWith('C')) return <MISView id={id} globalZone={globalZone} />;
     return <div className="p-12 text-center text-slate-400 italic">Submodule {id} form logic coming soon...</div>;
   };

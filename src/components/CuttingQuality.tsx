@@ -10,10 +10,20 @@ interface CuttingQualityProps {
   workorders: any[];
   triggerSuccess: (message: string) => void;
   globalZone?: string;
+  refreshData?: () => void;
 }
 
-const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
-  const currentZones = settings?.ZONE || settings?.ZONES || ZONES || [];
+const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
+  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+  const currentZones = React.useMemo(() => {
+    const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
+    if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
+      return [userZone];
+    }
+    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
+    return list;
+  }, [settings, hasSpreadsheet, user]);
+
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
     wo: '', 
@@ -23,6 +33,14 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
     rejectedQty: '', 
     remarks: '' 
   });
+
+  React.useEffect(() => {
+    if (globalZone && globalZone !== 'ALL') {
+      setForm(prev => ({ ...prev, zone: globalZone }));
+    } else if (currentZones && currentZones.length > 0 && (!form.zone || !currentZones.includes(form.zone))) {
+      setForm(prev => ({ ...prev, zone: currentZones[0] }));
+    }
+  }, [globalZone, currentZones, form.zone]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
@@ -54,6 +72,9 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       await api.run('api_saveCUTTINGQUALITY', payload);
       
       triggerSuccess(moveToInline ? 'DATA SAVED & MOVED TO INLINE' : 'CUTTING DATA SAVED');
+      if (refreshData) {
+        await refreshData();
+      }
       
       // Reset form but keep zone
       setForm(prev => ({ 
