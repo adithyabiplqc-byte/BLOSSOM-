@@ -669,7 +669,8 @@ export const sheetsService = {
     }
 
     const normalizedBase = String(baseName || '').trim().toUpperCase();
-    const isUserSheet = normalizedBase.indexOf('USER') !== -1;
+    const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
+    const isUserSheet = userSynonyms.includes(normalizedBase);
     if (isUserSheet || normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL' || normalizedBase === 'ADMIN' || normalizedBase === 'ZONE' || normalizedBase === 'UNIT') {
       if (isUserSheet) return 'USERS';
       if (normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL') return 'SETTINGS';
@@ -932,7 +933,8 @@ export const sheetsService = {
 
     const normSheet = sheetName.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const normResolved = resolvedName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const isUserSheet = normSheet.indexOf('USER') !== -1 || normResolved.indexOf('USER') !== -1;
+    const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
+    const isUserSheet = userSynonyms.includes(normSheet) || userSynonyms.includes(normResolved);
 
     if (headers.length === 0) {
       if (normSheet.indexOf('MATERIAL') !== -1 || normResolved.indexOf('MATERIAL') !== -1) {
@@ -1013,7 +1015,8 @@ export const sheetsService = {
 
     const normSheet = sheetName.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const normResolved = resolvedName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const isUserSheet = normSheet.indexOf('USER') !== -1 || normResolved.indexOf('USER') !== -1;
+    const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
+    const isUserSheet = userSynonyms.includes(normSheet) || userSynonyms.includes(normResolved);
 
     if (headers.length === 0) {
       if (normSheet.indexOf('MATERIAL') !== -1 || normResolved.indexOf('MATERIAL') !== -1) {

@@ -168,11 +168,77 @@ function doPost(e) {
     const action = postData.action;
     const params = postData.params || [];
     
-    // In GAS, functions are in the global scope (this or globalThis)
-    let func = null;
-    try {
-      func = (typeof globalThis !== 'undefined' ? globalThis[action] : null) || this[action] || eval(action);
-    } catch (err) {}
+    // Explicit map of API functions for guaranteed Google Apps Script V8 runtime resolution
+    const apiMap = {
+      'api_createSheets': api_createSheets,
+      'api_getInitialData': api_getInitialData,
+      'api_getAdminLogs': api_getAdminLogs,
+      'api_saveUserSettings': api_saveUserSettings,
+      'api_saveSettings': api_saveSettings,
+      'api_saveUser': api_saveUser,
+      'api_getUsers': api_getUsers,
+      'api_updateUser': api_updateUser,
+      'api_deleteUser': api_deleteUser,
+      'api_logAdminActivity': api_logAdminActivity,
+      'api_saveWorkorder': api_saveWorkorder,
+      'api_getWorkorders': api_getWorkorders,
+      'api_updateWorkorder': api_updateWorkorder,
+      'api_deleteWorkorder': api_deleteWorkorder,
+      'api_ping': api_ping,
+      'api_bulkSave': api_bulkSave,
+      'api_saveMaterialReportBulk': api_saveMaterialReportBulk,
+      'api_saveMATERIALREPORT': api_saveMATERIALREPORT,
+      'api_saveCUTTINGQUALITY': api_saveCUTTINGQUALITY,
+      'api_saveSEWINGDEFECT': api_saveSEWINGDEFECT,
+      'api_save8ROUNDSYSTEM': api_save8ROUNDSYSTEM,
+      'api_update8ROUNDSYSTEM': api_update8ROUNDSYSTEM,
+      'api_saveENDLINEQUALITY': api_saveENDLINEQUALITY,
+      'api_saveAQLREPORT': api_saveAQLREPORT,
+      'api_saveFINALAUDIT': api_saveFINALAUDIT,
+      'api_saveREWORK': api_saveREWORK,
+      'api_saveMaterialReport': api_saveMaterialReport,
+      'api_saveCuttingReport': api_saveCuttingReport,
+      'api_saveInlineReport': api_saveInlineReport,
+      'api_saveEndlineReport': api_saveEndlineReport,
+      'api_saveReworkReport': api_saveReworkReport,
+      'api_saveDataBySheet': api_saveDataBySheet,
+      'api_getDataBySheet': api_getDataBySheet,
+      'api_deleteDataBySheet': api_deleteDataBySheet,
+      'api_updateDataBySheet': api_updateDataBySheet,
+      'api_getMISData': api_getMISData,
+      'api_getMaterialData': api_getMaterialData,
+      'api_getCuttingData': api_getCuttingData,
+      'api_getInlineData': api_getInlineData,
+      'api_get8ROUNDSYSTEMData': api_get8ROUNDSYSTEMData,
+      'api_getEndlineData': api_getEndlineData,
+      'api_getAQLData': api_getAQLData,
+      'api_getFinalAuditData': api_getFinalAuditData,
+      'api_deleteMaterialData': api_deleteMaterialData,
+      'api_deleteCuttingData': api_deleteCuttingData,
+      'api_deleteInlineData': api_deleteInlineData,
+      'api_deleteEndlineData': api_deleteEndlineData,
+      'api_deleteAQLData': api_deleteAQLData,
+      'api_deleteFinalAuditData': api_deleteFinalAuditData,
+      'api_getUserSettings': api_getUserSettings,
+      'api_getGlobalSettings': api_getGlobalSettings,
+      'api_uploadSOPFile': api_uploadSOPFile,
+      'api_saveREPORTS_SOP': api_saveREPORTS_SOP,
+      'api_getREPORTS_SOPData': api_getREPORTS_SOPData,
+      'api_deleteREPORTS_SOP': api_deleteREPORTS_SOP,
+      'api_getZoneMappings': api_getZoneMappings,
+      'api_saveZoneMapping': api_saveZoneMapping,
+      'api_deleteZoneMapping': api_deleteZoneMapping,
+      'api_resetAllDatabase': api_resetAllDatabase
+    };
+    
+    let func = apiMap[action];
+    
+    // Dynamic fallback for any unmapped/newly added functions starting with 'api_'
+    if (!func) {
+      try {
+        func = (typeof globalThis !== 'undefined' ? globalThis[action] : null) || this[action] || eval(action);
+      } catch (err) {}
+    }
 
     if (typeof func === 'function' && action.startsWith('api_')) {
       const result = func.apply(null, params);
@@ -432,9 +498,11 @@ function getReportSheetName(baseName, data) {
   
   // Prevent split zoned sheets for system/configuration sheets
   const normPrefix = prefix.trim().toUpperCase();
-  const isSystemSheet = (normPrefix.indexOf('USER') !== -1) || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN'].indexOf(normPrefix) !== -1;
+  const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
+  const isUserSheet = userSynonyms.indexOf(normPrefix) !== -1;
+  const isSystemSheet = isUserSheet || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN'].indexOf(normPrefix) !== -1;
   if (isSystemSheet) {
-    if (normPrefix.indexOf('USER') !== -1) return 'USERS';
+    if (isUserSheet) return 'USERS';
     if (normPrefix === 'ZONES') return 'ZONE';
     if (normPrefix === 'UNITS') return 'UNIT';
     return normPrefix;
