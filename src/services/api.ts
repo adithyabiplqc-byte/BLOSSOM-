@@ -82,29 +82,14 @@ export const api = {
 
   async getServerConfig() {
     try {
-      // 1. Fetch server config state
+      // 1. Fetch server config state (which includes firestore config automatically on the backend)
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 5000);
       const response = await fetch("/api/config", { signal: controller.signal });
       clearTimeout(id);
       const data = await response.json();
 
-      // 2. Try loading custom persistent config from Firestore
-      let firestoreUrl = "";
-      let firestoreSpreadsheetId = "";
-      try {
-        const docRef = doc(db, "system_config", "global");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const configData = docSnap.data();
-          firestoreUrl = configData.gasUrl || "";
-          firestoreSpreadsheetId = configData.spreadsheetId || "";
-        }
-      } catch (fe) {
-        console.warn("[FIRESTORE] Optional load config failed:", fe);
-      }
-
-      // 3. Fallback and local sync
+      // 2. Fallback and local sync
       const localUrl = localStorage.getItem('VITE_GAS_URL');
       const localSpreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID');
 
@@ -112,8 +97,8 @@ export const api = {
       const serverSpreadsheetId = data.spreadsheetId || "";
 
       // Final resolved values
-      const finalUrl = serverUrl || firestoreUrl || localUrl || "";
-      const finalSpreadsheetId = serverSpreadsheetId || firestoreSpreadsheetId || localSpreadsheetId || "";
+      const finalUrl = serverUrl || localUrl || "";
+      const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "";
 
       // Update client localStorage to match the resolved server/firestore/local values
       if (finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/")) {

@@ -1725,9 +1725,11 @@ async function startServer() {
             } else if (action === 'api_deleteZoneMapping') {
               fallbackResult = await dynamicDeleteZoneMapping(targetUrl, activeSheetId, bodyPayload.params?.[0]);
             }
-            if (fallbackResult) {
+            if (fallbackResult && fallbackResult.success !== false) {
               console.log(`[API PROXY] Dynamic Sheets fallback succeeded for action "${action}".`);
               return res.json(fallbackResult);
+            } else {
+              console.warn(`[API PROXY] Dynamic Sheets fallback returned non-success result for action "${action}":`, fallbackResult);
             }
           } catch (dynErr: any) {
             console.error(`[API PROXY] Dynamic Sheets fallback failed for action "${action}":`, dynErr.message);
@@ -1798,6 +1800,9 @@ async function startServer() {
     }
     const text = await response.text();
     const parsed = JSON.parse(text);
+    if (parsed && parsed.success === false) {
+      throw new Error(parsed.error || "Remote GAS returned success=false");
+    }
     const zoneRows = Array.isArray(parsed) ? parsed : (parsed && parsed.success !== false ? (parsed.data || []) : []);
     
     const result: any[] = [];

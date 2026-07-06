@@ -736,6 +736,17 @@ function saveDataToSheet(sheetName, data, adminActivity = false, admin = 'SYSTEM
 
 function getDataFromSheet(sheetName) {
   try {
+    const cacheKey = `BQOS_CACHE_${sheetName.replace(/\s+/g, '_')}`;
+    try {
+      const cache = CacheService.getScriptCache();
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (cacheErr) {
+      console.warn("Cache read failed:", cacheErr);
+    }
+
     const ss = getSS();
     const sheet = findExistingSheetBySynonym(sheetName) || ss.getSheetByName(sheetName);
     if (!sheet || sheet.getLastRow() < 2) return [];
@@ -844,6 +855,16 @@ function getDataFromSheet(sheetName) {
       if (!isRowEmpty) {
         data.push(obj);
       }
+    }
+    
+    try {
+      const cache = CacheService.getScriptCache();
+      const stringified = JSON.stringify(data);
+      if (stringified.length < 100000) {
+        cache.put(cacheKey, stringified, 600); // 10 minutes cache
+      }
+    } catch (cacheErr) {
+      console.warn("Cache write failed:", cacheErr);
     }
     
     return data;
@@ -1107,9 +1128,6 @@ function api_createSheets() {
 
 function api_getInitialData(params) {
   try {
-    // 1. Maintain self-healing integrity by checking / backfilling any missing individual user sheets on startup
-    ensureAllUserSheetsExist();
-
     const users = api_getUsers();
     // Bootstrap default users if none exist
     if (users.length === 0) {
