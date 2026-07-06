@@ -800,10 +800,7 @@ function getConsolidatedUserSheetName() {
 
 function ensureSheetHasSettingsColumns(sheet) {
   try {
-    const isGlobal = (sheet.getName() === 'SETTINGS');
-    const categories = isGlobal ? 
-      ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
-      ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
     
     const lastCol = sheet.getLastColumn();
     if (lastCol === 0) {
@@ -1185,10 +1182,7 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
 
 function saveSettingsToSheetColumns(sheet, settings) {
   sheet.clear();
-  const isGlobal = (sheet.getName() === 'SETTINGS');
-  const categories = isGlobal ? 
-    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
-    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+  const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
   
   const normalizedSettings = {};
   categories.forEach(function(cat) {
@@ -2114,10 +2108,7 @@ function api_getUserSettings(userCode) {
 function readSettingsFromSheetColumns(sheet) {
   const values = sheet.getDataRange().getValues();
   const settings = {};
-  const isGlobal = (sheet.getName() === 'SETTINGS');
-  const categories = isGlobal ? 
-    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
-    ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+  const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
   categories.forEach(function(cat) { settings[cat] = []; });
   
   if (values.length > 0) {

@@ -1209,9 +1209,7 @@ export const sheetsService = {
       }
 
       const records = await this.getData(targetSheet).catch(() => []);
-      const categories = isGlobal ? 
-        ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'] :
-        ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
       const settings: any = {};
       categories.forEach(cat => settings[cat] = []);
       
@@ -1404,7 +1402,7 @@ export const sheetsService = {
         }
 
         // Also save to separate local sheet for the user
-        const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+        const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
         let maxLen = 0;
         categories.forEach(cat => {
           if (settings[cat] && settings[cat].length > maxLen) maxLen = settings[cat].length;
@@ -1465,7 +1463,7 @@ export const sheetsService = {
 
       await this.ensureSheetExists(targetSheetName);
 
-      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'LINE', 'STYLE_NAME'];
+      const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
 
       let maxLen = 0;
       categories.forEach(cat => {

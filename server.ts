@@ -1714,7 +1714,7 @@ async function startServer() {
       if (candidateUrls.length > 0 && ['api_getZoneMappings', 'api_saveZoneMapping', 'api_deleteZoneMapping'].includes(action)) {
         const targetUrl = candidateUrls[0];
         const activeSheetId = bodyPayload.spreadsheetId || "";
-        if (targetUrl && activeSheetId) {
+        if (targetUrl) {
           console.log(`[API PROXY] Triggering dynamic Google Sheets fallback for action "${action}" to bypass old Apps Script limitations...`);
           try {
             let fallbackResult: any = null;
