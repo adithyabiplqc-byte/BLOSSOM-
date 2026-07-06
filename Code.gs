@@ -480,7 +480,10 @@ function getReportSheetName(baseName, data) {
     'WORK ORDER': 'WORKORDER',
     'FINAL AUDIT': 'FINAL AUDIT',
     'FINAL AUDIT REPORT': 'FINAL AUDIT',
-    'FINAL REPORT': 'FINAL AUDIT'
+    'FINAL REPORT': 'FINAL AUDIT',
+    'REWORK': 'REWORK',
+    'REWORK REPORT': 'REWORK',
+    'REWORK QUALITY': 'REWORK'
   };
   
   const lookupKey = canonicalKeys[canonicalBase.toUpperCase()] || canonicalBase;
@@ -491,7 +494,8 @@ function getReportSheetName(baseName, data) {
     'ENDLINE': 'ENDLINE',
     'AQL': 'AQL',
     'WORKORDER': 'WORKORDER',
-    'FINAL AUDIT': 'FINAL AUDIT'
+    'FINAL AUDIT': 'FINAL AUDIT',
+    'REWORK': 'REWORK'
   };
   
   const prefix = modulePrefixes[lookupKey.toUpperCase()] || lookupKey;
@@ -1473,7 +1477,10 @@ function aggregateZonedData(baseName) {
       '8ROUND': 'INLINE',
       '8 ROUND SYSTEM': 'INLINE',
       '8ROUND_SYSTEM': 'INLINE',
-      '8 ROUNDS': 'INLINE'
+      '8 ROUNDS': 'INLINE',
+      'REWORK': 'REWORK',
+      'REWORK REPORT': 'REWORK',
+      'REWORK QUALITY': 'REWORK'
     };
     
     const canonicalPrefix = canonicalMapping[baseName] || baseName;
@@ -1487,7 +1494,8 @@ function aggregateZonedData(baseName) {
       'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
       'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
       'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER'],
-      'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT']
+      'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT'],
+      'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY']
     };
     
     const allowedPrefixes = prefixSynonyms[canonicalPrefix] || [canonicalPrefix];

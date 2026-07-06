@@ -609,42 +609,52 @@ export const sheetsService = {
 
     const synonymsMap: { [key: string]: string[] } = {
       'USERS': ['USERS'],
-      'MATERIAL REPORT': [
-        'MATERIAL', 'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
-        'MATERIAL REPORT', 'MATERIAL QUALITY KERALA', 'MATERIAL QUALITY TIRUPUR', 'MATERIAL QUALITY BANGLORE',
-        'MATERIAL QUALITY', 'STORE MATERIAL INSPECTION DATA', 'MATERIAL INSPECTION',
+      'MATERIAL': [
+        'MATERIAL', 'MATERIAL REPORT', 'MATERIAL QUALITY', 'STORE MATERIAL INSPECTION DATA', 'MATERIAL INSPECTION',
+        'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
         'MATERIAL REPORT - KERALA', 'MATERIAL REPORT - TIRUPUR', 'MATERIAL REPORT - BANGLORE',
         'MATERIAL QUALITY - KERALA', 'MATERIAL QUALITY - TIRUPUR', 'MATERIAL QUALITY - BANGLORE',
         'MATERIAL REPORT KERALA', 'MATERIAL REPORT TIRUPUR', 'MATERIAL REPORT BANGLORE'
       ],
-      'CUTTING QUALITY': ['CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
+      'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
       'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'SEWING DEFECT', 'SEWING DEFECTS', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE', '8ROUND SYSTEM', '8ROUND SYSTEM - KERALA', '8ROUND SYSTEM - TIRUPUR', '8ROUND SYSTEM - BANGLORE', '8ROUND_SYSTEM', '8 ROUND SYSTEM', '8ROUND', '8 ROUNDS'],
-      'ENDLINE QUALITY': ['ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
-      'AQL REPORT': ['AQL REPORT', 'AQL INSPECTION', 'AQL', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
+      'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
+      'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
       'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL - KERALA', 'FINAL - TIRUPUR', 'FINAL - BANGLORE'],
-      'WORKORDER': ['WORKORDER', 'WORKORDERS'],
+      'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'WORKORDERS - KERALA', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE'],
       'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
-      'ZONE': ['ZONE', 'ZONES']
+      'ZONE': ['ZONE', 'ZONES'],
+      'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY', 'REWORK - KERALA', 'REWORK - TIRUPUR', 'REWORK - BANGLORE']
     };
 
     const canonicalKeys: { [key: string]: string } = {
-      'MATERIAL': 'MATERIAL REPORT',
-      'MATERIAL QUALITY KERALA': 'MATERIAL REPORT',
-      'MATERIAL QUALITY TIRUPUR': 'MATERIAL REPORT',
-      'MATERIAL QUALITY BANGLORE': 'MATERIAL REPORT',
-      'MATERIAL QUALITY': 'MATERIAL REPORT',
-      'CUTTING': 'CUTTING QUALITY',
-      'CUTTING REPORT': 'CUTTING QUALITY',
+      'REWORK': 'REWORK',
+      'REWORK REPORT': 'REWORK',
+      'REWORK QUALITY': 'REWORK',
+      'MATERIAL': 'MATERIAL',
+      'MATERIAL REPORT': 'MATERIAL',
+      'MATERIAL QUALITY KERALA': 'MATERIAL',
+      'MATERIAL QUALITY TIRUPUR': 'MATERIAL',
+      'MATERIAL QUALITY BANGLORE': 'MATERIAL',
+      'MATERIAL QUALITY': 'MATERIAL',
+      'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
+      'MATERIAL INSPECTION': 'MATERIAL',
+      'CUTTING': 'CUTTING',
+      'CUTTING QUALITY': 'CUTTING',
+      'CUTTING REPORT': 'CUTTING',
       'INLINE': 'INLINE',
       'INLINE REPORT': 'INLINE',
       'INLINE QUALITY': 'INLINE',
       'SEWING DEFECT': 'INLINE',
       'SEWING DEFECTS': 'INLINE',
-      'ENDLINE': 'ENDLINE QUALITY',
-      'ENDLINE REPORT': 'ENDLINE QUALITY',
-      'AQL': 'AQL REPORT',
-      'AQL INSPECTION': 'AQL REPORT',
+      'ENDLINE': 'ENDLINE',
+      'ENDLINE QUALITY': 'ENDLINE',
+      'ENDLINE REPORT': 'ENDLINE',
+      'AQL': 'AQL',
+      'AQL REPORT': 'AQL',
+      'AQL INSPECTION': 'AQL',
       'FINAL': 'FINAL AUDIT',
+      'FINAL AUDIT': 'FINAL AUDIT',
       'FINAL AUDIT REPORT': 'FINAL AUDIT',
       'FINAL REPORT': 'FINAL AUDIT',
       '8ROUND': 'INLINE',
@@ -655,7 +665,10 @@ export const sheetsService = {
       'REPORTS': 'REPORTS_SOP',
       'SOP REPORTS': 'REPORTS_SOP',
       'SOPS': 'REPORTS_SOP',
-      'REPORTS & SOPS': 'REPORTS_SOP'
+      'REPORTS & SOPS': 'REPORTS_SOP',
+      'WORKORDER': 'WORKORDER',
+      'WORKORDERS': 'WORKORDER',
+      'WORK ORDER': 'WORKORDER'
     };
 
     let baseName = sheetName;
@@ -664,7 +677,10 @@ export const sheetsService = {
       baseName = sheetName.slice(0, hyphenIdx);
     }
 
-    if (canonicalKeys[baseName]) {
+    const normBase = baseName.toUpperCase().trim();
+    if (canonicalKeys[normBase]) {
+      baseName = canonicalKeys[normBase];
+    } else if (canonicalKeys[baseName]) {
       baseName = canonicalKeys[baseName];
     }
 
@@ -686,10 +702,11 @@ export const sheetsService = {
       return baseName;
     }
 
-    // Restore zone-routing for A1-A6 modules (e.g. MATERIAL REPORT, CUTTING QUALITY, etc)
-    const zoneRouteModules = ['MATERIAL REPORT', 'CUTTING QUALITY', 'INLINE', 'ENDLINE QUALITY', 'AQL REPORT', 'FINAL AUDIT', 'WORKORDER'];
+    // Restore zone-routing for A1-A6 modules (e.g. MATERIAL, CUTTING, etc)
+    const zoneRouteModules = ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL AUDIT', 'WORKORDER', 'REWORK'];
     if (zoneRouteModules.includes(baseName)) {
-      const zone = record?.zone || record?.location;
+      const rawZone = record?.zone || record?.location;
+      const zone = String(rawZone || '').trim().toUpperCase();
       if (zone && zone !== 'ALL' && zone !== 'SYSTEM' && zone !== 'WORKORDER') {
         const zonedName1 = baseName + " - " + zone;
         const zonedName2 = baseName + " " + zone;
@@ -737,31 +754,68 @@ export const sheetsService = {
       const metadata = await this.request(spreadsheetId);
       const sheetTitles = (metadata.sheets || []).map((s: any) => s.properties?.title || "");
 
-      const synonymsMap: { [key: string]: string[] } = {
-        'USERS': ['USERS'],
-        'MATERIAL REPORT': [
-          'MATERIAL', 'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
-          'MATERIAL REPORT', 'MATERIAL REPORT - KERALA', 'MATERIAL REPORT - TIRUPUR', 'MATERIAL REPORT - BANGLORE'
-        ],
-        'CUTTING QUALITY': ['CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
-        'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'SEWING DEFECT', 'SEWING DEFECTS', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE', '8ROUND SYSTEM', '8ROUND SYSTEM - KERALA', '8ROUND SYSTEM - TIRUPUR', '8ROUND SYSTEM - BANGLORE', '8ROUND_SYSTEM', '8 ROUND SYSTEM', '8ROUND', '8 ROUNDS'],
-        'ENDLINE QUALITY': ['ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
-        'AQL REPORT': ['AQL REPORT', 'AQL INSPECTION', 'AQL', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
-        'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL AUDIT - KERALA', 'FINAL AUDIT - TIRUPUR', 'FINAL AUDIT - BANGLORE'],
-        'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE'],
-        'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
-        'ZONE': ['ZONE', 'ZONES']
+      const canonicalKeys: { [key: string]: string } = {
+        'MATERIAL': 'MATERIAL',
+        'MATERIAL REPORT': 'MATERIAL',
+        'MATERIAL QUALITY': 'MATERIAL',
+        'CUTTING': 'CUTTING',
+        'CUTTING QUALITY': 'CUTTING',
+        'CUTTING REPORT': 'CUTTING',
+        'INLINE': 'INLINE',
+        'INLINE REPORT': 'INLINE',
+        'INLINE QUALITY': 'INLINE',
+        'ENDLINE': 'ENDLINE',
+        'ENDLINE QUALITY': 'ENDLINE',
+        'ENDLINE REPORT': 'ENDLINE',
+        'AQL': 'AQL',
+        'AQL REPORT': 'AQL',
+        'AQL INSPECTION': 'AQL',
+        'FINAL': 'FINAL AUDIT',
+        'FINAL AUDIT': 'FINAL AUDIT',
+        'FINAL AUDIT REPORT': 'FINAL AUDIT',
+        'FINAL REPORT': 'FINAL AUDIT',
+        'WORKORDER': 'WORKORDER',
+        'WORKORDERS': 'WORKORDER',
+        'WORK ORDER': 'WORKORDER',
+        'REPORTS_SOP': 'REPORTS_SOP',
+        'ZONE': 'ZONE',
+        'REWORK': 'REWORK',
+        'REWORK REPORT': 'REWORK',
+        'REWORK QUALITY': 'REWORK'
       };
 
-      const possibleNames = synonymsMap[sheetName] || [sheetName];
+      const normBase = sheetName.toUpperCase().trim();
+      const canonicalName = canonicalKeys[normBase] || sheetName;
+
+      const synonymsMap: { [key: string]: string[] } = {
+        'USERS': ['USERS'],
+        'MATERIAL': [
+          'MATERIAL', 'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
+          'MATERIAL REPORT', 'MATERIAL QUALITY', 'MATERIAL INSPECTION', 'STORE MATERIAL INSPECTION DATA',
+          'MATERIAL REPORT - KERALA', 'MATERIAL REPORT - TIRUPUR', 'MATERIAL REPORT - BANGLORE',
+          'MATERIAL QUALITY - KERALA', 'MATERIAL QUALITY - TIRUPUR', 'MATERIAL QUALITY - BANGLORE',
+          'MATERIAL REPORT KERALA', 'MATERIAL REPORT TIRUPUR', 'MATERIAL REPORT BANGLORE'
+        ],
+        'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
+        'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'SEWING DEFECT', 'SEWING DEFECTS', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE', '8ROUND SYSTEM', '8ROUND SYSTEM - KERALA', '8ROUND SYSTEM - TIRUPUR', '8ROUND SYSTEM - BANGLORE', '8ROUND_SYSTEM', '8 ROUND SYSTEM', '8ROUND', '8 ROUNDS'],
+        'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
+        'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
+        'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL - KERALA', 'FINAL - TIRUPUR', 'FINAL - BANGLORE'],
+        'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE'],
+        'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
+        'ZONE': ['ZONE', 'ZONES'],
+        'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY', 'REWORK - KERALA', 'REWORK - TIRUPUR', 'REWORK - BANGLORE']
+      };
+
+      const possibleNames = synonymsMap[canonicalName] || [sheetName];
       let allValues: any[] = [];
       const seenIds = new Set();
 
       // Find all matching sheets inside the spreadsheet for aggregation
       const matchingTitles = sheetTitles.filter((title: string) => {
         const uTitle = title.toUpperCase().trim();
-        if (sheetName === 'USERS' || sheetName === 'SETTINGS' || sheetName === 'ADMIN') {
-          return uTitle === sheetName;
+        if (canonicalName === 'USERS' || canonicalName === 'SETTINGS' || canonicalName === 'ADMIN') {
+          return uTitle === canonicalName;
         }
         const uPossibleNames = possibleNames.map(pn => pn.toUpperCase().trim());
         if (uPossibleNames.includes(uTitle)) return true;

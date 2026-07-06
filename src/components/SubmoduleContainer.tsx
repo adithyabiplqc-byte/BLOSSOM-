@@ -22,11 +22,12 @@ interface SubmoduleContainerProps {
   users: any[];
   triggerSuccess: (message: string) => void;
   globalZone?: string;
+  setGlobalZone?: (z: string) => void;
   onNavigate?: (newSubId: string) => void;
   refreshData?: () => void;
 }
 
-const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, onNavigate, refreshData }) => {
+const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, setGlobalZone, onNavigate, refreshData }) => {
   const isRestricted = user?.role !== 'ADMIN' && (
     (user?.restrictions || []).includes(id) || 
     (user?.restrictions || []).includes(id.charAt(0))

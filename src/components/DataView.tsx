@@ -78,18 +78,22 @@ interface DataViewProps {
   user: any;
   globalZone?: string;
   settings?: any;
+  setGlobalZone?: (z: string) => void;
 }
 
-const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) => {
+const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, setGlobalZone }) => {
   const currentZones = settings?.ZONE || settings?.ZONES || ZONES;
   const currentItems = settings?.ITEMS || settings?.ITEM || ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
+
+  const isCommonOrAdmin = user?.role === 'ADMIN' || user?.zone === 'COMMON' || user?.location === 'COMMON';
+  const userAssignedZone = user?.zone || user?.location || 'ALL';
 
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
-  const [selectedZone, setSelectedZone] = useState<string>(globalZone || user.zone || user.location || 'ALL');
+  const [selectedZone, setSelectedZone] = useState<string>(isCommonOrAdmin ? (globalZone || 'ALL') : userAssignedZone);
   const [selectedItem, setSelectedItem] = useState<string>('ALL');
   const [selectedMatrixDate, setSelectedMatrixDate] = useState<string>('ALL');
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; row: any }>({ isOpen: false, row: null });
@@ -147,12 +151,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
     }
   };
 
-  // Sync with globalZone if it changes
+  // Sync with globalZone if it changes and user is common/admin
   useEffect(() => {
-    if (globalZone) {
+    if (isCommonOrAdmin && globalZone) {
       setSelectedZone(globalZone);
+    } else if (!isCommonOrAdmin) {
+      setSelectedZone(userAssignedZone);
     }
-  }, [globalZone]);
+  }, [globalZone, isCommonOrAdmin, userAssignedZone]);
 
   useEffect(() => {
     fetchData();
@@ -783,13 +789,6 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
     return valStr;
   };
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center p-20 space-y-4">
-      <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-      <p className="text-slate-400 font-medium animate-pulse">Synchronizing Data...</p>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
@@ -797,13 +796,25 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zone:</span>
             <select 
-              className="py-1 px-3 text-xs w-32 disabled:bg-slate-50 disabled:text-slate-400"
+              className="py-1 px-3 text-xs w-32 disabled:bg-slate-50 disabled:text-slate-400 font-bold bg-white border border-slate-200 rounded-lg shadow-sm"
               value={selectedZone}
-              onChange={e => setSelectedZone(e.target.value)}
-              disabled={!!globalZone && globalZone !== 'ALL'}
+              onChange={e => {
+                const newZone = e.target.value;
+                setSelectedZone(newZone);
+                if (setGlobalZone && isCommonOrAdmin) {
+                  setGlobalZone(newZone);
+                }
+              }}
+              disabled={!isCommonOrAdmin}
             >
-              <option value="ALL">ALL ZONES</option>
-              {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
+              {isCommonOrAdmin ? (
+                <>
+                  <option value="ALL">ALL ZONES</option>
+                  {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
+                </>
+              ) : (
+                <option value={userAssignedZone}>{userAssignedZone}</option>
+              )}
             </select>
           </div>
         </div>
@@ -839,7 +850,15 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
         </div>
       </div>
 
-      {id === 'B3' && (
+      <div className="relative min-h-[200px] space-y-6">
+        {loading && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center min-h-[200px] rounded-2xl">
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-3 animate-pulse">Syncing Database...</p>
+          </div>
+        )}
+
+        {id === 'B3' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-6 animate-fade-in animate-duration-300">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -1077,6 +1096,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings }) =
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       <AnimatePresence>

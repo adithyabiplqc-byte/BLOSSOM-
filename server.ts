@@ -665,13 +665,17 @@ function readLocalDb(): any {
     ] as any[],
     rework_reports: [] as any[],
     reports_sop: [] as any[],
-    zone: [] as any[],
+    zone: [
+      { id: "zmap-1", zone: "KERALA", unit: "UNIT A", worker: "JOHN DOE", timestamp: new Date().toISOString() },
+      { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() },
+      { id: "zmap-3", zone: "TIRUPUR", unit: "UNIT B", worker: "SAM WILSON", timestamp: new Date().toISOString() }
+    ] as any[],
     admin_logs: [
       { timestamp: new Date().toISOString(), module: "SYSTEM", action: "BOOT", details: "Local fallback database initialized successfully", admin: "SYSTEM" }
     ],
     settings: {
       "GLOBAL": {
-        "ZONE": [],
+        "ZONE": ["KERALA", "TIRUPUR", "BANGLORE"],
         "SUPPLIER": ["Fabric Corp", "Yarn Trade Ltd", "Button & Co"],
         "ITEMS": ["100% Cotton Single Jersey", "TC Fleece", "Rib 1x1"],
         "COLOR": ["BLACK", "WHITE", "NAVY BLUE", "MELANGE GREY"],
