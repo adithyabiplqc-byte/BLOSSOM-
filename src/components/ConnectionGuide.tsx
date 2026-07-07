@@ -470,10 +470,8 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
                     </a>
                     
                     <button 
-                      onClick={() => {
-                        localStorage.removeItem('VITE_SPREADSHEET_ID');
-                        setSheetId(null);
-                        setOauthResult({ success: true, message: "Disconnected spreadsheet. You can connect a different one now." });
+                      onClick={async () => {
+                        await api.disconnect();
                       }}
                       className="text-slate-500 hover:text-red-600 bg-white border border-slate-200 rounded-lg py-2 px-4 hover:bg-red-50 transition-all font-bold text-[10px] uppercase tracking-wider"
                     >

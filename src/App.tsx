@@ -327,9 +327,8 @@ const App: React.FC = () => {
                     Retry Connection
                   </button>
                   <button 
-                    onClick={() => {
-                       localStorage.removeItem('VITE_GAS_URL');
-                       setConnectionError("CONFIGURATION_MODE");
+                    onClick={async () => {
+                       await api.disconnect();
                     }}
                     className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 flex items-center justify-center gap-2"
                   >

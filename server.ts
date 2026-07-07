@@ -41,7 +41,7 @@ async function getFirestoreConfig() {
   return cachedFsConfig; // Return previous cached values or null if none
 }
 
-async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string) {
+async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, forceClear = false) {
   try {
     const url = "https://firestore.googleapis.com/v1/projects/gen-lang-client-0333084315/databases/(default)/documents/system_config/global";
     
@@ -49,7 +49,7 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string) {
     let currentSpreadsheetId = spreadsheetId;
     
     // Fetch and merge current config to make sure we don't clear existing valid coordinates
-    if (!currentGasUrl || !currentSpreadsheetId) {
+    if (!forceClear && (!currentGasUrl || !currentSpreadsheetId)) {
       const active = await getFirestoreConfig();
       if (active) {
         if (!currentGasUrl) currentGasUrl = active.gasUrl;
@@ -61,12 +61,12 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string) {
     const fieldPaths: string[] = ["updatedAt"];
     fields.updatedAt = { stringValue: new Date().toISOString() };
 
-    if (currentGasUrl) {
-      fields.gasUrl = { stringValue: currentGasUrl };
+    if (currentGasUrl || forceClear) {
+      fields.gasUrl = { stringValue: currentGasUrl || "" };
       fieldPaths.push("gasUrl");
     }
-    if (currentSpreadsheetId) {
-      fields.spreadsheetId = { stringValue: currentSpreadsheetId };
+    if (currentSpreadsheetId || forceClear) {
+      fields.spreadsheetId = { stringValue: currentSpreadsheetId || "" };
       fieldPaths.push("spreadsheetId");
     }
 
@@ -1596,6 +1596,28 @@ async function startServer() {
     } catch (e: any) {
       console.error("[CONFIG] Failed to save config:", e);
       res.status(500).json({ success: false, error: "Failed to write configuration to server storage: " + e.message });
+    }
+  });
+
+  app.post("/api/clear-config", async (req, res) => {
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        try { fs.unlinkSync(CONFIG_FILE); } catch (e) {}
+      }
+      if (fs.existsSync(SPREADSHEET_FILE)) {
+        try { fs.unlinkSync(SPREADSHEET_FILE); } catch (e) {}
+      }
+      
+      cachedFsConfig = null;
+      lastFsFetchTime = 0;
+      
+      await saveFirestoreConfig("", "", true);
+      
+      console.log("[CONFIG] Cleared configuration files and Firestore backup permanently.");
+      res.json({ success: true, message: "Configuration cleared permanently on server" });
+    } catch (e: any) {
+      console.error("[CONFIG] Failed to clear config:", e);
+      res.status(500).json({ success: false, error: "Failed to clear configuration: " + e.message });
     }
   });
 
