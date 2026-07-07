@@ -1085,7 +1085,9 @@ function executeLocalAction(action: string, params: any[]): any {
       if (report.wo) {
         db.workorders = db.workorders || [];
         const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
-        if (woIdx !== -1) db.workorders[woIdx].status = 'INLINE_AND_ENDLINE';
+        if (woIdx !== -1) {
+          db.workorders[woIdx].status = report.passAndHold ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+        }
       }
       writeLocalDb(db);
       return { success: true };
@@ -1479,12 +1481,12 @@ async function startServer() {
   // from Firestore and writes them back to the filesystem, keeping the connection permanent.
   try {
     const fsConfig = await getFirestoreConfig();
-    if (fsConfig && fsConfig.gasUrl && fsConfig.spreadsheetId) {
-      if (!fs.existsSync(CONFIG_FILE)) {
+    if (fsConfig) {
+      if (fsConfig.gasUrl && !fs.existsSync(CONFIG_FILE)) {
         fs.writeFileSync(CONFIG_FILE, fsConfig.gasUrl.trim());
         console.log(`[BOOT AUTO-HEAL] Restored missing GAS URL from Firestore: ${fsConfig.gasUrl}`);
       }
-      if (!fs.existsSync(SPREADSHEET_FILE)) {
+      if (fsConfig.spreadsheetId && !fs.existsSync(SPREADSHEET_FILE)) {
         fs.writeFileSync(SPREADSHEET_FILE, fsConfig.spreadsheetId.trim());
         console.log(`[BOOT AUTO-HEAL] Restored missing SPREADSHEET ID from Firestore: ${fsConfig.spreadsheetId}`);
       }
@@ -1519,6 +1521,22 @@ async function startServer() {
     if (fsConfig) {
       fsUrl = fsConfig.gasUrl;
       fsSpreadsheetId = fsConfig.spreadsheetId;
+
+      // Auto-heal local files from Firestore configuration independently
+      if (fsUrl && fsUrl !== fileUrl) {
+        try {
+          fs.writeFileSync(CONFIG_FILE, fsUrl.trim());
+          console.log(`[AUTO-HEAL SERVER] Recreated CONFIG_FILE from Firestore: ${fsUrl}`);
+          fileUrl = fsUrl;
+        } catch (e) {}
+      }
+      if (fsSpreadsheetId && fsSpreadsheetId !== fileSpreadsheetId) {
+        try {
+          fs.writeFileSync(SPREADSHEET_FILE, fsSpreadsheetId.trim());
+          console.log(`[AUTO-HEAL SERVER] Recreated SPREADSHEET_FILE from Firestore: ${fsSpreadsheetId}`);
+          fileSpreadsheetId = fsSpreadsheetId;
+        } catch (e) {}
+      }
     }
 
     const envUrl = process.env.VITE_GAS_URL;

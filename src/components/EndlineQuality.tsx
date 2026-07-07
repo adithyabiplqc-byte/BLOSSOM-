@@ -498,10 +498,63 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   // Submit Bundle is the primary driver
   const handleFinalBundleSubmit = async () => {
-    if (!form.wo) {
-      setLocalError("Please select a valid workorder specification first.");
+    // Explicit comprehensive validation for all boxes, dropboxes, date selection and remarks
+    if (!form.zone) {
+      setLocalError("Please select a Zone.");
       return;
     }
+    if (!form.wo) {
+      setLocalError("Please select a Workorder.");
+      return;
+    }
+    if (!form.unit) {
+      setLocalError("Please select a Unit.");
+      return;
+    }
+    if (!form.line) {
+      setLocalError("Please select a Line.");
+      return;
+    }
+    if (!form.color) {
+      setLocalError("Please select a Color.");
+      return;
+    }
+    if (!form.size) {
+      setLocalError("Please select a Size.");
+      return;
+    }
+    if (!form.cupsize) {
+      setLocalError("Please select a Cup size.");
+      return;
+    }
+    if (!form.remarks || !form.remarks.trim()) {
+      setLocalError("Please enter Remarks.");
+      return;
+    }
+
+    if (defectCount > 0) {
+      const targetLength = defectCount === 10 ? 1 : defectCount;
+      for (let i = 0; i < targetLength; i++) {
+        const item = defectItems[i];
+        if (!item || !item.worker) {
+          setLocalError(`Please select a Worker for defect row ${i + 1}.`);
+          return;
+        }
+        if (!item.operation) {
+          setLocalError(`Please select an Operation for defect row ${i + 1}.`);
+          return;
+        }
+        if (!item.defect) {
+          setLocalError(`Please select a Defect type for defect row ${i + 1}.`);
+          return;
+        }
+        if (!item.machine) {
+          setLocalError(`Please select a Machine for defect row ${i + 1}.`);
+          return;
+        }
+      }
+    }
+
     setLocalError(null);
     setIsSubmitting(true);
 
@@ -771,7 +824,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     if (!matchesZone) return false;
 
                     const statusUpper = String(w.status || '').toUpperCase();
-                    if (statusUpper !== 'ENDLINE' && statusUpper !== 'INLINE_AND_ENDLINE') {
+                    if (statusUpper !== 'ENDLINE' && statusUpper !== 'INLINE_AND_ENDLINE' && statusUpper !== 'PASS_AND_HOLD') {
                       return false;
                     }
 

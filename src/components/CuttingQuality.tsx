@@ -50,11 +50,37 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
   const checkedQty = parseFloat(form.checkedQty) || 0;
   const reworkPercent = checkedQty > 0 ? ((reworkQty / checkedQty) * 100).toFixed(2) : '0.00';
 
-  const handleSubmit = async (e: React.FormEvent, moveToInline: boolean = false) => {
+  const handleSubmit = async (e: React.FormEvent, moveToInline: boolean = false, passAndHold: boolean = false) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    // Compulsory field validation for all dropdowns, inputs, date selectors and remarks
+    if (!form.zone) {
+      alert("Please select a Zone");
+      return;
+    }
     if (!form.wo) {
-      alert("Please select a workorder");
+      alert("Please select a Workorder");
+      return;
+    }
+    if (!form.bundleNo.trim()) {
+      alert("Please enter Bundle No");
+      return;
+    }
+    if (form.checkedQty === '' || form.checkedQty === null) {
+      alert("Please enter Pcs Checked");
+      return;
+    }
+    if (form.reworkQty === '' || form.reworkQty === null) {
+      alert("Please enter Pcs Rework");
+      return;
+    }
+    if (form.rejectedQty === '' || form.rejectedQty === null) {
+      alert("Please enter Pcs Rejected");
+      return;
+    }
+    if (!form.remarks.trim()) {
+      alert("Please enter Inspector Remarks");
       return;
     }
 
@@ -66,12 +92,13 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         reworkPercent,
         inspector: user.username, 
         timestamp: new Date().toISOString(),
-        moveToInline
+        moveToInline,
+        passAndHold
       };
 
       await api.run('api_saveCUTTINGQUALITY', payload);
       
-      triggerSuccess(moveToInline ? 'DATA SAVED & MOVED TO INLINE' : 'CUTTING DATA SAVED');
+      triggerSuccess(passAndHold ? 'DATA SAVED & PASSED (HELD IN CUTTING)' : 'DATA SAVED & MOVED TO INLINE & ENDLINE');
       if (refreshData) {
         await refreshData();
       }
@@ -122,7 +149,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
                 const status = String(w.status || "").toUpperCase();
-                return wZone === fZone && (status === 'CUTTING' || status === '');
+                return wZone === fZone && (status === 'CUTTING' || status === '' || status === 'PASS_AND_HOLD');
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
             }
@@ -218,18 +245,18 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button 
-          onClick={(e) => handleSubmit(e, false)}
+          onClick={(e) => handleSubmit(e, true, true)}
           disabled={isSubmitting}
-          className="btn-secondary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300"
+          className="btn-secondary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 border-2 border-indigo-200 hover:border-indigo-300 text-indigo-700 bg-indigo-50/50"
         >
           {isSubmitting ? (
              <Icon name="refresh-cw" size={18} className="animate-spin" />
           ) : (
-            <><Icon name="save" size={18} /> Submit Only</>
+            <><Icon name="save" size={18} /> Pass & Hold</>
           )}
         </button>
         <button 
-          onClick={(e) => handleSubmit(e, true)}
+          onClick={(e) => handleSubmit(e, true, false)}
           disabled={isSubmitting}
           className="btn-primary py-5 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-indigo-200"
         >

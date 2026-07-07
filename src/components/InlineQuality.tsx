@@ -847,14 +847,33 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     e.preventDefault();
     if (isSubmitting) return;
 
+    // Compulsory field validation for all dropdowns, inputs, date selectors and remarks
+    if (!form.zone) {
+      return alert("Please select a Zone");
+    }
+    if (!form.unit) {
+      return alert("Please select a Unit");
+    }
     if (!form.wo) {
       return alert("Please select a Workorder");
+    }
+    if (!form.checkingDate) {
+      return alert("Please select a Checking Date");
     }
     if (!form.worker) {
       return alert("Please select a Worker Operator");
     }
     if (!form.machine) {
       return alert("Please select a Machine Number");
+    }
+    if (!form.color) {
+      return alert("Please select a Color");
+    }
+    if (!form.size) {
+      return alert("Please select a Size");
+    }
+    if (!form.cupsize) {
+      return alert("Please select a Cup size");
     }
 
     const currentRound = HOURLY_ROUNDS[selectedRoundIdx];
@@ -864,8 +883,14 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       return alert("This round is locked.");
     }
 
-    if (!roundInputs.checkedQty) {
+    if (roundInputs.checkedQty === '' || roundInputs.checkedQty === null) {
       return alert("Please enter the number of Pcs Checked");
+    }
+    if (roundInputs.complaintPcs === '' || roundInputs.complaintPcs === null) {
+      return alert("Please enter the number of Complaint Pcs");
+    }
+    if (!roundInputs.remarks || !roundInputs.remarks.trim()) {
+      return alert("Please enter Remarks & Defect Details");
     }
 
     // Set submitting flag immediately to block duplicate fast clicks
@@ -1050,7 +1075,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   );
                 }
                 const matchesUnit = (fUnit === "" || fUnit === "COMMON" || wUnit === "" || wUnit === fUnit || wUnit === "COMMON");
-                const matchesStatus = (status === 'INLINE' || status === 'INLINE_AND_ENDLINE');
+                const matchesStatus = (status === 'INLINE' || status === 'INLINE_AND_ENDLINE' || status === 'PASS_AND_HOLD');
                 
                 return matchesZone && matchesUnit && matchesStatus;
               })

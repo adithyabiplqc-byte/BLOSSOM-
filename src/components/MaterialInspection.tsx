@@ -87,8 +87,63 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
     e.preventDefault();
     if (isSubmitting) return;
     
-    if (!header.billNo || !header.supplierName || !header.grn) {
-      return alert("Please enter Bill No, Supplier and GRN");
+    // Explicit comprehensive validation for all boxes, dropboxes, date selection and remarks
+    if (!header.zone) {
+      alert("Please select a Zone.");
+      return;
+    }
+    if (!header.billNo.trim()) {
+      alert("Please enter Bill No.");
+      return;
+    }
+    if (!header.supplierName) {
+      alert("Please select a Supplier Name.");
+      return;
+    }
+    if (!header.grn.trim()) {
+      alert("Please enter GRN.");
+      return;
+    }
+    if (!header.receivedDate) {
+      alert("Please select a Received Date.");
+      return;
+    }
+    if (!header.checkingDate) {
+      alert("Please select a Checking Date.");
+      return;
+    }
+    if (!header.remarks.trim()) {
+      alert("Please enter General Remarks.");
+      return;
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const itemNum = i + 1;
+      if (!item.itemName) {
+        alert(`Please select an Item Name for row ${itemNum}.`);
+        return;
+      }
+      if (item.receivedQuantity === '' || item.receivedQuantity === null) {
+        alert(`Please enter Received Quantity for row ${itemNum}.`);
+        return;
+      }
+      if (item.checkedQuantity === '' || item.checkedQuantity === null) {
+        alert(`Please enter Checked Quantity for row ${itemNum}.`);
+        return;
+      }
+      if (item.passQuantity === '' || item.passQuantity === null) {
+        alert(`Please enter Pass Quantity for row ${itemNum}.`);
+        return;
+      }
+      if (item.rejectedQuantity === '' || item.rejectedQuantity === null) {
+        alert(`Please enter Rejected Quantity for row ${itemNum}.`);
+        return;
+      }
+      if (!item.remarks.trim()) {
+        alert(`Please enter Remarks for row ${itemNum}.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);

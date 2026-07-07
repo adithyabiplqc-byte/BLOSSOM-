@@ -353,6 +353,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     <option value="INLINE">INLINE</option>
                     <option value="ENDLINE">ENDLINE</option>
                     <option value="INLINE_AND_ENDLINE">INLINE & ENDLINE</option>
+                    <option value="PASS_AND_HOLD">PASS & HOLD</option>
                     <option value="AQL">AQL</option>
                     <option value="FINAL">FINAL AUDIT</option>
                     <option value="COMPLETED">COMPLETED</option>
@@ -436,7 +437,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                       let isPast = false;
                       let isActive = false;
                       
-                      if (statusVal === 'INLINE_AND_ENDLINE') {
+                      if (statusVal === 'INLINE_AND_ENDLINE' || statusVal === 'PASS_AND_HOLD') {
                         if (step === 'CUTTING') {
                           isPast = true;
                         } else if (step === 'INLINE' || step === 'ENDLINE') {
@@ -526,6 +527,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                             wo.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
                             wo.status === 'CUTTING' ? 'bg-amber-100 text-amber-700' :
                             wo.status === 'INLINE' ? 'bg-indigo-100 text-indigo-700' :
+                            wo.status === 'PASS_AND_HOLD' ? 'bg-pink-100 text-pink-700 border border-pink-200' :
                             'bg-slate-100 text-slate-600'
                           }`}>
                             {wo.status || 'CUTTING'}

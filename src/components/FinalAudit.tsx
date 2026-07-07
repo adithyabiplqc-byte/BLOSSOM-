@@ -65,10 +65,37 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
   const handleSubmit = async (moveToComplete: boolean = false) => {
     if (isSubmitting) return;
-    if (!form.wo) {
-      alert("Please select a workorder");
+
+    // Explicit comprehensive validation for all boxes, dropboxes, date selection and remarks
+    if (!form.zone) {
+      alert("Please select a Zone");
       return;
     }
+    if (!form.wo) {
+      alert("Please select a Workorder");
+      return;
+    }
+    if (!form.unit) {
+      alert("Please select a Unit");
+      return;
+    }
+    if (form.totalAudited === '' || form.totalAudited === null) {
+      alert("Please enter Total Audited");
+      return;
+    }
+    if (form.pass === '' || form.pass === null) {
+      alert("Please enter Pass Qty");
+      return;
+    }
+    if (form.rejected === '' || form.rejected === null) {
+      alert("Please enter Rejected Qty");
+      return;
+    }
+    if (!form.remarks || !form.remarks.trim()) {
+      alert("Please enter Remarks");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await api.run('api_saveFINALAUDIT', { 

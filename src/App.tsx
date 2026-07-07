@@ -62,6 +62,9 @@ const App: React.FC = () => {
   };
 
   const checkConnectivity = useCallback(async () => {
+    // Only run if the server configuration has been loaded to avoid early startup pings on empty configs
+    const hasUrl = localStorage.getItem('VITE_GAS_URL') || localStorage.getItem('VITE_SPREADSHEET_ID');
+    if (!hasUrl) return;
     try {
       const res = await api.run('api_ping') as any;
       setIsOnline(!!res?.success);
@@ -575,6 +578,7 @@ const App: React.FC = () => {
                   onBack={() => setView('user')} 
                   triggerSuccess={triggerSuccess}
                   globalZone={globalZone}
+                  setGlobalZone={setGlobalZone}
                   onNavigate={(newSubId) => setSelectedSubmodule(newSubId)}
                   refreshData={fetchData}
                 />

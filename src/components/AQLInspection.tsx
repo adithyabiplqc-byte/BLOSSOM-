@@ -64,10 +64,33 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
 
   const handleSubmit = async (status: string, moveToFinal: boolean = false) => {
     if (isSubmitting) return;
-    if (!form.wo) {
-      alert("Please select a workorder");
+
+    // Explicit comprehensive validation for all boxes, dropboxes, date selection and remarks
+    if (!form.zone) {
+      alert("Please select a Zone");
       return;
     }
+    if (!form.wo) {
+      alert("Please select a Workorder");
+      return;
+    }
+    if (!form.unit) {
+      alert("Please select a Unit");
+      return;
+    }
+    if (form.passQty === '' || form.passQty === null) {
+      alert("Please enter Pass Quantity");
+      return;
+    }
+    if (form.failedPieces === '' || form.failedPieces === null) {
+      alert("Please enter Failed Pieces");
+      return;
+    }
+    if (!form.remarks || !form.remarks.trim()) {
+      alert("Please enter Remarks");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await api.run('api_saveAQLREPORT', { 
