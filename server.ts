@@ -128,6 +128,43 @@ function readLocalDb(): any {
           parsed.final_reports = parsed.final_reports || [];
           parsed.rework_reports = parsed.rework_reports || [];
           parsed.reports_sop = parsed.reports_sop || [];
+          if (parsed.reports_sop.length === 0) {
+            parsed.reports_sop = [
+              {
+                id: "pre-1",
+                title: "SOP for Wearing Test",
+                category: "SOP",
+                description: "The objective of this Standard Operating Procedure (SOP) is to establish a safe, ethical, hygienic, and professional framework for voluntary product fit and wear-testing by employees.",
+                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+                attachmentName: "SOP - Wearing Test_2026 (1).pdf",
+                creator: "QUALITY DIRECTOR",
+                zone: "ALL",
+                timestamp: "2026-06-02T10:00:00.000Z"
+              },
+              {
+                id: "pre-2",
+                title: "Store Supplier Integrity Audit Guideline",
+                category: "SUPPLIER AUDIT",
+                description: "Standard Operating Procedure for measuring supplier quality, factory roll auditing, and logging material quality.",
+                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+                attachmentName: "Supplier_Integrity_Audit_Guideline.pdf",
+                creator: "FABRIC MANAGER",
+                zone: "ALL",
+                timestamp: "2026-05-18T10:15:00.000Z"
+              },
+              {
+                id: "pre-3",
+                title: "Channel Partner Retail Safety Audit",
+                category: "CHANNEL PARTNER AUDIT",
+                description: "Multi-point inspection guidelines for authorized distributors and regional third-party channel showrooms.",
+                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+                attachmentName: "Channel_Safety_Protocol.pdf",
+                creator: "AUDIT MANAGER",
+                zone: "ALL",
+                timestamp: "2026-05-25T14:30:00.000Z"
+              }
+            ];
+          }
           parsed.zone = parsed.zone || [];
           parsed.settings = parsed.settings || {};
           parsed.admin_logs = parsed.admin_logs || [];
@@ -678,7 +715,41 @@ function readLocalDb(): any {
       }
     ] as any[],
     rework_reports: [] as any[],
-    reports_sop: [] as any[],
+    reports_sop: [
+      {
+        id: "pre-1",
+        title: "SOP for Wearing Test",
+        category: "SOP",
+        description: "The objective of this Standard Operating Procedure (SOP) is to establish a safe, ethical, hygienic, and professional framework for voluntary product fit and wear-testing by employees.",
+        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+        attachmentName: "SOP - Wearing Test_2026 (1).pdf",
+        creator: "QUALITY DIRECTOR",
+        zone: "ALL",
+        timestamp: "2026-06-02T10:00:00.000Z"
+      },
+      {
+        id: "pre-2",
+        title: "Store Supplier Integrity Audit Guideline",
+        category: "SUPPLIER AUDIT",
+        description: "Standard Operating Procedure for measuring supplier quality, factory roll auditing, and logging material quality.",
+        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+        attachmentName: "Supplier_Integrity_Audit_Guideline.pdf",
+        creator: "FABRIC MANAGER",
+        zone: "ALL",
+        timestamp: "2026-05-18T10:15:00.000Z"
+      },
+      {
+        id: "pre-3",
+        title: "Channel Partner Retail Safety Audit",
+        category: "CHANNEL PARTNER AUDIT",
+        description: "Multi-point inspection guidelines for authorized distributors and regional third-party channel showrooms.",
+        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
+        attachmentName: "Channel_Safety_Protocol.pdf",
+        creator: "AUDIT MANAGER",
+        zone: "ALL",
+        timestamp: "2026-05-25T14:30:00.000Z"
+      }
+    ] as any[],
     zone: [
       { id: "zmap-1", zone: "KERALA", unit: "UNIT A", worker: "JOHN DOE", timestamp: new Date().toISOString() },
       { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() },
@@ -1441,6 +1512,43 @@ function executeLocalAction(action: string, params: any[]): any {
       writeLocalDb(db);
       return { success: true };
     }
+
+    case 'api_uploadSOPFile': {
+      try {
+        const fileName = params[0];
+        const rawBase64 = params[1];
+        const mimeType = params[2];
+        
+        if (!fileName || !rawBase64) {
+          return { success: false, error: "Missing physical fileName or base64Data contents." };
+        }
+        
+        const cleanBase64 = rawBase64.replace(/^data:.*;base64,/, "");
+        const buffer = Buffer.from(cleanBase64, "base64");
+        
+        const timestamp = Date.now();
+        const safeName = `${timestamp}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+        const uploadsDir = path.join(process.cwd(), "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, safeName);
+        
+        fs.writeFileSync(filePath, buffer);
+        
+        const relativeUrl = `/uploads/${safeName}`;
+        console.log(`[LOCAL SAVER via API] PDF uploaded successfully. Saved locally to: ${filePath}`);
+        
+        return {
+          success: true,
+          url: relativeUrl,
+          name: safeName
+        };
+      } catch (e: any) {
+        console.error("[LOCAL SAVER via API ERROR]", e);
+        return { success: false, error: e.message || "Failed to save file on server." };
+      }
+    }
     
     case 'api_bulkSave': {
       const sheetName = params[0];
@@ -1739,6 +1847,20 @@ async function startServer() {
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
       
+      // Direct routing of SOP and PDF actions to the integrated database & local file system
+      if (['api_uploadSOPFile', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData'].includes(action)) {
+        console.log(`[API PROXY] Directly routing local SOP action "${action}" to integrated database.`);
+        try {
+          const localResult = executeLocalAction(action, bodyPayload.params || []);
+          if (localResult !== undefined) {
+            return res.json(localResult);
+          }
+        } catch (localErr: any) {
+          console.error(`[API PROXY] SOP local execution failed for action "${action}":`, localErr.message);
+          return res.status(500).json({ success: false, error: localErr.message });
+        }
+      }
+
       // Direct interception of zone mapping actions to support older GAS scripts without calling unsupported endpoints on the Web App
       if (['api_getZoneMappings', 'api_saveZoneMapping', 'api_deleteZoneMapping'].includes(action)) {
         console.log(`[API PROXY] Intercepting action "${action}" to support older Apps Script deployments.`);
@@ -2364,6 +2486,31 @@ async function startServer() {
       }
       `;
 
+      function extractJSON(text: string): any {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          const startIdx = text.indexOf('{');
+          const endIdx = text.lastIndexOf('}');
+          if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+            const candidate = text.substring(startIdx, endIdx + 1);
+            try {
+              return JSON.parse(candidate);
+            } catch (innerErr) {
+              const cleaned = candidate
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+                .trim();
+              try {
+                return JSON.parse(cleaned);
+              } catch (finalErr) {
+                throw new Error("Could not parse JSON structure from model response.");
+              }
+            }
+          }
+          throw e;
+        }
+      }
+
       try {
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",
@@ -2374,8 +2521,7 @@ async function startServer() {
         });
 
         const textResponse = response.text || "";
-        const cleanedText = textResponse.trim().replace(/^```json/, "").replace(/```$/, "").trim();
-        const parsed = JSON.parse(cleanedText);
+        const parsed = extractJSON(textResponse);
         parsed.aiGenerated = true;
         return res.json(parsed);
 

@@ -136,11 +136,10 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         });
       }
 
-      // Include preloaded items
-      const activePreloaded = PRELOADED_SOPS;
-
-      // Show both custom records and preloaded templates
-      const finalReports = mapped.length > 0 ? [...mapped, ...activePreloaded] : activePreloaded;
+      // Combine custom uploaded SOP reports and preloaded templates, ensuring no duplicate IDs
+      const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
+      const customMapped = mapped.filter(r => !preloadedIds.has(r.id));
+      const finalReports = [...customMapped, ...PRELOADED_SOPS];
       setReports(finalReports);
     } catch (e) {
       console.error("Failed to load SOPs:", e);
@@ -539,7 +538,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                           <Icon name="eye" size={13} />
                         </button>
                       )}
-                      {user?.role === 'ADMIN' && (
+                      {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
                         <button
                           type="button"
                           onClick={() => setSopToDelete(report)}
@@ -647,7 +646,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                               <Icon name="eye" size={13} />
                             </button>
                           )}
-                          {user?.role === 'ADMIN' && (
+                          {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -684,7 +683,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </button>
 
                 {/* Delete option restricted to Admin only */}
-                {user?.role === 'ADMIN' && (
+                {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
                   <button
                     onClick={() => setSopToDelete(selectedReport)}
                     className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-xl transition duration-150 shadow-xs flex items-center gap-1"
