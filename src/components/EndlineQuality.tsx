@@ -169,7 +169,10 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   const currentUnits = useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
-    if (user?.role !== 'ADMIN' && userLoc && userLoc !== 'COMMON' && userLoc !== 'SYSTEM') {
+    const userZone = String(user?.zone || '').trim().toUpperCase();
+    const isCommonOrAdmin = user?.role === 'ADMIN' || userZone === 'COMMON' || userLoc === 'COMMON' || userZone === 'SYSTEM';
+
+    if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
       return [userLoc];
     }
 
@@ -195,35 +198,63 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
   }, [currentUnits, form.unit]);
 
   const currentWorkers = useMemo(() => {
+    const combined = new Set<string>();
+    
+    const currentZoneUpper = String(form.zone || '').trim().toUpperCase();
+    const currentUnitUpper = String(form.unit || '').trim().toUpperCase();
+
+    const isZoneWide = !currentUnitUpper || currentUnitUpper === 'COMMON' || currentUnitUpper === 'ALL';
+
     if (zoneMappings.length > 0) {
-      // 1. Try exact Match: Match zone AND unit
-      const unitMatch = zoneMappings.filter(z => 
-        String(z.zone || '').toUpperCase() === String(form.zone || '').toUpperCase() &&
-        String(z.unit || '').toUpperCase() === String(form.unit || '').toUpperCase() &&
-        z.worker
-      );
-      if (unitMatch.length > 0) {
-        return unitMatch.map(z => z.worker);
+      if (!isZoneWide) {
+        // 1. Try exact Match: Match zone AND unit
+        const unitMatch = zoneMappings.filter(z => 
+          String(z.zone || '').toUpperCase() === currentZoneUpper &&
+          String(z.unit || '').toUpperCase() === currentUnitUpper &&
+          z.worker
+        );
+        if (unitMatch.length > 0) {
+          unitMatch.forEach(z => {
+            if (z.worker && typeof z.worker === 'string' && z.worker.trim()) {
+              combined.add(z.worker.trim());
+            }
+          });
+        }
       }
-      // 2. Fallback Match: Match zone only
-      const zoneMatch = zoneMappings.filter(z => 
-        String(z.zone || '').toUpperCase() === String(form.zone || '').toUpperCase() &&
-        z.worker
-      );
-      if (zoneMatch.length > 0) {
-        return zoneMatch.map(z => z.worker);
+
+      // 2. Fallback Match: Match zone only (if unit match is empty or unit is zone-wide / COMMON)
+      if (combined.size === 0) {
+        const zoneMatch = zoneMappings.filter(z => 
+          String(z.zone || '').toUpperCase() === currentZoneUpper &&
+          z.worker
+        );
+        zoneMatch.forEach(z => {
+          if (z.worker && typeof z.worker === 'string' && z.worker.trim()) {
+            combined.add(z.worker.trim());
+          }
+        });
       }
     }
-    // 3. Defaults
-    return ensureArray(settings?.WORKERS || settings?.WORKER, [
-      'MADAMS', 
-      'PRATHEEASHA', 
-      'VIMAL', 
-      'SOPHIYA', 
-      'AMBILI', 
-      'DEEPA', 
-      'SREEJITH'
-    ]);
+    
+    // 3. Fallback to defaults if absolutely no mapped workers found
+    if (combined.size === 0) {
+      const defaults = ensureArray(settings?.WORKERS || settings?.WORKER, [
+        'MADAMS', 
+        'PRATHEEASHA', 
+        'VIMAL', 
+        'SOPHIYA', 
+        'AMBILI', 
+        'DEEPA', 
+        'SREEJITH'
+      ]);
+      defaults.forEach(w => {
+        if (w && typeof w === 'string' && w.trim()) {
+          combined.add(w.trim());
+        }
+      });
+    }
+
+    return Array.from(combined).sort((a, b) => a.localeCompare(b));
   }, [settings, zoneMappings, form.zone, form.unit]);
 
   const [activeInspector, setActiveInspector] = useState(user?.username || 'user1');

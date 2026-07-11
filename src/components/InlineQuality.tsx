@@ -267,7 +267,10 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   const currentUnits = useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
-    if (user?.role !== 'ADMIN' && userLoc && userLoc !== 'COMMON' && userLoc !== 'SYSTEM') {
+    const userZone = String(user?.zone || '').trim().toUpperCase();
+    const isCommonOrAdmin = user?.role === 'ADMIN' || userZone === 'COMMON' || userLoc === 'COMMON' || userZone === 'SYSTEM';
+
+    if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
       return [userLoc];
     }
 
@@ -298,22 +301,26 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     const currentZoneUpper = String(form.zone || '').trim().toUpperCase();
     const currentUnitUpper = String(form.unit || '').trim().toUpperCase();
 
+    const isZoneWide = !currentUnitUpper || currentUnitUpper === 'COMMON' || currentUnitUpper === 'ALL';
+
     if (zoneMappings.length > 0) {
-      // 1. Try exact Match: Match zone AND unit
-      const unitMatch = zoneMappings.filter(z => 
-        String(z.zone || '').toUpperCase() === currentZoneUpper &&
-        String(z.unit || '').toUpperCase() === currentUnitUpper &&
-        z.worker
-      );
-      if (unitMatch.length > 0) {
-        unitMatch.forEach(z => {
-          if (z.worker && typeof z.worker === 'string' && z.worker.trim()) {
-            combined.add(z.worker.trim());
-          }
-        });
+      if (!isZoneWide) {
+        // 1. Try exact Match: Match zone AND unit
+        const unitMatch = zoneMappings.filter(z => 
+          String(z.zone || '').toUpperCase() === currentZoneUpper &&
+          String(z.unit || '').toUpperCase() === currentUnitUpper &&
+          z.worker
+        );
+        if (unitMatch.length > 0) {
+          unitMatch.forEach(z => {
+            if (z.worker && typeof z.worker === 'string' && z.worker.trim()) {
+              combined.add(z.worker.trim());
+            }
+          });
+        }
       }
 
-      // 2. Fallback Match: Match zone only (if unit match is empty or unit is not specified / COMMON)
+      // 2. Fallback Match: Match zone only (if unit match is empty or unit is zone-wide / COMMON)
       if (combined.size === 0) {
         const zoneMatch = zoneMappings.filter(z => 
           String(z.zone || '').toUpperCase() === currentZoneUpper &&

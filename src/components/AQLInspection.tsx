@@ -24,7 +24,10 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
   }, [settings, hasSpreadsheet, user]);
   const currentUnits = React.useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
-    if (user?.role !== 'ADMIN' && userLoc && userLoc !== 'COMMON' && userLoc !== 'SYSTEM') {
+    const userZone = String(user?.zone || '').trim().toUpperCase();
+    const isCommonOrAdmin = user?.role === 'ADMIN' || userZone === 'COMMON' || userLoc === 'COMMON' || userZone === 'SYSTEM';
+
+    if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
       return [userLoc];
     }
 
