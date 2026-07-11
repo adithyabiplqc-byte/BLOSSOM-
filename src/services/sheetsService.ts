@@ -871,7 +871,7 @@ export const sheetsService = {
               if (normKey === 'restrictions') record['restrictions'] = val;
               if (normKey === 'candownload') record['canDownload'] = val;
 
-              if (normKey === 'workordernumber' || normKey === 'workorderno') record['workorderNumber'] = val;
+              if (normKey === 'workordernumber' || normKey === 'workorderno' || normKey === 'wo' || normKey === 'wonum' || normKey === 'wonumber' || normKey === 'workorder') record['workorderNumber'] = val;
               if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') {
                 record['orderQty'] = val;
                 record['quantity'] = val;
@@ -1135,6 +1135,11 @@ export const sheetsService = {
     const normHeaders = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
     let idIdx = normHeaders.indexOf('id');
     if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('workorderno');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wo');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wonum');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wonumber');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('workorder');
     if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
 
     if (idIdx === -1) throw new Error('ID or Code column not found in database sheet');
@@ -1185,6 +1190,11 @@ export const sheetsService = {
     const normHeaders = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
     let idIdx = normHeaders.indexOf('id');
     if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('workorderno');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wo');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wonum');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('wonumber');
+    if (idIdx === -1) idIdx = normHeaders.indexOf('workorder');
     if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
 
     if (idIdx === -1) throw new Error('ID or Code column not found in spreadsheet');

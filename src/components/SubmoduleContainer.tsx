@@ -68,7 +68,7 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
     if (id === 'A7') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="entry" />;
     if (id === 'B9') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="view" readOnly={true} />;
     if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} settings={settings} setGlobalZone={setGlobalZone} />;
-    if (id === 'C9') return <BlossomAIView globalZone={globalZone} user={user} />;
+    if (id === 'C7') return <BlossomAIView globalZone={globalZone} user={user} />;
     if (id.startsWith('C')) return <MISView id={id} globalZone={globalZone} />;
     return <div className="p-12 text-center text-slate-400 italic">Submodule {id} form logic coming soon...</div>;
   };

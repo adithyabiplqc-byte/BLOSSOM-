@@ -92,6 +92,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [settingsSubTab, setSettingsSubTab] = useState<'hierarchy' | 'userwise'>('hierarchy');
 
+  const [selectedDataType, setSelectedDataType] = useState('');
+  const [dataRecords, setDataRecords] = useState<any[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [dataSearchQuery, setDataSearchQuery] = useState('');
+
+  const fetchDataRecords = async (type: string) => {
+    if (!type) {
+      setDataRecords([]);
+      return;
+    }
+    setLoadingRecords(true);
+    try {
+      let res: any = null;
+      if (type === 'REPORTS_SOP') {
+        res = await api.run('api_getREPORTS_SOPData');
+      } else if (type === 'CUTTING') {
+        res = await api.run('api_getCuttingData');
+      } else if (type === 'INLINE') {
+        res = await api.run('api_getInlineData');
+      } else if (type === 'ENDLINE') {
+        res = await api.run('api_getEndlineData');
+      } else if (type === 'AQL') {
+        res = await api.run('api_getAQLData');
+      } else if (type === 'FINAL') {
+        res = await api.run('api_getFinalAuditData');
+      } else if (type === 'MATERIAL') {
+        res = await api.run('api_getMaterialData');
+      } else if (type === 'WORKORDER') {
+        res = await api.run('api_getWorkorders');
+      }
+      
+      if (Array.isArray(res)) {
+        setDataRecords(res);
+      } else if (res && Array.isArray(res.data)) {
+        setDataRecords(res.data);
+      } else {
+        setDataRecords([]);
+      }
+    } catch (e) {
+      console.error("Error fetching data records for deletion:", e);
+      setDataRecords([]);
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
+
+  const handleDeleteRecord = async (record: any) => {
+    if (!window.confirm(`🚨 Are you sure you want to permanently delete this record from ${selectedDataType}?\nThis action is irreversible.`)) {
+      return;
+    }
+    try {
+      if (selectedDataType === 'REPORTS_SOP') {
+        await api.run('api_deleteREPORTS_SOP', record.id);
+      } else if (selectedDataType === 'CUTTING') {
+        await api.run('api_deleteCuttingData', record.id);
+      } else if (selectedDataType === 'INLINE') {
+        await api.run('api_deleteInlineData', record.id);
+      } else if (selectedDataType === 'ENDLINE') {
+        await api.run('api_deleteEndlineData', record.id);
+      } else if (selectedDataType === 'AQL') {
+        await api.run('api_deleteAQLData', record.id);
+      } else if (selectedDataType === 'FINAL') {
+        await api.run('api_deleteFinalAuditData', record.id);
+      } else if (selectedDataType === 'MATERIAL') {
+        await api.run('api_deleteMaterialData', record.id);
+      } else if (selectedDataType === 'WORKORDER') {
+        await api.run('api_deleteWorkorder', record.id, record.zone || record.location);
+      }
+      
+      triggerSuccess?.("Record deleted successfully.");
+      // Refresh the records
+      await fetchDataRecords(selectedDataType);
+      if (refreshData) {
+        await refreshData();
+      }
+    } catch (e) {
+      alert("Failed to delete record: " + String(e));
+    }
+  };
+
   React.useEffect(() => {
     if (tab === 'server' && serverUrl) {
       const checkStatus = async () => {
@@ -478,6 +558,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsSubmitting(true);
     
     try {
+      const serverUsers = await api.run('api_getUsers').catch(() => []) as any[];
+      const currentUsers = Array.isArray(serverUsers) && serverUsers.length > 0 ? serverUsers : users;
+      const exists = currentUsers.some((u: any) => 
+        u?.userCode !== editingUser.userCode && String(u?.username || '').toLowerCase().trim() === cleanUsername.toLowerCase()
+      );
+      if (exists) {
+        alert(`Error: Username "${cleanUsername}" is already taken by another user.`);
+        setIsSubmitting(false);
+        isLocked.current = false;
+        return;
+      }
+
       const updatedUser = { ...editingUser, username: cleanUsername, password: editingUser.password };
       if (!api.run) return;
       await api.run('api_updateUser', updatedUser);
@@ -593,7 +685,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'restrictions', label: 'Restrictions', icon: 'shield-off' },
           { id: 'settings', label: 'User Data', icon: 'database' },
           { id: 'server', label: 'Server', icon: 'server' },
-          { id: 'delete', label: 'Delete User', icon: 'user-minus' }
+          { id: 'delete', label: 'Delete User', icon: 'user-minus' },
+          { id: 'delete_data', label: 'Delete Data', icon: 'trash-2' }
         ].filter(t => !configOnlyMode || t.id === 'server').map(t => (
           <button 
             key={t.id} 
@@ -662,12 +755,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Username</label>
-                <input 
-                  type="text" 
-                  placeholder="Enter Username" 
-                  value={newUser.username} 
-                  onChange={e => setNewUser({...newUser, username: e.target.value})} 
-                />
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Enter Username" 
+                    value={newUser.username} 
+                    onChange={e => setNewUser({...newUser, username: e.target.value})} 
+                    className="pr-10"
+                  />
+                  {newUser.username.trim() !== '' && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {users.some(u => u.username.toLowerCase().trim() === newUser.username.toLowerCase().trim()) ? (
+                        <Icon name="x-circle" size={18} className="text-rose-500" />
+                      ) : (
+                        <Icon name="check-circle" size={18} className="text-emerald-500" />
+                      )}
+                    </div>
+                  )}
+                </div>
+                {newUser.username.trim() !== '' && (
+                  <p className={`text-[10px] mt-1 font-bold ${users.some(u => u.username.toLowerCase().trim() === newUser.username.toLowerCase().trim()) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                    {users.some(u => u.username.toLowerCase().trim() === newUser.username.toLowerCase().trim()) ? '✕ Username already in use' : '✓ Username available'}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Unique Password</label>
@@ -718,7 +828,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button 
                 type="button"
                 onClick={handleAdd} 
-                disabled={isSubmitting || !newUser.username || !newUser.password}
+                disabled={isSubmitting || !newUser.username || !newUser.password || users.some(u => u.username.toLowerCase().trim() === newUser.username.toLowerCase().trim())}
                 className="btn-primary w-full text-xs font-black italic tracking-widest uppercase py-4 shadow-xl shadow-indigo-100 hover:scale-[1.02] disabled:opacity-50"
               >
                 {isSubmitting ? 'CREATING...' : 'CREATE USER'}
@@ -746,10 +856,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="space-y-3 pt-4 border-t border-slate-100 animate-fade-in">
                   <div>
                     <label>Username</label>
-                    <input type="text" value={editingUser.username} onChange={e => {
-                      const updated = { ...editingUser, username: e.target.value };
-                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
-                    }} />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={editingUser.username} 
+                        onChange={e => {
+                          const updated = { ...editingUser, username: e.target.value };
+                          setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                        }} 
+                        className="pr-10"
+                      />
+                      {(editingUser.username || '').trim() !== '' && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                          {users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? (
+                            <Icon name="x-circle" size={18} className="text-rose-500" />
+                          ) : (
+                            <Icon name="check-circle" size={18} className="text-emerald-500" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {(editingUser.username || '').trim() !== '' && (
+                      <p className={`text-[10px] mt-1 font-bold ${users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                        {users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? '✕ Username already in use' : '✓ Username available'}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label>Password</label>
@@ -801,8 +932,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   <button 
                     onClick={handleUpdate} 
-                    disabled={isSubmitting}
-                    className="btn-primary w-full text-xs font-black italic tracking-widest uppercase py-4 shadow-xl shadow-indigo-100 hover:scale-[1.02]"
+                    disabled={isSubmitting || !editingUser.username || users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim())}
+                    className="btn-primary w-full text-xs font-black italic tracking-widest uppercase py-4 shadow-xl shadow-indigo-100 hover:scale-[1.02] disabled:opacity-50"
                   >
                     {isSubmitting ? 'SAVING...' : 'SAVE CHANGES'}
                   </button>
@@ -1479,6 +1610,290 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {tab === 'delete_data' && (
+          <div className="space-y-6">
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3">
+              <Icon name="alert-triangle" size={24} className="text-rose-600" />
+              <div>
+                <h4 className="text-xs font-black text-rose-900 uppercase tracking-wider">ADMIN DATA MANAGEMENT</h4>
+                <p className="text-[10px] font-bold text-rose-700 leading-relaxed uppercase">
+                  This panel allows permanent, irreversible deletion of individual records from the Google Spreadsheet database. Use with extreme caution.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Data Category</label>
+                <select
+                  value={selectedDataType}
+                  onChange={e => {
+                    setSelectedDataType(e.target.value);
+                    fetchDataRecords(e.target.value);
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 font-bold text-xs"
+                >
+                  <option value="">Choose category...</option>
+                  <option value="REPORTS_SOP">SOP & Audit Documents (PDFs)</option>
+                  <option value="CUTTING">Cutting Quality Reports</option>
+                  <option value="INLINE">Sewing Defect / Inline Reports</option>
+                  <option value="ENDLINE">Endline Quality Reports</option>
+                  <option value="AQL">AQL Inspection Reports</option>
+                  <option value="FINAL">Final Audit Reports</option>
+                  <option value="MATERIAL">Material Reports</option>
+                  <option value="WORKORDER">Workorders</option>
+                </select>
+              </div>
+
+              {selectedDataType && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Search Records</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search by Workorder, Title, Style..."
+                      value={dataSearchQuery}
+                      onChange={e => setDataSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 pl-9 text-xs font-bold"
+                    />
+                    <div className="absolute left-3 top-2.5 text-slate-400">
+                      <Icon name="search" size={14} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {loadingRecords ? (
+              <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-3">
+                <Icon name="refresh-cw" className="animate-spin text-indigo-600" size={24} />
+                <span className="text-xs font-black uppercase tracking-widest">Retrieving ledger entries...</span>
+              </div>
+            ) : selectedDataType && dataRecords.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 italic">
+                No records found for this category.
+              </div>
+            ) : selectedDataType ? (
+              <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-xs bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
+                        {selectedDataType === 'REPORTS_SOP' && (
+                          <>
+                            <th className="p-4">Title</th>
+                            <th className="p-4">Category</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4">Link</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'CUTTING' && (
+                          <>
+                            <th className="p-4">Workorder</th>
+                            <th className="p-4">Bundle No</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Checked Qty</th>
+                            <th className="p-4">Rework</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'INLINE' && (
+                          <>
+                            <th className="p-4">Workorder</th>
+                            <th className="p-4">Round</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Checked</th>
+                            <th className="p-4">Complaint</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'ENDLINE' && (
+                          <>
+                            <th className="p-4">Workorder</th>
+                            <th className="p-4">Bundle</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Pass Qty</th>
+                            <th className="p-4">Rework</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'AQL' && (
+                          <>
+                            <th className="p-4">Workorder</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Pass</th>
+                            <th className="p-4">Failed</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'FINAL' && (
+                          <>
+                            <th className="p-4">Workorder</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4">Audited</th>
+                            <th className="p-4">Pass</th>
+                            <th className="p-4">Rejected</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'MATERIAL' && (
+                          <>
+                            <th className="p-4">Date</th>
+                            <th className="p-4">Supplier</th>
+                            <th className="p-4">Remarks</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                        {selectedDataType === 'WORKORDER' && (
+                          <>
+                            <th className="p-4">WO Number</th>
+                            <th className="p-4">Style</th>
+                            <th className="p-4">Color</th>
+                            <th className="p-4">Qty</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4">Zone</th>
+                            <th className="p-4 text-right">Action</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
+                      {dataRecords
+                        .filter(record => {
+                          if (!dataSearchQuery) return true;
+                          const q = dataSearchQuery.toUpperCase();
+                          const valStr = JSON.stringify(record).toUpperCase();
+                          return valStr.includes(q);
+                        })
+                        .slice(0, 100)
+                        .map((record, index) => {
+                          const dateStr = record.timestamp 
+                            ? new Date(record.timestamp).toLocaleDateString()
+                            : record.checkingDate || record.date || '-';
+                            
+                          return (
+                            <tr key={record.id || index} className="hover:bg-slate-50 transition duration-150">
+                              {selectedDataType === 'REPORTS_SOP' && (
+                                <>
+                                  <td className="p-4">{record.title || record.fileName || 'Untitled'}</td>
+                                  <td className="p-4">{record.category || '-'}</td>
+                                  <td className="p-4">{record.zone || 'ALL'}</td>
+                                  <td className="p-4">{dateStr}</td>
+                                  <td className="p-4">
+                                    {record.attachmentUrl ? (
+                                      <a href={record.attachmentUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">View PDF</a>
+                                    ) : '-'}
+                                  </td>
+                                </>
+                              )}
+                              {selectedDataType === 'CUTTING' && (
+                                <>
+                                  <td className="p-4">{record.wo || record.workorderNumber}</td>
+                                  <td className="p-4">{record.bundleNo}</td>
+                                  <td className="p-4">{record.zone}</td>
+                                  <td className="p-4">{record.checkedQty}</td>
+                                  <td className="p-4">{record.reworkQty}</td>
+                                  <td className="p-4">{dateStr}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'INLINE' && (
+                                <>
+                                  <td className="p-4">{record.wo || record.workorderNumber}</td>
+                                  <td className="p-4">{record.round}</td>
+                                  <td className="p-4">{record.zone}</td>
+                                  <td className="p-4">{record.checkedQty}</td>
+                                  <td className="p-4">{record.complaintPcs}</td>
+                                  <td className="p-4">{dateStr}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'ENDLINE' && (
+                                <>
+                                  <td className="p-4">{record.wo || record.workorderNumber}</td>
+                                  <td className="p-4">{record.bundleNo}</td>
+                                  <td className="p-4">{record.zone}</td>
+                                  <td className="p-4">{record.passQty}</td>
+                                  <td className="p-4">{record.reworkQty}</td>
+                                  <td className="p-4">{dateStr}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'AQL' && (
+                                <>
+                                  <td className="p-4">{record.wo || record.workorderNumber}</td>
+                                  <td className="p-4">{record.zone}</td>
+                                  <td className="p-4">{record.passQty}</td>
+                                  <td className="p-4">{record.failedPieces}</td>
+                                  <td className="p-4">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black ${record.auditStatus === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                      {record.auditStatus}
+                                    </span>
+                                  </td>
+                                  <td className="p-4">{dateStr}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'FINAL' && (
+                                <>
+                                  <td className="p-4">{record.wo || record.workorderNumber}</td>
+                                  <td className="p-4">{record.zone}</td>
+                                  <td className="p-4">{record.totalAudited}</td>
+                                  <td className="p-4">{record.pass}</td>
+                                  <td className="p-4">{record.rejected}</td>
+                                  <td className="p-4">{dateStr}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'MATERIAL' && (
+                                <>
+                                  <td className="p-4">{record.checkingDate || record.date}</td>
+                                  <td className="p-4">{record.supplier}</td>
+                                  <td className="p-4 max-w-xs truncate">{record.remarks}</td>
+                                </>
+                              )}
+                              {selectedDataType === 'WORKORDER' && (
+                                <>
+                                  <td className="p-4">{record.workorderNumber}</td>
+                                  <td className="p-4">{record.style || record.STYLE_NAME}</td>
+                                  <td className="p-4">{record.color || record.COLOR}</td>
+                                  <td className="p-4">{record.quantity || record.orderQty}</td>
+                                  <td className="p-4">
+                                    <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px]">
+                                      {record.status || 'CUTTING'}
+                                    </span>
+                                  </td>
+                                  <td className="p-4">{record.zone || record.location}</td>
+                                </>
+                              )}
+                              
+                              <td className="p-4 text-right">
+                                <button
+                                  onClick={() => handleDeleteRecord(record)}
+                                  className="p-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-xl transition duration-150"
+                                  title="Delete record permanently"
+                                >
+                                  <Icon name="trash-2" size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-400 italic">
+                Select a category from the dropdown above to view and manage recorded data.
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -91,10 +91,6 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
       alert("Please enter Rejected Qty");
       return;
     }
-    if (!form.remarks || !form.remarks.trim()) {
-      alert("Please enter Remarks");
-      return;
-    }
 
     setIsSubmitting(true);
     try {

@@ -84,6 +84,14 @@ const ensureArray = (val: any, fallback: string[] = []): string[] => {
   return fallback;
 };
 
+const normalizeStatus = (statusStr: string): string => {
+  return String(statusStr || "")
+    .toUpperCase()
+    .trim()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]/g, "");
+};
+
 const EndlineQuality: React.FC<EndlineQualityProps> = ({ 
   user, 
   settings, 
@@ -527,10 +535,6 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
       setLocalError("Please select a Cup size.");
       return;
     }
-    if (!form.remarks || !form.remarks.trim()) {
-      setLocalError("Please enter Remarks.");
-      return;
-    }
 
     if (defectCount > 0) {
       const targetLength = defectCount === 10 ? 1 : defectCount;
@@ -823,8 +827,13 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     }
                     if (!matchesZone) return false;
 
-                    const statusUpper = String(w.status || '').toUpperCase();
-                    if (statusUpper !== 'ENDLINE' && statusUpper !== 'INLINE_AND_ENDLINE' && statusUpper !== 'PASS_AND_HOLD') {
+                    const statusUpper = normalizeStatus(w.status);
+                    if (
+                      statusUpper !== 'ENDLINE' && 
+                      statusUpper !== 'INLINEANDENDLINE' && 
+                      statusUpper !== 'PASSANDHOLD' && 
+                      !statusUpper.includes('HOLD')
+                    ) {
                       return false;
                     }
 
@@ -963,11 +972,11 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                 </span>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-xs font-medium text-slate-600 bg-slate-50/50 p-4 rounded-xl border border-dashed border-slate-200">
+              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs font-medium text-slate-600 bg-slate-50/50 p-4 rounded-xl border border-dashed border-slate-200">
                 <div>Style Name: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{selectedWO.style || selectedWO.STYLE_NAME || 'N/A'}</span></div>
-                <div>Color Spec: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{form.color || 'N/A'}</span></div>
-                <div>Buyer/Supplier: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{selectedWO.supplier || selectedWO.buyer || 'N/A'}</span></div>
-                <div>Line Code: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">Line {form.line}</span></div>
+                <div>Color Spec: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{form.color || selectedWO.colour || selectedWO.color || 'N/A'}</span></div>
+                <div>Size Range: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{selectedWO.size || selectedWO.SIZE || 'N/A'}</span></div>
+                <div>Cup Category: <span className="font-black text-slate-800 tracking-tight block text-sm mt-0.5">{selectedWO.cup || selectedWO.cupsize || selectedWO.CUPSIZE || '-'}</span></div>
               </div>
 
               {/* Progress Gauges */}

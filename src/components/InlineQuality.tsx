@@ -161,6 +161,14 @@ const ensureArray = (val: any, fallback: string[] = []): string[] => {
   return fallback;
 };
 
+const normalizeStatus = (statusStr: string): string => {
+  return String(statusStr || "")
+    .toUpperCase()
+    .trim()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]/g, "");
+};
+
 const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
   const currentZones = useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
@@ -889,9 +897,6 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     if (roundInputs.complaintPcs === '' || roundInputs.complaintPcs === null) {
       return alert("Please enter the number of Complaint Pcs");
     }
-    if (!roundInputs.remarks || !roundInputs.remarks.trim()) {
-      return alert("Please enter Remarks & Defect Details");
-    }
 
     // Set submitting flag immediately to block duplicate fast clicks
     setIsSubmitting(true);
@@ -1061,7 +1066,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                 const fZone = String(form.zone).toUpperCase().trim();
                 const wUnit = String(w.unit || "").toUpperCase().trim();
                 const fUnit = String(form.unit || "").toUpperCase().trim();
-                const status = String(w.status || "").toUpperCase().trim();
+                const status = normalizeStatus(w.status);
                 
                 let matchesZone = (wZone === fZone || fZone === "" || fZone === "ALL" || fZone === "COMMON" || fZone === "SYSTEM");
                 if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL' && fZone !== 'COMMON') {
@@ -1075,7 +1080,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   );
                 }
                 const matchesUnit = (fUnit === "" || fUnit === "COMMON" || wUnit === "" || wUnit === fUnit || wUnit === "COMMON");
-                const matchesStatus = (status === 'INLINE' || status === 'INLINE_AND_ENDLINE' || status === 'PASS_AND_HOLD');
+                const matchesStatus = (
+                  status === 'INLINE' || 
+                  status === 'INLINEANDENDLINE' || 
+                  status === 'PASSANDHOLD' || 
+                  status.includes('HOLD')
+                );
                 
                 return matchesZone && matchesUnit && matchesStatus;
               })

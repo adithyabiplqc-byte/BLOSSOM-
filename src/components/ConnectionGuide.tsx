@@ -266,6 +266,20 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
 
       <div className="p-8 space-y-8">
         
+        {/* MULTI-DEVICE ALL USERS SYNC NOTICE */}
+        <div className="bg-indigo-50 border-2 border-indigo-200 rounded-3xl p-6 space-y-3 shadow-md shadow-indigo-100">
+          <div className="flex items-center gap-3 border-b pb-3 border-indigo-100/60">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-black">★</span>
+            <h3 className="text-sm font-black text-indigo-950 uppercase tracking-wider">Multi-Device shared connection notice</h3>
+          </div>
+          <p className="text-xs text-indigo-900 font-bold leading-relaxed">
+            To connect the database server so that <strong>ALL users on ALL devices</strong> instantly get connected to the same Google Spreadsheet without requiring individual Google accounts or logins, you <strong>MUST use Option C (Google Apps Script Connection)</strong> below. 
+          </p>
+          <p className="text-xs text-indigo-850 font-semibold leading-relaxed">
+            If you connect using <em>Option B (Direct Google Account Link)</em>, it only connects that specific browser/device. Other devices will default to the local fallback database unless they also sign in with the exact same Google Account.
+          </p>
+        </div>
+
         {/* INSTANT DEMO SANDBOX DATABASE OPTION (1-CLICK ACTIVATE) */}
         <div className="bg-emerald-50 border-2 border-emerald-500 rounded-3xl p-6 space-y-4 shadow-sm shadow-emerald-100">
           <div className="flex items-center justify-between border-b pb-3 border-emerald-100/60">
@@ -321,9 +335,9 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
           <div className="flex items-center justify-between border-b pb-3 border-indigo-50">
              <div className="flex items-center gap-2">
                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-black">★</span>
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Option B: Direct Google Account Link</h3>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Option B: Single-Device Direct Google Link (Personal Link Only)</h3>
             </div>
-            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">Recommended</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">Personal Use</span>
           </div>
 
           {/* Iframe Pop-up Warning Alert Block */}
@@ -494,10 +508,10 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
           )}
         </div>
 
-        {/* --- OPTIONAL: MANUAL SCRIPT WEB APP CONNECTION FALLBACK --- */}
+        {/* --- RECOMMENDED: MANUAL SCRIPT WEB APP CONNECTION --- */}
         <div className="border-t border-slate-100 pt-6 space-y-4">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Option C: Standard Google Sheets Connection via Apps Script (Universal Connection)</h3>
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Option C: Universal Google Sheets Connection via Apps Script (RECOMMENDED FOR MULTI-DEVICE ALL USERS SYNC)</h3>
           </div>
           
           <div className="bg-slate-50/50 p-6 rounded-xl border border-slate-200/60 space-y-5">

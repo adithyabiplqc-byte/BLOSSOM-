@@ -13,6 +13,14 @@ interface CuttingQualityProps {
   refreshData?: () => void;
 }
 
+const normalizeStatus = (statusStr: string): string => {
+  return String(statusStr || "")
+    .toUpperCase()
+    .trim()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]/g, "");
+};
+
 const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
   const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
   const currentZones = React.useMemo(() => {
@@ -45,10 +53,52 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
   const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
 
+  const [cuttingRecords, setCuttingRecords] = useState<any[]>([]);
+  const [zoneMappings, setZoneMappings] = React.useState<any[]>([]);
+
+  // Load ZONE sheet mappings for dynamic filtering
+  React.useEffect(() => {
+    const loadZoneMappings = async () => {
+      try {
+        const res = await api.run('api_getZoneMappings');
+        if (Array.isArray(res)) {
+          setZoneMappings(res);
+        }
+      } catch (e) {
+        console.error("Failed to load zone mappings in Cutting:", e);
+      }
+    };
+    loadZoneMappings();
+  }, []);
+
+  const fetchCuttingRecords = async () => {
+    try {
+      const res = await api.run('api_getCuttingData');
+      if (Array.isArray(res)) {
+        setCuttingRecords(res);
+      }
+    } catch (e) {
+      console.error("Failed to fetch cutting records:", e);
+    }
+  };
+
+  React.useEffect(() => {
+    if (form.wo) {
+      fetchCuttingRecords();
+    }
+  }, [form.wo]);
+
   // Auto-calculation
   const reworkQty = parseFloat(form.reworkQty) || 0;
   const checkedQty = parseFloat(form.checkedQty) || 0;
   const reworkPercent = checkedQty > 0 ? ((reworkQty / checkedQty) * 100).toFixed(2) : '0.00';
+
+  const totalQty = Number(selectedWO?.quantity || selectedWO?.orderQty || 0);
+  const previouslyChecked = cuttingRecords
+    .filter(r => String(r.wo || r.workorderNumber) === String(form.wo))
+    .reduce((sum, r) => sum + (Number(r.checkedQty) || 0), 0);
+  const balanceQty = Math.max(0, totalQty - previouslyChecked);
+  const remainingAfterCurrent = Math.max(0, balanceQty - checkedQty);
 
   const handleSubmit = async (e: React.FormEvent, moveToInline: boolean = false, passAndHold: boolean = false) => {
     e.preventDefault();
@@ -63,25 +113,25 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       alert("Please select a Workorder");
       return;
     }
-    if (!form.bundleNo.trim()) {
-      alert("Please enter Bundle No");
-      return;
-    }
-    if (form.checkedQty === '' || form.checkedQty === null) {
-      alert("Please enter Pcs Checked");
-      return;
-    }
-    if (form.reworkQty === '' || form.reworkQty === null) {
-      alert("Please enter Pcs Rework");
-      return;
-    }
-    if (form.rejectedQty === '' || form.rejectedQty === null) {
-      alert("Please enter Pcs Rejected");
-      return;
-    }
-    if (!form.remarks.trim()) {
-      alert("Please enter Inspector Remarks");
-      return;
+    
+    // Only require bundle number and quantities if NOT passing and holding
+    if (!passAndHold) {
+      if (!form.bundleNo.trim()) {
+        alert("Please enter Bundle No");
+        return;
+      }
+      if (form.checkedQty === '' || form.checkedQty === null) {
+        alert("Please enter Pcs Checked");
+        return;
+      }
+      if (form.reworkQty === '' || form.reworkQty === null) {
+        alert("Please enter Pcs Rework");
+        return;
+      }
+      if (form.rejectedQty === '' || form.rejectedQty === null) {
+        alert("Please enter Pcs Rejected");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -89,7 +139,11 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       const payload = { 
         ...form, 
         ...selectedWO, 
-        reworkPercent,
+        bundleNo: form.bundleNo || 'N/A',
+        checkedQty: form.checkedQty === '' ? '0' : form.checkedQty,
+        reworkQty: form.reworkQty === '' ? '0' : form.reworkQty,
+        rejectedQty: form.rejectedQty === '' ? '0' : form.rejectedQty,
+        reworkPercent: form.checkedQty ? reworkPercent : '0.00',
         inspector: user.username, 
         timestamp: new Date().toISOString(),
         moveToInline,
@@ -102,11 +156,12 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       if (refreshData) {
         await refreshData();
       }
+      await fetchCuttingRecords();
       
-      // Reset form but keep zone
+      // Reset form but keep zone (and keep workorder selected if passAndHold is true)
       setForm(prev => ({ 
         ...prev, 
-        wo: '',
+        wo: passAndHold ? prev.wo : '',
         bundleNo: '', 
         checkedQty: '', 
         reworkQty: '', 
@@ -148,8 +203,26 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
               .filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
-                const status = String(w.status || "").toUpperCase();
-                return wZone === fZone && (status === 'CUTTING' || status === '' || status === 'PASS_AND_HOLD');
+                const status = normalizeStatus(w.status);
+                
+                let matchesZone = wZone === fZone;
+                if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                  const matchingRows = zoneMappings.filter(m => 
+                    String(m.zone || '').toUpperCase().trim() === fZone || 
+                    String(m.id || '').toUpperCase().trim() === fZone
+                  );
+                  matchesZone = matchingRows.some(m => 
+                    String(m.zone || '').toUpperCase().trim() === wZone || 
+                    String(m.id || '').toUpperCase().trim() === wZone
+                  );
+                }
+
+                return matchesZone && (
+                  status === 'CUTTING' || 
+                  status === '' || 
+                  status === 'PASSANDHOLD' || 
+                  status.includes('HOLD')
+                );
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
             }
@@ -158,8 +231,35 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       </div>
 
       {selectedWO && (
-        <div className="animate-zoom-in">
-          <WorkorderDetailCard wo={selectedWO} settings={settings} />
+        <div className="space-y-4">
+          <div className="animate-zoom-in">
+            <WorkorderDetailCard wo={selectedWO} settings={settings} />
+          </div>
+          
+          <div className="bg-slate-50 border border-slate-200/85 rounded-2xl p-5 space-y-3 animate-fade-in">
+            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Icon name="activity" size={14} className="text-indigo-650" />
+              Cutting Balance Quantity Status
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Total WO Qty</span>
+                <span className="text-base font-black text-slate-800">{totalQty}</span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Inspected So Far</span>
+                <span className="text-base font-black text-emerald-600">{previouslyChecked}</span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xs">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Remaining Balance</span>
+                <span className="text-base font-black text-indigo-600">{balanceQty}</span>
+              </div>
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 shadow-xs">
+                <span className="text-[9px] font-bold text-indigo-500 uppercase block">Balance After Submission</span>
+                <span className="text-base font-black text-indigo-700">{remainingAfterCurrent}</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -800,7 +800,7 @@ function getDataFromSheet(sheetName) {
         if (normKey === 'candownload') obj['canDownload'] = cellVal;
         if (normKey === 'usersettings') obj['userSettings'] = cellVal;
 
-        if (normKey === 'workordernumber' || normKey === 'workorderno') obj['workorderNumber'] = cellVal;
+        if (normKey === 'workordernumber' || normKey === 'workorderno' || normKey === 'wo' || normKey === 'wonum' || normKey === 'wonumber' || normKey === 'workorder') obj['workorderNumber'] = cellVal;
         if (normKey === 'orderqty' || normKey === 'qty' || normKey === 'quantity') {
           obj['orderQty'] = cellVal;
           obj['quantity'] = cellVal;
@@ -1166,13 +1166,34 @@ function api_getInitialData(params) {
     }
 
     const zone = params && params.zone;
-    // If zone is a specific one (not ALL), try to fetch from that sheet first, then fallback to WORKORDER
     let workorders = [];
     if (zone && zone !== 'ALL' && zone !== 'COMMON') {
-      workorders = api_getWorkorders(zone);
-      if (workorders.length === 0) {
-        // Filter global workorders by zone instead
-        workorders = api_getWorkorders('WORKORDER').filter(wo => wo.location === zone || wo.zone === zone);
+      try {
+        var uppercaseZone = String(zone).toUpperCase().trim();
+        var allowedZones = {};
+        allowedZones[uppercaseZone] = true;
+
+        var zoneRows = api_getWorkorders('ZONE') || [];
+        for (var i = 0; i < zoneRows.length; i++) {
+          var z = String(zoneRows[i].zone || '').toUpperCase().trim();
+          var id = String(zoneRows[i].id || '').toUpperCase().trim();
+          if (z === uppercaseZone || id === uppercaseZone || z.replace(/^ZMAP-/, '') === uppercaseZone || id.replace(/^ZMAP-/, '') === uppercaseZone) {
+            if (z) allowedZones[z] = true;
+            if (id) allowedZones[id] = true;
+            if (z.replace(/^ZMAP-/, '')) allowedZones[z.replace(/^ZMAP-/, '')] = true;
+            if (id.replace(/^ZMAP-/, '')) allowedZones[id.replace(/^ZMAP-/, '')] = true;
+          }
+        }
+
+        workorders = api_getWorkorders('WORKORDER').filter(function(wo) {
+          var zVal = String(wo.zone || wo.location || '').toUpperCase().trim();
+          var zClean = zVal.replace(/^ZMAP-/, '');
+          return allowedZones[zVal] || allowedZones[zClean];
+        });
+      } catch (err) {
+        workorders = api_getWorkorders('WORKORDER').filter(function(wo) {
+          return String(wo.location || wo.zone || '').toUpperCase().trim() === String(zone).toUpperCase().trim();
+        });
       }
     } else {
       workorders = api_getWorkorders('WORKORDER');
@@ -1689,23 +1710,27 @@ function api_saveMATERIALREPORT(report) { return saveDataToSheet('MATERIAL REPOR
 function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
   try {
     const ss = getSS();
-    // Resolve sheet name (e.g., 'WORKORDER - KERALA' or 'WORKORDER')
-    const sheetName = getReportSheetName('WORKORDER', { zone: zone });
-    
-    // Check both the resolved sheet and generic fallback
-    const sheetsToTry = [sheetName, 'WORKORDER'];
+    const allSheets = ss.getSheets();
     let updated = false;
     
-    for (let sIdx = 0; sIdx < sheetsToTry.length; sIdx++) {
-      const curSheetName = sheetsToTry[sIdx];
-      const sheet = findExistingSheetBySynonym(curSheetName) || ss.getSheetByName(curSheetName);
-      if (sheet) {
+    for (let sIdx = 0; sIdx < allSheets.length; sIdx++) {
+      const sheet = allSheets[sIdx];
+      const sNameUpper = sheet.getName().toUpperCase().trim();
+      if (sNameUpper === 'WORKORDER' || sNameUpper.startsWith('WORKORDER - ') || sNameUpper.startsWith('WORK_ORDER') || sNameUpper.startsWith('WORKORDERS')) {
         const data = sheet.getDataRange().getValues();
         if (data.length > 0) {
           const headers = data[0];
           const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
-          const woIdx = normHeaders.indexOf('workordernumber');
-          const statusIdx = normHeaders.indexOf('status');
+          
+          let woIdx = normHeaders.indexOf('workordernumber');
+          if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
+          if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
+          if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
+          if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
+          if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
+          
+          let statusIdx = normHeaders.indexOf('status');
+          if (statusIdx === -1) statusIdx = normHeaders.indexOf('state');
           
           if (woIdx !== -1) {
             let colToUpdate = statusIdx;
@@ -1718,47 +1743,6 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
               if (String(data[i][woIdx]) === String(woNum)) {
                 sheet.getRange(i + 1, colToUpdate + 1).setValue(nextStatus);
                 updated = true;
-                break;
-              }
-            }
-            if (updated) {
-              clearSheetCache(sheet.getName());
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    // Fallback: search ALL sheets starting with WORKORDER synonym just in case
-    if (!updated) {
-      const allSheets = ss.getSheets();
-      for (let sIdx = 0; sIdx < allSheets.length; sIdx++) {
-        const sheet = allSheets[sIdx];
-        const sNameUpper = sheet.getName().toUpperCase().trim();
-        if (sNameUpper === 'WORKORDER' || sNameUpper.startsWith('WORKORDER - ') || sNameUpper.startsWith('WORK_ORDER') || sNameUpper.startsWith('WORKORDERS')) {
-          const data = sheet.getDataRange().getValues();
-          if (data.length > 0) {
-            const headers = data[0];
-            const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
-            const woIdx = normHeaders.indexOf('workordernumber');
-            const statusIdx = normHeaders.indexOf('status');
-            
-            if (woIdx !== -1) {
-              let colToUpdate = statusIdx;
-              if (statusIdx === -1) {
-                colToUpdate = headers.length;
-                sheet.getRange(1, colToUpdate + 1).setValue('status');
-              }
-              
-              for (let i = 1; i < data.length; i++) {
-                if (String(data[i][woIdx]) === String(woNum)) {
-                  sheet.getRange(i + 1, colToUpdate + 1).setValue(nextStatus);
-                  updated = true;
-                  break;
-                }
-              }
-              if (updated) {
                 clearSheetCache(sheet.getName());
                 break;
               }
@@ -1778,7 +1762,8 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
 function api_saveCUTTINGQUALITY(report) { 
   const res = saveDataToSheet('CUTTING QUALITY', report);
   if (res.success && report.wo) {
-    internal_updateWorkorderStatus(report.wo, report.zone || report.location, 'INLINE_AND_ENDLINE');
+    var nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+    internal_updateWorkorderStatus(report.wo, report.zone || report.location, nextStatus);
   }
   return res;
 }
@@ -1980,15 +1965,19 @@ function api_deleteDataBySheet(sheetName, id, zone) {
     const sheet = getOrCreateSheet(targetSheetName);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
     let idIdx = normHeaders.indexOf('id');
     if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
     if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
     
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][idIdx] === id) {
-        sheet.deleteRow(i + 1);
-        return { success: true };
+    if (idIdx !== -1) {
+      for (let i = 1; i < data.length; i++) {
+        var cellVal = String(data[i][idIdx] || '').trim();
+        var targetId = String(id || '').trim();
+        if (cellVal === targetId) {
+          sheet.deleteRow(i + 1);
+          return { success: true };
+        }
       }
     }
     
@@ -2546,12 +2535,40 @@ function api_deleteREPORTS_SOP(id) {
     const sheet = getOrCreateSheet('REPORTS_SOP');
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
     const idIdx = normHeaders.indexOf('id');
     
     if (idIdx !== -1) {
       for (let i = 1; i < data.length; i++) {
-        if (String(data[i][idIdx]) === String(id)) {
+        var cellVal = String(data[i][idIdx] || '').trim();
+        var targetId = String(id || '').trim();
+        if (cellVal === targetId) {
+          // Robustly attempt to parse the attachment URL and trash the file from Google Drive
+          try {
+            var urlIdx = normHeaders.indexOf('attachmenturl');
+            if (urlIdx !== -1) {
+              var fileUrl = String(data[i][urlIdx] || '');
+              if (fileUrl) {
+                var fileId = null;
+                var match = fileUrl.match(/\/d\/([^\/]+)/);
+                if (match && match[1]) {
+                  fileId = match[1];
+                } else {
+                  var matchId = fileUrl.match(/id=([^&]+)/);
+                  if (matchId && matchId[1]) {
+                    fileId = matchId[1];
+                  }
+                }
+                if (fileId) {
+                  var file = DriveApp.getFileById(fileId);
+                  file.setTrashed(true);
+                }
+              }
+            }
+          } catch (driveErr) {
+            console.error("Warning: Could not trash file from Google Drive: " + driveErr.toString());
+          }
+
           sheet.deleteRow(i + 1);
           clearSheetCache('REPORTS_SOP');
           return { success: true };

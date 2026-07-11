@@ -86,10 +86,6 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       alert("Please enter Failed Pieces");
       return;
     }
-    if (!form.remarks || !form.remarks.trim()) {
-      alert("Please enter Remarks");
-      return;
-    }
 
     setIsSubmitting(true);
     try {

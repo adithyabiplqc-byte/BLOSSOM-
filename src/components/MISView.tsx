@@ -78,7 +78,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (id === 'C3' || id === 'C4' || id === 'C7' || id === 'C5') {
+      if (id === 'C3' || id === 'C4' || id === 'C6' || id === 'C5') {
         const [
           material,
           cutting,
@@ -170,7 +170,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   // Extract dynamic helper sets for the Daily Report dashboard filters
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
-    if ((id === 'C3' || id === 'C4' || id === 'C7' || id === 'C5') && allSubmodulesData) {
+    if ((id === 'C3' || id === 'C4' || id === 'C6' || id === 'C5') && allSubmodulesData) {
       const processItem = (item: any) => {
         const rawDate = item.timestamp || item.receivedDate || item.checkingDate || item.date;
         if (rawDate) {
@@ -1089,9 +1089,9 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     doc.save(`BQOS_QualityAnalysis_${selectedDate || 'All'}.pdf`);
   };
 
-  // Extract all workers with their general statistics for C7
+  // Extract all workers with their general statistics for C6
   const workerSummaryList = useMemo(() => {
-    if ((id !== 'C7' && id !== 'C3' && id !== 'C4') || !allSubmodulesData) return [];
+    if ((id !== 'C6' && id !== 'C3' && id !== 'C4') || !allSubmodulesData) return [];
 
     const stats: Record<string, {
       name: string;
@@ -3582,7 +3582,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     );
   }
 
-  if (id === 'C7') {
+  if (id === 'C6') {
     // If no worker matches the current search/selection, show directory view
     if (!currentWorkerData) {
       const q = searchQuery.toUpperCase().trim();

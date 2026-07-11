@@ -229,10 +229,34 @@ export const api = {
 
         let workorders = await sheetsService.getData('WORKORDER');
         if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
-          workorders = workorders.filter(w => {
-            const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-            return zVal === String(zone).toUpperCase().trim();
-          });
+          try {
+            const zoneRows = await sheetsService.getData('ZONE').catch(() => []);
+            const uppercaseZone = String(zone).toUpperCase().trim();
+            const allowedZones = new Set<string>([uppercaseZone]);
+            
+            for (const row of zoneRows) {
+              const z = String(row.zone || '').trim().toUpperCase();
+              const id = String(row.id || '').trim().toUpperCase();
+              if (z === uppercaseZone || id === uppercaseZone || z.replace(/^ZMAP-/, '') === uppercaseZone || id.replace(/^ZMAP-/, '') === uppercaseZone) {
+                if (z) allowedZones.add(z);
+                if (id) allowedZones.add(id);
+                if (z.replace(/^ZMAP-/, '')) allowedZones.add(z.replace(/^ZMAP-/, ''));
+                if (id.replace(/^ZMAP-/, '')) allowedZones.add(id.replace(/^ZMAP-/, ''));
+              }
+            }
+            
+            workorders = workorders.filter(w => {
+              const zVal = String(w.zone || w.location || '').toUpperCase().trim();
+              return allowedZones.has(zVal) || allowedZones.has(zVal.replace(/^ZMAP-/, ''));
+            });
+          } catch (err) {
+            console.error("Failed to load zone mapping list in api_getInitialData:", err);
+            // Fallback to strict filtering
+            workorders = workorders.filter(w => {
+              const zVal = String(w.zone || w.location || '').toUpperCase().trim();
+              return zVal === String(zone).toUpperCase().trim();
+            });
+          }
         }
 
         let settings = null;
@@ -775,7 +799,8 @@ export const api = {
         const report = args[0];
         const res = await sheetsService.saveData('CUTTING QUALITY', report);
         if (res.success && report.wo) {
-          await updateWorkorderStatus(report.wo, 'INLINE_AND_ENDLINE');
+          const nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+          await updateWorkorderStatus(report.wo, nextStatus);
         }
         return res;
       }

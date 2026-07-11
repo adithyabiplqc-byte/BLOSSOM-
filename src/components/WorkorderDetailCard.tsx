@@ -5,6 +5,14 @@ interface WorkorderDetailCardProps {
   settings?: any;
 }
 
+const normalizeStatus = (statusStr: string): string => {
+  return String(statusStr || "")
+    .toUpperCase()
+    .trim()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]/g, "");
+};
+
 const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings }) => {
   if (!wo) return null;
 
@@ -48,14 +56,18 @@ const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings 
         <label className="text-[9px] font-black tracking-widest text-slate-400 uppercase mb-2 block">Live Production Progress</label>
         <div className="flex flex-wrap md:flex-row items-center justify-between gap-y-3 gap-x-1.5 md:gap-4 font-sans text-left">
           {['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].map((step, idx) => {
-            const statusVal = (wo.status || 'CUTTING').toUpperCase();
+            const statusVal = normalizeStatus(wo.status || 'CUTTING');
             let isPast = false;
             let isActive = false;
             
-            if (statusVal === 'INLINE_AND_ENDLINE') {
+            if (statusVal === 'INLINEANDENDLINE') {
               if (step === 'CUTTING') {
                 isPast = true;
               } else if (step === 'INLINE' || step === 'ENDLINE') {
+                isActive = true;
+              }
+            } else if (statusVal === 'PASSANDHOLD') {
+              if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
                 isActive = true;
               }
             } else {
@@ -87,7 +99,7 @@ const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings 
                 </div>
                 {idx < 5 && (
                   <div className={`hidden md:block flex-1 h-0.5 min-w-[12px] rounded transition-colors ${
-                    isPast || (statusVal === 'INLINE_AND_ENDLINE' && idx < 2) ? 'bg-emerald-500' : 'bg-slate-200'
+                    isPast || (statusVal === 'INLINEANDENDLINE' && idx < 2) ? 'bg-emerald-500' : 'bg-slate-200'
                   }`} />
                 )}
               </React.Fragment>

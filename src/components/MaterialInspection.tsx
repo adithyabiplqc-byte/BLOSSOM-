@@ -112,11 +112,6 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
       alert("Please select a Checking Date.");
       return;
     }
-    if (!header.remarks.trim()) {
-      alert("Please enter General Remarks.");
-      return;
-    }
-
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const itemNum = i + 1;
@@ -138,10 +133,6 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
       }
       if (item.rejectedQuantity === '' || item.rejectedQuantity === null) {
         alert(`Please enter Rejected Quantity for row ${itemNum}.`);
-        return;
-      }
-      if (!item.remarks.trim()) {
-        alert(`Please enter Remarks for row ${itemNum}.`);
         return;
       }
     }

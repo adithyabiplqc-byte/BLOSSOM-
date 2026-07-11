@@ -35,9 +35,10 @@ export const SUBMODULES = [
   { id: 'B8', module: 'B', name: 'Workorder Data' },
   { id: 'B9', module: 'B', name: 'SOP & Audit Documents' },
   { id: 'C1', module: 'C', name: 'Daily Report' },
+  { id: 'C2', module: 'C', name: 'Production Summary' },
   { id: 'C3', module: 'C', name: 'Quality Analysis' },
   { id: 'C4', module: 'C', name: 'Defect Report' },
   { id: 'C5', module: 'C', name: 'Factory Performance' },
-  { id: 'C7', module: 'C', name: 'Worker Analysis' },
-  { id: 'C9', module: 'C', name: 'Blossom AI Analysis' }
+  { id: 'C6', module: 'C', name: 'Worker Analysis' },
+  { id: 'C7', module: 'C', name: 'Blossom AI Analysis' }
 ];

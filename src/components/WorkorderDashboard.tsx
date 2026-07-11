@@ -13,6 +13,14 @@ interface WorkorderDashboardProps {
   globalZone?: string;
 }
 
+const normalizeStatus = (statusStr: string): string => {
+  return String(statusStr || "")
+    .toUpperCase()
+    .trim()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]/g, "");
+};
+
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
   const getParsedSettingList = (keys: string[], defaultVal: string[] = []) => {
     const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
@@ -433,14 +441,18 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="text-indigo-500 block uppercase text-[10px] font-black tracking-widest mb-4">Live Production Flow Tracker</span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 font-sans text-left md:text-center">
                     {['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].map((step, idx) => {
-                      const statusVal = (selectedWO.status || 'CUTTING').toUpperCase();
+                      const statusVal = normalizeStatus(selectedWO.status || 'CUTTING');
                       let isPast = false;
                       let isActive = false;
                       
-                      if (statusVal === 'INLINE_AND_ENDLINE' || statusVal === 'PASS_AND_HOLD') {
+                      if (statusVal === 'INLINEANDENDLINE') {
                         if (step === 'CUTTING') {
                           isPast = true;
                         } else if (step === 'INLINE' || step === 'ENDLINE') {
+                          isActive = true;
+                        }
+                      } else if (statusVal === 'PASSANDHOLD') {
+                        if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
                           isActive = true;
                         }
                       } else {
@@ -454,7 +466,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                            {/* Connecting Line */}
                            {idx < 5 && (
                              <div className={`hidden md:block absolute top-[15px] left-[60%] right-[-40%] h-1 rounded transition-colors ${
-                               isPast || (statusVal === 'INLINE_AND_ENDLINE' && idx < 2) ? 'bg-emerald-500' : 'bg-slate-200'
+                               isPast || (statusVal === 'INLINEANDENDLINE' && idx < 2) ? 'bg-emerald-500' : 'bg-slate-200'
                              }`} />
                            )}
                           
@@ -524,11 +536,14 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                         <td className="p-4 font-semibold">{wo.style}</td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
-                            wo.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                            wo.status === 'CUTTING' ? 'bg-amber-100 text-amber-700' :
-                            wo.status === 'INLINE' ? 'bg-indigo-100 text-indigo-700' :
-                            wo.status === 'PASS_AND_HOLD' ? 'bg-pink-100 text-pink-700 border border-pink-200' :
-                            'bg-slate-100 text-slate-600'
+                            (() => {
+                              const nStatus = normalizeStatus(wo.status || 'CUTTING');
+                              if (nStatus === 'COMPLETED') return 'bg-emerald-100 text-emerald-700';
+                              if (nStatus === 'CUTTING') return 'bg-amber-100 text-amber-700';
+                              if (nStatus === 'INLINE') return 'bg-indigo-100 text-indigo-700';
+                              if (nStatus === 'PASSANDHOLD' || nStatus.includes('HOLD')) return 'bg-pink-100 text-pink-700 border border-pink-200';
+                              return 'bg-slate-100 text-slate-600';
+                            })()
                           }`}>
                             {wo.status || 'CUTTING'}
                           </span>

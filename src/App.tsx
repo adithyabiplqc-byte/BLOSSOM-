@@ -81,30 +81,49 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [checkConnectivity]);
 
-  const fetchData = useCallback(async (customZone?: string) => {
+  const fetchData = useCallback(async (customZone?: string, silent: boolean = false) => {
     if (!user || user.role === 'LOGIN') return null;
     
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const zoneToFetch = customZone || ((user.role === 'ADMIN' || user.zone === 'COMMON') ? globalZone : (user.zone || user.location));
       const data = await api.run('api_getInitialData', { zone: zoneToFetch, userCode: user?.userCode }) as any;
-        if (data) {
-          setUsers(Array.isArray(data.users) ? data.users : []);
-          setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
-          if (data.settings) {
-            setSettings(data.settings);
-          }
-        setConnectionError(null);
+      if (data) {
+        setUsers(Array.isArray(data.users) ? data.users : []);
+        setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        if (!silent) {
+          setConnectionError(null);
+        }
         return data;
       }
     } catch (e: any) {
       console.error("Fetch Data Error:", e);
-      setConnectionError(e.message || "Failed to connect to Google Sheets");
+      if (!silent) {
+        setConnectionError(e.message || "Failed to connect to Google Sheets");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
     return null;
   }, [user?.userCode, user?.role, user?.location, user?.zone, globalZone]);
+
+  // Background polling every 10 seconds to keep all modules in sync across all devices/tabs simultaneously without manual device syncs
+  useEffect(() => {
+    if (!user || user.role === 'LOGIN') return;
+    
+    const pollInterval = setInterval(() => {
+      fetchData(undefined, true);
+    }, 10000);
+    
+    return () => clearInterval(pollInterval);
+  }, [fetchData, user]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN') {
