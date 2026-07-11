@@ -26,6 +26,18 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('bqos_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('bqos_theme', theme);
+  }, [theme]);
 
   const getParsedSettingList = useCallback((keys: string[], defaultVal: string[] = []) => {
     if (!settings) return defaultVal;
@@ -393,7 +405,16 @@ const App: React.FC = () => {
         );
       case 'login':
         return (
-          <div className="min-h-screen bg-slate-50 flex flex-col">
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-200 relative">
+            <div className="absolute top-4 right-4 z-50">
+              <button 
+                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} 
+                className="p-3 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-md border border-slate-150 dark:border-slate-800"
+                title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+              >
+                <Icon name={theme === 'light' ? "moon" : "sun"} size={18} />
+              </button>
+            </div>
             <Login onLogin={handleLogin} users={users} />
             {connectionError && (
               <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -410,34 +431,34 @@ const App: React.FC = () => {
         );
       default:
         return (
-          <div className="min-h-screen bg-slate-50 flex flex-col">
-            <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
+            <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 sticky top-0 z-50 shadow-sm transition-colors duration-200">
               <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none">
                       <Icon name="clipboard-check" size={20} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">BQOS <span className="text-indigo-600">APP</span></h1>
+                        <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-none">BQOS <span className="text-indigo-600 dark:text-indigo-400">APP</span></h1>
                         <div 
                           className={`w-2 h-2 rounded-full ${isOnline === true ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : isOnline === false ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-amber-400 animate-pulse'} transition-all`}
                           title={isOnline === true ? "Connected to Server" : isOnline === false ? "Disconnected" : "Checking Connection..."}
                         />
                       </div>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
+                      <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">Blossom Quality Operation System</p>
                     </div>
                   </div>
                 </div>
 
                 {/* CENTRAL DASHBOARD SWITCHER (ONLY ADMINS CAN SWITCH DASHBOARDS) */}
                 {user && user.role === 'ADMIN' && (
-                  <div className="flex items-center bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200 justify-center">
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-inner border border-slate-200 dark:border-slate-700 justify-center">
                     {user?.role === 'ADMIN' && (
                       <button
                         onClick={() => { setView('admin'); setSelectedSubmodule(''); }}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                       >
                         <Icon name="shield" size={12} />
                         Admin Panel
@@ -445,14 +466,14 @@ const App: React.FC = () => {
                     )}
                     <button
                       onClick={() => { setView('workorder'); setSelectedSubmodule(''); }}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'workorder' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'workorder' ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                     >
                       <Icon name="package" size={12} />
                       Workorders
                     </button>
                     <button
                       onClick={() => { setView('user'); setSelectedSubmodule(''); }}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${(view === 'user' || view === 'submodule') ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-indigo-600'}`}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${(view === 'user' || view === 'submodule') ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                     >
                       <Icon name="activity" size={12} />
                       Operations
@@ -462,12 +483,12 @@ const App: React.FC = () => {
 
                 <div className="flex items-center justify-between gap-2 md:gap-4 self-end md:self-auto">
                   {(user?.role === 'ADMIN' || user?.zone === 'COMMON') && currentZones.length > 0 && (
-                    <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                    <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                       {['ALL', ...currentZones].map(z => (
                         <button
                           key={z}
                           onClick={() => setGlobalZone(z)}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${globalZone === z ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${globalZone === z ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                         >
                           {z}
                         </button>
@@ -477,38 +498,48 @@ const App: React.FC = () => {
                   {user?.role === 'ADMIN' && (
                     <button 
                       onClick={() => setConnectionError("CONFIGURATION_MODE")} 
-                      className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all shadow-sm"
+                      className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm"
                       title="System Settings & Google Sheets Setup"
                     >
                       <Icon name="settings" size={18} />
                     </button>
                   )}
+                  
+                  {/* THEME TOGGLE BUTTON */}
+                  <button 
+                    onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} 
+                    className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm"
+                    title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                  >
+                    <Icon name={theme === 'light' ? "moon" : "sun"} size={18} />
+                  </button>
+
                   <button 
                     onClick={() => fetchData()} 
                     disabled={loading}
-                    className={`p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all shadow-sm ${loading ? 'animate-spin opacity-50' : ''}`}
+                    className={`p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm ${loading ? 'animate-spin opacity-50' : ''}`}
                     title="Refresh Data"
                   >
                     <Icon name="refresh-cw" size={18} />
                   </button>
                   <div className="flex flex-col items-end">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{user?.username}</span>
-                    <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">{user?.username}</span>
+                    <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
                       {user?.role} • {user?.zone || user?.location}{user?.location && user?.zone && user?.location !== user?.zone ? ` - ${user.location}` : ''}
                     </span>
                   </div>
-                  <button onClick={handleLogout} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm">
+                  <button onClick={handleLogout} className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 transition-all shadow-sm">
                     <Icon name="log-out" size={18} />
                   </button>
                 </div>
               </div>
               {(user?.role === 'ADMIN' || user?.zone === 'COMMON') && currentZones.length > 0 && (
-                <div className="sm:hidden mt-2 bg-slate-100 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
+                <div className="sm:hidden mt-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center justify-around overflow-x-auto no-scrollbar">
                   {['ALL', ...currentZones].map(z => (
                     <button
                       key={z}
                       onClick={() => setGlobalZone(z)}
-                      className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all whitespace-nowrap ${globalZone === z ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all whitespace-nowrap ${globalZone === z ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
                     >
                       {z}
                     </button>
@@ -550,8 +581,8 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Admin <span className="text-indigo-600">Control</span></h2>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
+                      <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">Admin <span className="text-indigo-600 dark:text-indigo-400">Control</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
                     </div>
                   </div>
                   <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} settings={settings} />
@@ -561,8 +592,8 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Workorder <span className="text-indigo-600">Center</span></h2>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
+                      <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">Workorder <span className="text-indigo-600 dark:text-indigo-400">Center</span></h2>
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
                     </div>
                   </div>
                   <WorkorderDashboard 
@@ -603,8 +634,8 @@ const App: React.FC = () => {
               )}
             </main>
 
-            <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">© 2026 BQOS APP • Blossom Quality Operation System • v2.0.0</p>
+            <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 px-4 text-center transition-colors duration-200">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">© 2026 BQOS APP • Blossom Quality Operation System • v2.0.0</p>
             </footer>
           </div>
         );
