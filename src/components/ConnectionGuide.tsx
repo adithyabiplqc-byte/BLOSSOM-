@@ -13,10 +13,13 @@ interface ConnectionGuideProps {
 
 export default function ConnectionGuide({ error, onClose, isPermanentlyConnected }: ConnectionGuideProps) {
   const [inputUrl, setInputUrl] = React.useState(localStorage.getItem('VITE_GAS_URL') || '');
+  const [driveInputUrl, setDriveInputUrl] = React.useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
   const [spreadsheetInput, setSpreadsheetInput] = React.useState(sheetsService.getSpreadsheetId() || '');
   const [pinging, setPinging] = React.useState(false);
+  const [pingingDrive, setPingingDrive] = React.useState(false);
   const [processingOAuth, setProcessingOAuth] = React.useState(false);
   const [pingResult, setPingResult] = React.useState<{success: boolean, message: string} | null>(null);
+  const [pingDriveResult, setPingDriveResult] = React.useState<{success: boolean, message: string} | null>(null);
   const [oauthResult, setOauthResult] = React.useState<{success: boolean, message: string} | null>(null);
   const [showForceButton, setShowForceButton] = React.useState(false);
   const [copyingScript, setCopyingScript] = React.useState(false);
@@ -184,7 +187,7 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
       
       const data = await response.json();
       if (data && data.success) {
-        setPingResult({ success: true, message: "Connection Successful! Your Script is responding perfectly through our server database proxy." });
+        setPingResult({ success: true, message: "Sheets Connection Successful! Your Script is responding perfectly through our server database proxy." });
       } else {
         throw new Error("Proxy test returned failure, falling back to direct...");
       }
@@ -198,7 +201,7 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
         });
         const data = await response.json();
         if (data && data.success) {
-          setPingResult({ success: true, message: "Connection Successful! (Direct Browser Sync Mode)" });
+          setPingResult({ success: true, message: "Sheets Connection Successful! (Direct Browser Sync Mode)" });
         } else {
           setPingResult({ success: false, message: "Script responded but ping failed. Check permissions internally on Google." });
         }
@@ -213,28 +216,58 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
     }
   };
 
-  const saveUrl = () => {
-    if (inputUrl.includes('/exec')) {
-      localStorage.setItem('VITE_GAS_URL', inputUrl);
-      window.location.reload();
-    } else {
-      alert("Please enter a valid Google Apps Script Web App URL ending in /exec");
+  const testDriveConnection = async () => {
+    if (!driveInputUrl.includes('/exec')) {
+      setPingDriveResult({ success: false, message: "URL must end in /exec" });
+      return;
+    }
+    
+    setPingingDrive(true);
+    setPingDriveResult(null);
+    try {
+      const response = await fetch("/api/gas", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gas-url': driveInputUrl
+        },
+        body: JSON.stringify({ action: 'api_ping' })
+      });
+      
+      const data = await response.json();
+      if (data && data.success) {
+        setPingDriveResult({ success: true, message: "Drive Connection Successful! Your Apps Script is responding perfectly through our server database proxy." });
+      } else {
+        throw new Error("Proxy test returned failure...");
+      }
+    } catch (e) {
+      setPingDriveResult({ 
+        success: false, 
+        message: "Failed to ping Drive server. Verify your script is deployed as Web App (Execute as: Me, Who has access: Anyone)." 
+      });
+    } finally {
+      setPingingDrive(false);
     }
   };
 
   const makePermanent = async () => {
-    if (!inputUrl.includes('/exec')) {
-      setPingResult({ success: false, message: "Invalid URL" });
+    if (inputUrl && !inputUrl.includes('/exec')) {
+      setPingResult({ success: false, message: "Sheets Web App URL must end in /exec" });
+      return;
+    }
+    if (driveInputUrl && !driveInputUrl.includes('/exec')) {
+      setPingDriveResult({ success: false, message: "Drive Web App URL must end in /exec" });
       return;
     }
     
     setPinging(true);
     try {
       const currentSpreadsheetId = spreadsheetInput.trim() || sheetsService.getSpreadsheetId() || '';
-      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId) as any;
+      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId, driveInputUrl) as any;
       if (res.success) {
-        setPingResult({ success: true, message: "URL saved permanently on server! You can now use this app from any browser." });
+        setPingResult({ success: true, message: "Both configurations saved permanently on server! This app is fully synced." });
         localStorage.removeItem('VITE_GAS_URL');
+        localStorage.removeItem('VITE_GAS_DRIVE_URL');
         setTimeout(() => window.location.reload(), 2000);
       } else {
         setPingResult({ success: false, message: res.error || "Failed to save permanently" });
@@ -601,38 +634,102 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
               <p className="text-slate-600 text-xs font-mono bg-white p-2.5 rounded-lg border border-slate-150 truncate">{error}</p>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-slate-500 font-black uppercase text-[9px] tracking-widest block">Script Deployment Web App URL:</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={inputUrl}
-                  onChange={(e) => { setInputUrl(e.target.value); setPingResult(null); }}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all shadow-inner"
-                />
-                <button 
-                  onClick={testConnection}
-                  disabled={pinging}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {pinging ? 'Pinging...' : 'Test'}
-                </button>
-                <button 
+            <div className="space-y-6">
+              {/* SERVER 1: SHEETS DATA CONNECTION */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">1</span>
+                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Server 1: Google Apps Script for Sheets (Data Sync)</label>
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={inputUrl}
+                    onChange={(e) => { setInputUrl(e.target.value); setPingResult(null); }}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
+                  />
+                  <button 
+                    onClick={testConnection}
+                    disabled={pinging}
+                    className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50"
+                  >
+                    {pinging ? 'Pinging...' : 'Test'}
+                  </button>
+                </div>
+                {pingResult && (
+                  <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                    {pingResult.message}
+                  </div>
+                )}
+              </div>
+
+              {/* SERVER 2: DRIVE PDF STORAGE CONNECTION */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
+                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Server 2: Google Apps Script for Drive (PDF Uploads)</label>
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={driveInputUrl}
+                    onChange={(e) => { setDriveInputUrl(e.target.value); setPingDriveResult(null); }}
+                    placeholder="https://script.google.com/macros/s/.../exec (same or separate web app)"
+                    className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
+                  />
+                  <button 
+                    onClick={testDriveConnection}
+                    disabled={pingingDrive}
+                    className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50"
+                  >
+                    {pingingDrive ? 'Pinging...' : 'Test'}
+                  </button>
+                </div>
+                {pingDriveResult && (
+                  <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingDriveResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                    {pingDriveResult.message}
+                  </div>
+                )}
+              </div>
+
+              {/* SAVE BOTH PERMANENTLY */}
+              <div className="pt-2">
+                <button
+                  type="button"
                   onClick={makePermanent}
                   disabled={pinging}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 disabled:opacity-50"
-                  title="Save URL to server permanently"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs tracking-widest py-4 px-6 rounded-xl transition duration-150 shadow-md shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
                 >
-                  Save
+                  <Icon name="save" size={14} />
+                  Save Dual Server Connections Permanently
                 </button>
               </div>
-              
-              {pingResult && (
-                <div className={`p-2 rounded mt-1 text-[10px] font-bold uppercase tracking-tight ${pingResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                  {pingResult.message}
-                </div>
-              )}
+
+              {/* Direct Google Drive PDF Upload Status */}
+              <div className="mt-4 pt-4 border-t border-slate-200/60">
+                {(inputUrl.includes('/exec') || driveInputUrl.includes('/exec')) ? (
+                  <div className="bg-emerald-50 border border-emerald-150 p-4 rounded-xl flex items-start gap-2.5">
+                    <span className="text-emerald-600 text-sm">✓</span>
+                    <div>
+                      <span className="font-extrabold text-xs text-emerald-900 block uppercase tracking-wider">Direct Google Drive PDF Uploads: ACTIVE</span>
+                      <span className="text-[10.5px] text-emerald-700 font-medium block mt-1 leading-relaxed">
+                        Since your Apps Script connection is active, all PDF guidelines published by any operator are automatically and permanently stored in your Google Drive folder. Everyone uses this same permanent connection; individual Google accounts are not required!
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex items-start gap-2.5">
+                    <span className="text-indigo-600 text-sm">💡</span>
+                    <div>
+                      <span className="font-extrabold text-xs text-indigo-900 block uppercase tracking-wider">Direct Google Drive PDF Upload Support</span>
+                      <span className="text-[10.5px] text-indigo-700 font-medium block mt-1 leading-relaxed">
+                        Connecting Apps Script activates permanent Google Drive storage. Once connected, all users can upload PDF files directly without needing separate Google accounts.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

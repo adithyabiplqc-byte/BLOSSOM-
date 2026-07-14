@@ -4,6 +4,7 @@ import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 
 const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
+const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 const HARDCODED_GAS_URLS = [
   "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
@@ -46,7 +47,8 @@ async function getFirestoreConfig() {
       const fields = data.fields || {};
       const gasUrl = fields.gasUrl?.stringValue || "";
       const spreadsheetId = fields.spreadsheetId?.stringValue || "";
-      cachedFsConfig = { gasUrl, spreadsheetId };
+      const gasDriveUrl = fields.gasDriveUrl?.stringValue || "";
+      cachedFsConfig = { gasUrl, spreadsheetId, gasDriveUrl };
       lastFsFetchTime = now;
       return cachedFsConfig;
     }
@@ -56,17 +58,19 @@ async function getFirestoreConfig() {
   return cachedFsConfig; // Return previous cached values or null if none
 }
 
-async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, forceClear = false) {
+async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, gasDriveUrl = "", forceClear = false) {
   try {
     let currentGasUrl = gasUrl;
     let currentSpreadsheetId = spreadsheetId;
+    let currentGasDriveUrl = gasDriveUrl;
     
     // Fetch and merge current config to make sure we don't clear existing valid coordinates
-    if (!forceClear && (!currentGasUrl || !currentSpreadsheetId)) {
+    if (!forceClear && (!currentGasUrl || !currentSpreadsheetId || !currentGasDriveUrl)) {
       const active = await getFirestoreConfig();
       if (active) {
         if (!currentGasUrl) currentGasUrl = active.gasUrl;
         if (!currentSpreadsheetId) currentSpreadsheetId = active.spreadsheetId;
+        if (!currentGasDriveUrl) currentGasDriveUrl = active.gasDriveUrl || "";
       }
     }
 
@@ -82,6 +86,10 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, forceC
       fields.spreadsheetId = { stringValue: currentSpreadsheetId || "" };
       fieldPaths.push("spreadsheetId");
     }
+    if (currentGasDriveUrl || forceClear) {
+      fields.gasDriveUrl = { stringValue: currentGasDriveUrl || "" };
+      fieldPaths.push("gasDriveUrl");
+    }
 
     const body = { fields };
     const maskParams = fieldPaths.map(p => `updateMask.fieldPaths=${p}`).join("&");
@@ -95,8 +103,8 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, forceC
     });
     
     if (res.ok) {
-      console.log(`[SERVER FIRESTORE] Synced connection config (gasUrl: ${currentGasUrl}, spreadsheetId: ${currentSpreadsheetId}) to Firestore.`);
-      cachedFsConfig = { gasUrl: currentGasUrl, spreadsheetId: currentSpreadsheetId };
+      console.log(`[SERVER FIRESTORE] Synced connection config (gasUrl: ${currentGasUrl}, spreadsheetId: ${currentSpreadsheetId}, gasDriveUrl: ${currentGasDriveUrl}) to Firestore.`);
+      cachedFsConfig = { gasUrl: currentGasUrl, spreadsheetId: currentSpreadsheetId, gasDriveUrl: currentGasDriveUrl };
       lastFsFetchTime = Date.now();
     } else {
       console.warn("[SERVER FIRESTORE] Auto-sync PATCH failed:", await res.text());
@@ -1661,6 +1669,10 @@ async function startServer() {
         fs.writeFileSync(SPREADSHEET_FILE, fsConfig.spreadsheetId.trim());
         console.log(`[BOOT AUTO-HEAL] Restored missing SPREADSHEET ID from Firestore: ${fsConfig.spreadsheetId}`);
       }
+      if (fsConfig.gasDriveUrl && !fs.existsSync(CONFIG_DRIVE_FILE)) {
+        fs.writeFileSync(CONFIG_DRIVE_FILE, fsConfig.gasDriveUrl.trim());
+        console.log(`[BOOT AUTO-HEAL] Restored missing GAS DRIVE URL from Firestore: ${fsConfig.gasDriveUrl}`);
+      }
     }
   } catch (err: any) {
     console.warn("[BOOT AUTO-HEAL] Non-blocking Firestore auto-heal warning:", err.message);
@@ -1676,6 +1688,7 @@ async function startServer() {
   app.get("/api/config", async (req, res) => {
     let fileUrl = null;
     let fileSpreadsheetId = null;
+    let fileDriveUrl = null;
     try {
       if (fs.existsSync(CONFIG_FILE)) {
         fileUrl = fs.readFileSync(CONFIG_FILE, 'utf8').trim();
@@ -1683,15 +1696,20 @@ async function startServer() {
       if (fs.existsSync(SPREADSHEET_FILE)) {
         fileSpreadsheetId = fs.readFileSync(SPREADSHEET_FILE, 'utf8').trim();
       }
+      if (fs.existsSync(CONFIG_DRIVE_FILE)) {
+        fileDriveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+      }
     } catch (e) {}
 
     // Load from Firestore as well to auto-heal
     let fsUrl = "";
     let fsSpreadsheetId = "";
+    let fsDriveUrl = "";
     const fsConfig = await getFirestoreConfig();
     if (fsConfig) {
       fsUrl = fsConfig.gasUrl;
       fsSpreadsheetId = fsConfig.spreadsheetId;
+      fsDriveUrl = fsConfig.gasDriveUrl || "";
 
       // Auto-heal local files from Firestore configuration independently
       if (fsUrl && fsUrl !== fileUrl) {
@@ -1708,6 +1726,13 @@ async function startServer() {
           fileSpreadsheetId = fsSpreadsheetId;
         } catch (e) {}
       }
+      if (fsDriveUrl && fsDriveUrl !== fileDriveUrl) {
+        try {
+          fs.writeFileSync(CONFIG_DRIVE_FILE, fsDriveUrl.trim());
+          console.log(`[AUTO-HEAL SERVER] Recreated CONFIG_DRIVE_FILE from Firestore: ${fsDriveUrl}`);
+          fileDriveUrl = fsDriveUrl;
+        } catch (e) {}
+      }
     }
 
     const envUrl = process.env.VITE_GAS_URL;
@@ -1721,7 +1746,8 @@ async function startServer() {
       isPermanent: !!fileUrl || hasEnv || !!fsUrl || !!HARDCODED_GAS_URL,
       source: fileUrl ? 'file' : (fsUrl ? 'firestore' : (hasEnv ? 'env' : 'hardcoded')),
       gasUrl: fileUrl || fsUrl || (hasEnv ? envUrl : HARDCODED_GAS_URL),
-      spreadsheetId: fileSpreadsheetId || fsSpreadsheetId || process.env.VITE_SPREADSHEET_ID || ""
+      spreadsheetId: fileSpreadsheetId || fsSpreadsheetId || process.env.VITE_SPREADSHEET_ID || "",
+      gasDriveUrl: fileDriveUrl || fsDriveUrl || ""
     });
   });
 
@@ -1740,7 +1766,7 @@ async function startServer() {
   });
 
   app.post("/api/save-config", async (req, res) => {
-    const { url, spreadsheetId } = req.body;
+    const { url, spreadsheetId, driveUrl } = req.body;
     
     try {
       if (url) {
@@ -1756,9 +1782,17 @@ async function startServer() {
         console.log(`[CONFIG] Permanent Spreadsheet ID saved to ${SPREADSHEET_FILE}`);
       }
 
+      if (driveUrl) {
+        if (!driveUrl.startsWith("https://script.google.com/macros/s/")) {
+          return res.status(400).json({ success: false, error: "Invalid Google Drive Script URL" });
+        }
+        fs.writeFileSync(CONFIG_DRIVE_FILE, driveUrl.trim());
+        console.log(`[CONFIG] Permanent GAS DRIVE URL saved to ${CONFIG_DRIVE_FILE}`);
+      }
+
       // Sync the new configuration changes to Firestore
       try {
-        await saveFirestoreConfig(url || "", spreadsheetId || "");
+        await saveFirestoreConfig(url || "", spreadsheetId || "", driveUrl || "");
       } catch (fsErr: any) {
         console.warn("[CONFIG] Non-blocking Firestore sync warning:", fsErr.message);
       }
@@ -1778,11 +1812,14 @@ async function startServer() {
       if (fs.existsSync(SPREADSHEET_FILE)) {
         try { fs.unlinkSync(SPREADSHEET_FILE); } catch (e) {}
       }
+      if (fs.existsSync(CONFIG_DRIVE_FILE)) {
+        try { fs.unlinkSync(CONFIG_DRIVE_FILE); } catch (e) {}
+      }
       
       cachedFsConfig = null;
       lastFsFetchTime = 0;
       
-      await saveFirestoreConfig("", "", true);
+      await saveFirestoreConfig("", "", "", true);
       
       console.log("[CONFIG] Cleared configuration files and Firestore backup permanently.");
       res.json({ success: true, message: "Configuration cleared permanently on server" });
@@ -1878,9 +1915,25 @@ async function startServer() {
         let appsScriptSuccess = false;
         let appsScriptResult: any = null;
 
+        // Try dedicated drive script first if configured
+        let sopCandidateUrls = [...candidateUrls];
+        let driveUrl = null;
+        try {
+          if (fs.existsSync(CONFIG_DRIVE_FILE)) {
+            driveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+          }
+        } catch (e) {}
+        if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
+          driveUrl = fsConfig.gasDriveUrl;
+        }
+        if (driveUrl && !sopCandidateUrls.includes(driveUrl)) {
+          sopCandidateUrls = [driveUrl, ...sopCandidateUrls];
+          console.log(`[API PROXY] Using dedicated PDF/Drive Server URL: ${driveUrl}`);
+        }
+
         // Try Apps Script first if candidate URLs exist
-        if (candidateUrls.length > 0) {
-          for (const targetUrl of candidateUrls) {
+        if (sopCandidateUrls.length > 0) {
+          for (const targetUrl of sopCandidateUrls) {
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 40000);

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
 import { api } from '../services/api';
-import { sheetsService } from '../services/sheetsService';
-import { getAccessToken } from '../services/auth';
 
 interface SOPReport {
   id?: string;
@@ -407,6 +405,21 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     }
   };
 
+  const getFileNameFromUrl = (url: string) => {
+    if (!url) return "Document Link";
+    if (url.includes("drive.google.com")) {
+      return "Google Drive Document";
+    }
+    try {
+      const parts = url.split('/');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.toLowerCase().endsWith('.pdf')) {
+        return decodeURIComponent(lastPart);
+      }
+    } catch (e) {}
+    return "Shared PDF Guideline";
+  };
+
   const resetFormState = () => {
     setTitle('');
     setCategory('SOP');
@@ -421,6 +434,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       alert("Please provide the Document Heading and description text.");
       return;
     }
+    
     if (!attachmentFile) {
       alert("Please choose a PDF document to upload.");
       return;
@@ -431,62 +445,43 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
     try {
       let finalUrl = '';
-      const base64Data = await fileToBase64(attachmentFile);
+      let finalName = '';
+
+      finalName = attachmentFile!.name;
+      const base64Data = await fileToBase64(attachmentFile!);
       const rawBase64 = base64Data.split(',')[1];
-      const hasAccessToken = !!getAccessToken();
 
-      if (hasAccessToken) {
-        setUploadProgress('Uploading PDF to Google Drive bin...');
-        try {
-          const uploadedUrl = await sheetsService.uploadFileToDrive(attachmentFile);
-          finalUrl = uploadedUrl;
-        } catch (authErr) {
-          console.warn("Direct auth token write failed, resorting to standard service fallback...", authErr);
-          try {
-            const res = await api.run('api_uploadSOPFile', attachmentFile.name, rawBase64, attachmentFile.type) as any;
-            if (res?.success && res.url) {
-              finalUrl = res.url;
-            } else {
-              throw new Error(res?.error || "Apps Script rejected document bundle packet.");
-            }
-          } catch (innerErr) {
-            console.warn("Direct GAS upload failed. Falling back to browser-side local store...", innerErr);
-            finalUrl = await saveToLocalIndexedDB(attachmentFile.name, attachmentFile.type, base64Data);
-          }
+      setUploadProgress('Uploading PDF to Google Drive...');
+      try {
+        const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
+        if (res?.success && res.url) {
+          finalUrl = res.url;
+        } else {
+          throw new Error(res?.error || "Apps Script rejected document bundle packet.");
         }
-      } else {
-        setUploadProgress('Sending file stream package to server...');
+      } catch (gasErr: any) {
+        console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
+        setUploadProgress('Storing locally on current server disk...');
         try {
-          const res = await api.run('api_uploadSOPFile', attachmentFile.name, rawBase64, attachmentFile.type) as any;
-          if (res?.success && res.url) {
-            finalUrl = res.url;
-          } else {
-            throw new Error(res?.error || "Google Integration disk failure.");
-          }
-        } catch (gasErr: any) {
-          console.warn("Proxy fallback triggered...", gasErr);
-          setUploadProgress('Storing locally on current server disk...');
-          try {
-            const response = await fetch('/api/upload-offline', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fileName: attachmentFile.name,
-                base64Data: base64Data,
-                mimeType: attachmentFile.type
-              })
-            });
+          const response = await fetch('/api/upload-offline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: attachmentFile!.name,
+              base64Data: base64Data,
+              mimeType: attachmentFile!.type
+            })
+          });
 
-            if (response.ok) {
-              const uploadRes = await response.json();
-              finalUrl = uploadRes.url;
-            } else {
-              throw new Error("Local server rejected disk upload.");
-            }
-          } catch (offlineErr) {
-            console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
-            finalUrl = await saveToLocalIndexedDB(attachmentFile.name, attachmentFile.type, base64Data);
+          if (response.ok) {
+            const uploadRes = await response.json();
+            finalUrl = uploadRes.url;
+          } else {
+            throw new Error("Local server rejected disk upload.");
           }
+        } catch (offlineErr) {
+          console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
+          finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
         }
       }
 
@@ -499,7 +494,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         category,
         description: description.trim(),
         attachmentUrl: finalUrl,
-        attachmentName: attachmentFile.name,
+        attachmentName: finalName,
         creator: user?.username || 'SYSTEM ADMIN',
         zone: activeZone,
         timestamp: new Date().toISOString()
@@ -714,9 +709,9 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 />
               </div>
 
-              {/* File Attachment Drag and Drop selection */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attach PDF Document *</label>
+              {/* Direct Guideline PDF File Attachment */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Guideline PDF Document *</label>
                 <div className="border border-dashed border-[#00B4D8]/40 hover:border-[#00B4D8] bg-slate-50/70 rounded-xl p-6 text-center cursor-pointer relative transition duration-150">
                   <input
                     type="file"
@@ -736,15 +731,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     </p>
                     <span className="text-[10px] text-slate-400 block font-normal">Files must be strictly in PDF file format</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Informative Netlify / Serverless Hosting notice */}
-              <div className="bg-amber-50/60 border border-amber-200/50 rounded-xl p-3 text-[11px] text-slate-600 leading-relaxed flex items-start gap-2.5 shadow-2xs">
-                <span className="text-amber-500 mt-0.5 font-bold">⚠️</span>
-                <div>
-                  <span className="font-extrabold text-slate-750 block mb-0.5">Static Hosting / Netlify Environment Notice</span>
-                  When hosting on serverless platforms like Netlify, the application has no persistent backend disk storage. To store and share uploaded PDFs globally with all your team members, please connect your <strong>Google Sheets & Apps Script</strong> in the <strong>Settings menu</strong>. Otherwise, newly uploaded PDFs will be stored securely inside your browser's local <strong>IndexedDB database</strong> and visible only to you.
                 </div>
               </div>
 

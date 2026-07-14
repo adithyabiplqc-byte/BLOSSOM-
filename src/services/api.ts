@@ -92,13 +92,16 @@ export const api = {
       // 2. Fallback and local sync
       const localUrl = localStorage.getItem('VITE_GAS_URL');
       const localSpreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID');
+      const localDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
 
       const serverUrl = data.gasUrl || "";
       const serverSpreadsheetId = data.spreadsheetId || "";
+      const serverDriveUrl = data.gasDriveUrl || "";
 
       // Final resolved values
       const finalUrl = serverUrl || localUrl || "";
       const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "";
+      const finalDriveUrl = serverDriveUrl || localDriveUrl || "";
 
       // Update client localStorage to match the resolved server/firestore/local values
       if (finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/")) {
@@ -111,27 +114,34 @@ export const api = {
           localStorage.setItem('VITE_SPREADSHEET_ID', finalSpreadsheetId);
         }
       }
+      if (finalDriveUrl && finalDriveUrl.startsWith("https://script.google.com/macros/s/")) {
+        if (localDriveUrl !== finalDriveUrl) {
+          localStorage.setItem('VITE_GAS_DRIVE_URL', finalDriveUrl);
+        }
+      }
 
       // Safe Auto-Heal: Only write custom config to the server if both are valid AND different from server's current state
-      const isServerMissingConfig = !serverUrl || !serverSpreadsheetId || data.source === 'hardcoded';
+      const isServerMissingConfig = !serverUrl || !serverSpreadsheetId || !serverDriveUrl || data.source === 'hardcoded';
       const isClientConfigValid = !!(finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/") && finalSpreadsheetId);
       
       if (isServerMissingConfig && isClientConfigValid) {
         const urlChanged = serverUrl !== finalUrl;
         const sheetChanged = serverSpreadsheetId !== finalSpreadsheetId;
+        const driveChanged = serverDriveUrl !== finalDriveUrl;
         
-        if (urlChanged || sheetChanged) {
+        if (urlChanged || sheetChanged || driveChanged) {
           console.log("[AUTO-HEAL] Re-registering complete custom GAS Web App URL and Spreadsheet ID on server proxy...");
           await fetch("/api/save-config", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: finalUrl, spreadsheetId: finalSpreadsheetId })
+            body: JSON.stringify({ url: finalUrl, spreadsheetId: finalSpreadsheetId, driveUrl: finalDriveUrl })
           }).catch(() => {});
           data.hasGasUrl = true;
           data.isPermanent = true;
           data.source = 'file';
           data.gasUrl = finalUrl;
           data.spreadsheetId = finalSpreadsheetId;
+          data.gasDriveUrl = finalDriveUrl;
         }
       }
 
@@ -144,13 +154,15 @@ export const api = {
     }
   },
 
-  async saveServerConfig(url: string, spreadsheetId?: string) {
+  async saveServerConfig(url: string, spreadsheetId?: string, driveUrl?: string) {
     try {
       const finalUrl = url || localStorage.getItem('VITE_GAS_URL') || "";
       const finalSpreadsheetId = spreadsheetId || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
+      const finalDriveUrl = driveUrl || localStorage.getItem('VITE_GAS_DRIVE_URL') || "";
 
       if (finalUrl) localStorage.setItem('VITE_GAS_URL', finalUrl);
       if (finalSpreadsheetId) localStorage.setItem('VITE_SPREADSHEET_ID', finalSpreadsheetId);
+      if (finalDriveUrl) localStorage.setItem('VITE_GAS_DRIVE_URL', finalDriveUrl);
 
       let resData = { success: true, message: "Local settings saved." };
       
@@ -161,6 +173,9 @@ export const api = {
       }
       if (finalSpreadsheetId) {
         payload.spreadsheetId = finalSpreadsheetId;
+      }
+      if (finalDriveUrl && finalDriveUrl.startsWith("https://script.google.com/macros/s/")) {
+        payload.driveUrl = finalDriveUrl;
       }
 
       if (Object.keys(payload).length > 0) {
@@ -180,6 +195,7 @@ export const api = {
         };
         if (finalUrl) fbPayload.gasUrl = finalUrl;
         if (finalSpreadsheetId) fbPayload.spreadsheetId = finalSpreadsheetId;
+        if (finalDriveUrl) fbPayload.gasDriveUrl = finalDriveUrl;
         
         await setDoc(docRef, fbPayload, { merge: true });
         console.log("[FIRESTORE] Connection config persisted.");
@@ -196,6 +212,7 @@ export const api = {
 
   async disconnect() {
     localStorage.removeItem('VITE_GAS_URL');
+    localStorage.removeItem('VITE_GAS_DRIVE_URL');
     localStorage.removeItem('VITE_SPREADSHEET_ID');
     localStorage.removeItem('GOOGLE_ACCESS_TOKEN');
     localStorage.removeItem('BQOS_DEMO_MODE');

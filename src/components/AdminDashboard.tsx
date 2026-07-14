@@ -86,6 +86,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : ''
   });
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
+  const [driveServerUrl, setDriveServerUrl] = useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
