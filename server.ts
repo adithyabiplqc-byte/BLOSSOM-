@@ -1861,16 +1861,57 @@ async function startServer() {
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
       
-      // Direct routing of SOP and PDF actions to the integrated database & local file system
+      // Direct routing of SOP and PDF actions to Google Sheets/Drive with self-healing local database & file system fallback
       if (['api_uploadSOPFile', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData'].includes(action)) {
-        console.log(`[API PROXY] Directly routing local SOP action "${action}" to integrated database.`);
+        console.log(`[API PROXY] Routing SOP action "${action}" with permanent cloud and local fallback...`);
+        
+        let appsScriptSuccess = false;
+        let appsScriptResult: any = null;
+
+        // Try Apps Script first if candidate URLs exist
+        if (candidateUrls.length > 0) {
+          for (const targetUrl of candidateUrls) {
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 40000);
+              
+              const response = await fetch(targetUrl, {
+                method: "POST",
+                body: JSON.stringify(bodyPayload),
+                headers: { "Content-Type": "application/json" },
+                redirect: 'follow',
+                signal: controller.signal as any
+              });
+              clearTimeout(timeoutId);
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result && (result.success === true || (result.success !== false && !result.error))) {
+                  console.log(`[API PROXY] SOP action "${action}" successfully executed on Apps Script!`);
+                  appsScriptSuccess = true;
+                  appsScriptResult = result;
+                  break;
+                }
+              }
+            } catch (err: any) {
+              console.warn(`[API PROXY] SOP action "${action}" Apps Script attempt failed for URL ${targetUrl}:`, err.message);
+            }
+          }
+        }
+
+        if (appsScriptSuccess) {
+          return res.json(appsScriptResult);
+        }
+
+        // Fallback to local integrated database/filesystem if Apps Script is unavailable or fails
+        console.log(`[API PROXY] Apps Script failed or unconfigured. Routing SOP action "${action}" to local ephemeral fallback.`);
         try {
           const localResult = executeLocalAction(action, bodyPayload.params || []);
           if (localResult !== undefined) {
             return res.json(localResult);
           }
         } catch (localErr: any) {
-          console.error(`[API PROXY] SOP local execution failed for action "${action}":`, localErr.message);
+          console.error(`[API PROXY] SOP local execution fallback failed for action "${action}":`, localErr.message);
           return res.status(500).json({ success: false, error: localErr.message });
         }
       }

@@ -999,7 +999,53 @@ export const api = {
         const fileName = args[0];
         const rawBase64 = args[1];
         const mimeType = args[2];
+
+        // 1. First, try to upload directly to Google Apps Script (GAS) to save to Google Drive permanently!
+        const customUrl = localStorage.getItem('VITE_GAS_URL');
+        const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+        const candidateUrls: string[] = [];
+        if (customUrl) candidateUrls.push(customUrl);
+        if (envUrl && !envUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envUrl)) candidateUrls.push(envUrl);
+        const hardcodedUrls = [
+          "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
+          "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
+        ];
+        hardcodedUrls.forEach(url => {
+          if (!candidateUrls.includes(url)) {
+            candidateUrls.push(url);
+          }
+        });
+
+        if (candidateUrls.length > 0) {
+          console.log("[runDirect api_uploadSOPFile] Attempting direct permanent upload to Google Apps Script...");
+          const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
+          for (const targetUrl of candidateUrls) {
+            try {
+              const response = await fetch(targetUrl, {
+                method: 'POST',
+                mode: 'cors',
+                body: JSON.stringify({
+                  action: 'api_uploadSOPFile',
+                  params: [fileName, rawBase64, mimeType],
+                  spreadsheetId: activeSheetId
+                })
+              });
+              if (response.ok) {
+                const parsed = await response.json();
+                if (parsed && parsed.success && parsed.url) {
+                  console.log("[runDirect api_uploadSOPFile] Google Drive permanent upload successful via Apps Script!", parsed.url);
+                  return parsed;
+                }
+              }
+            } catch (err: any) {
+              console.warn(`[runDirect api_uploadSOPFile] Direct GAS upload failed for ${targetUrl}:`, err.message);
+            }
+          }
+        }
+
+        // 2. If Apps Script fails, try the local backend server `/api/upload-offline`
         try {
+          console.log("[runDirect api_uploadSOPFile] GAS fallback failed. Attempting local server file upload...");
           const response = await fetch('/api/upload-offline', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1017,6 +1063,7 @@ export const api = {
           }
         } catch (e: any) {
           console.warn("Local server-side fallback failed or is unavailable (e.g. static hosting on Netlify). Storing file locally inside browser IndexedDB...", e);
+          // 3. Last resort: IndexedDB fallback
           try {
             const fileId = 'sop_file_' + generateUuid();
             const fileData = {
