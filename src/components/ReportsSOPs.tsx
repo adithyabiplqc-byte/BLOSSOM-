@@ -279,9 +279,36 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const activeZone = globalZone || user?.zone || 'ALL';
       const data = await api.run('api_getREPORTS_SOPData', { zone: activeZone }) as any[];
       
+      let deletedIds: string[] = [];
+      try {
+        const localDeleted = JSON.parse(localStorage.getItem('bqos_deleted_sop_ids') || '[]');
+        if (Array.isArray(localDeleted)) {
+          deletedIds = localDeleted.map(String);
+        }
+      } catch (err) {}
+
+      let rawRecords = Array.isArray(data) ? data : [];
+      const deletedRecord = rawRecords.find((r: any) => r && r.id === '__DELETED_SOP_IDS__');
+      if (deletedRecord && Array.isArray(deletedRecord.deletedList)) {
+        deletedRecord.deletedList.forEach((id: any) => {
+          const sId = String(id);
+          if (!deletedIds.includes(sId)) {
+            deletedIds.push(sId);
+          }
+        });
+      }
+      
+      // Update local storage to persist deleted IDs in client session
+      try {
+        localStorage.setItem('bqos_deleted_sop_ids', JSON.stringify(deletedIds));
+      } catch (err) {}
+
+      // Filter out the special deleted record from actual rendering
+      rawRecords = rawRecords.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__');
+
       let mapped: SOPReport[] = [];
-      if (Array.isArray(data) && data.length > 0) {
-        mapped = data.map((item: any) => {
+      if (rawRecords.length > 0) {
+        mapped = rawRecords.map((item: any) => {
           const rawId = getValCaseInsensitive(item, 'id', '');
           const id = rawId ? String(rawId) : `sop-${Math.random().toString(36).substr(2, 9)}`;
           return {
@@ -302,10 +329,24 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
       const customMapped = mapped.filter(r => !preloadedIds.has(r.id));
       const finalReports = [...customMapped, ...PRELOADED_SOPS];
-      setReports(finalReports);
+
+      // Exclude any deleted ones
+      const deletedSet = new Set(deletedIds);
+      const visibleReports = finalReports.filter(r => !deletedSet.has(r.id));
+      
+      setReports(visibleReports);
     } catch (e) {
       console.error("Failed to load SOPs:", e);
-      setReports(PRELOADED_SOPS);
+      // Fallback with local storage filter
+      let deletedIds: string[] = [];
+      try {
+        const localDeleted = JSON.parse(localStorage.getItem('bqos_deleted_sop_ids') || '[]');
+        if (Array.isArray(localDeleted)) {
+          deletedIds = localDeleted.map(String);
+        }
+      } catch (err) {}
+      const deletedSet = new Set(deletedIds);
+      setReports(PRELOADED_SOPS.filter(r => !deletedSet.has(r.id)));
     } finally {
       setLoading(false);
     }
@@ -457,15 +498,24 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
   const handleDeleteSOP = async (sopId: string) => {
     try {
+      // Optimistic update of local storage deleted list
+      try {
+        const localDeleted = JSON.parse(localStorage.getItem('bqos_deleted_sop_ids') || '[]');
+        if (Array.isArray(localDeleted) && !localDeleted.includes(sopId)) {
+          localDeleted.push(sopId);
+          localStorage.setItem('bqos_deleted_sop_ids', JSON.stringify(localDeleted));
+        }
+      } catch (err) {}
+
       await api.run('api_deleteREPORTS_SOP', sopId);
       triggerSuccess("Document has been permanently deleted.");
       setSelectedReport(null);
-      fetchReports();
+      await fetchReports();
     } catch (e) {
       console.warn("Soft handling delete callback offline:", e);
       triggerSuccess("Document deleted successfully from active workspace.");
       setSelectedReport(null);
-      fetchReports();
+      await fetchReports();
     }
   };
 

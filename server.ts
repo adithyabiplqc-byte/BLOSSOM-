@@ -1485,9 +1485,14 @@ function executeLocalAction(action: string, params: any[]): any {
       const zone = params[0]?.zone;
       let data = db.reports_sop || [];
       if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const targetZone = String(zone).trim().toUpperCase();
+          return rZone === targetZone || rZone === 'ALL' || rZone === '';
+        });
       }
-      return data;
+      const deletedList = db.deleted_sop_ids || [];
+      return [...data, { id: '__DELETED_SOP_IDS__', deletedList: deletedList }];
     }
 
     case 'api_saveREPORTS_SOP': {
@@ -1523,6 +1528,11 @@ function executeLocalAction(action: string, params: any[]): any {
         }
       }
       db.reports_sop = sops.filter((r: any) => String(r.id) !== String(id));
+      
+      db.deleted_sop_ids = db.deleted_sop_ids || [];
+      if (!db.deleted_sop_ids.includes(String(id))) {
+        db.deleted_sop_ids.push(String(id));
+      }
       writeLocalDb(db);
       return { success: true };
     }
@@ -1900,6 +1910,22 @@ async function startServer() {
         }
 
         if (appsScriptSuccess) {
+          // Sync deletion locally as well to ensure deleted_sop_ids includes it
+          if (action === 'api_deleteREPORTS_SOP') {
+            try {
+              executeLocalAction(action, bodyPayload.params || []);
+            } catch (err) {}
+          }
+          
+          // Append local deleted_sop_ids list to getREPORTS_SOPData even when GAS succeeds
+          if (action === 'api_getREPORTS_SOPData' && Array.isArray(appsScriptResult)) {
+            const db = readLocalDb();
+            const deletedList = db.deleted_sop_ids || [];
+            // Remove the previous __DELETED_SOP_IDS__ if gas returned it
+            const cleanResult = appsScriptResult.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__');
+            cleanResult.push({ id: '__DELETED_SOP_IDS__', deletedList: deletedList });
+            return res.json(cleanResult);
+          }
           return res.json(appsScriptResult);
         }
 
