@@ -1508,7 +1508,21 @@ function executeLocalAction(action: string, params: any[]): any {
 
     case 'api_deleteREPORTS_SOP': {
       const id = params[0];
-      db.reports_sop = (db.reports_sop || []).filter((r: any) => String(r.id) !== String(id));
+      const sops = db.reports_sop || [];
+      const itemToDelete = sops.find((r: any) => String(r.id) === String(id));
+      if (itemToDelete && itemToDelete.attachmentUrl && itemToDelete.attachmentUrl.startsWith('/uploads/')) {
+        const fileName = itemToDelete.attachmentUrl.replace('/uploads/', '');
+        const filePath = path.join(process.cwd(), 'uploads', fileName);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log(`[LOCAL SAVER via API] Successfully deleted physical file at: ${filePath}`);
+          } catch (err) {
+            console.error(`[LOCAL SAVER via API ERROR] Failed to delete file at: ${filePath}`, err);
+          }
+        }
+      }
+      db.reports_sop = sops.filter((r: any) => String(r.id) !== String(id));
       writeLocalDb(db);
       return { success: true };
     }
@@ -1645,8 +1659,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // API Proxy for Google Apps Script
   app.get("/api/config", async (req, res) => {

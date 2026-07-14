@@ -995,6 +995,32 @@ export const api = {
         return data;
       }
 
+      case 'api_uploadSOPFile': {
+        const fileName = args[0];
+        const rawBase64 = args[1];
+        const mimeType = args[2];
+        try {
+          const response = await fetch('/api/upload-offline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName,
+              base64Data: `data:${mimeType};base64,${rawBase64}`,
+              mimeType
+            })
+          });
+          if (response.ok) {
+            return await response.json();
+          } else {
+            const errText = await response.text();
+            throw new Error(errText || "Offline upload request failed.");
+          }
+        } catch (e: any) {
+          console.error("Local file system fallback failed inside runDirect:", e);
+          throw e;
+        }
+      }
+
       case 'api_saveREPORTS_SOP': {
         return await sheetsService.saveData('REPORTS_SOP', args[0]);
       }

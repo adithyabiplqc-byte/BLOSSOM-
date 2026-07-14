@@ -26,18 +26,10 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('bqos_theme') as 'light' | 'dark') || 'light';
-  });
-
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('bqos_theme', theme);
-  }, [theme]);
+    document.documentElement.classList.remove('dark');
+    localStorage.removeItem('bqos_theme');
+  }, []);
 
   const getParsedSettingList = useCallback((keys: string[], defaultVal: string[] = []) => {
     if (!settings) return defaultVal;
@@ -406,15 +398,6 @@ const App: React.FC = () => {
       case 'login':
         return (
           <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-200 relative">
-            <div className="absolute top-4 right-4 z-50">
-              <button 
-                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} 
-                className="p-3 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-md border border-slate-150 dark:border-slate-800"
-                title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
-              >
-                <Icon name={theme === 'light' ? "moon" : "sun"} size={18} />
-              </button>
-            </div>
             <Login onLogin={handleLogin} users={users} />
             {connectionError && (
               <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -504,15 +487,6 @@ const App: React.FC = () => {
                       <Icon name="settings" size={18} />
                     </button>
                   )}
-                  
-                  {/* THEME TOGGLE BUTTON */}
-                  <button 
-                    onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} 
-                    className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm"
-                    title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
-                  >
-                    <Icon name={theme === 'light' ? "moon" : "sun"} size={18} />
-                  </button>
 
                   <button 
                     onClick={() => fetchData()} 
