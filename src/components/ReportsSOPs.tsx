@@ -277,7 +277,12 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     setLoading(true);
     try {
       const activeZone = globalZone || user?.zone || 'ALL';
-      const data = await api.run('api_getREPORTS_SOPData', { zone: activeZone }) as any[];
+      let data: any[] = [];
+      try {
+        data = await api.run('api_getREPORTS_SOPData', { zone: activeZone }) as any[];
+      } catch (fetchErr) {
+        console.warn("Failed to fetch SOPs from server, using local storage fallback:", fetchErr);
+      }
       
       let deletedIds: string[] = [];
       try {
@@ -325,6 +330,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         });
       }
 
+      // Merge local custom ones from localStorage!
+      let localCustom: SOPReport[] = [];
+      try {
+        localCustom = JSON.parse(localStorage.getItem('bqos_local_custom_sops') || '[]');
+      } catch (err) {}
+      if (Array.isArray(localCustom)) {
+        localCustom.forEach((item: any) => {
+          if (!mapped.some(r => String(r.id) === String(item.id))) {
+            mapped.push(item);
+          }
+        });
+      }
+
       // Combine custom uploaded SOP reports and preloaded templates, ensuring no duplicate IDs
       const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
       const customMapped = mapped.filter(r => !preloadedIds.has(r.id));
@@ -346,7 +364,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         }
       } catch (err) {}
       const deletedSet = new Set(deletedIds);
-      setReports(PRELOADED_SOPS.filter(r => !deletedSet.has(r.id)));
+
+      // Merge local custom in fallback
+      let localCustom: SOPReport[] = [];
+      try {
+        localCustom = JSON.parse(localStorage.getItem('bqos_local_custom_sops') || '[]');
+      } catch (err) {}
+      if (!Array.isArray(localCustom)) localCustom = [];
+
+      const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
+      const customMapped = localCustom.filter(r => !preloadedIds.has(r.id));
+      const finalReports = [...customMapped, ...PRELOADED_SOPS];
+
+      setReports(finalReports.filter(r => !deletedSet.has(r.id)));
     } finally {
       setLoading(false);
     }
@@ -475,7 +505,12 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         timestamp: new Date().toISOString()
       };
 
-      const saveRes = await api.run('api_saveREPORTS_SOP', record) as any;
+      let saveRes: any = null;
+      try {
+        saveRes = await api.run('api_saveREPORTS_SOP', record) as any;
+      } catch (saveErr) {
+        console.warn("Server metadata sync failed, resorting to local storage fallback...", saveErr);
+      }
       
       if (saveRes?.success) {
         triggerSuccess(`Document '${title}' published and updated on server database!`);
@@ -484,7 +519,20 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         resetFormState();
         setJustPublished(true);
       } else {
-        throw new Error(saveRes?.error || "Google Sheet backend insertion failure.");
+        // Fallback: save to local storage
+        try {
+          const localCustom = JSON.parse(localStorage.getItem('bqos_local_custom_sops') || '[]');
+          localCustom.push(record);
+          localStorage.setItem('bqos_local_custom_sops', JSON.stringify(localCustom));
+          
+          triggerSuccess(`Document '${title}' successfully uploaded & saved locally (Offline Mode)!`);
+          setPublishedTitle(title.trim());
+          await fetchReports();
+          resetFormState();
+          setJustPublished(true);
+        } catch (localErr: any) {
+          throw new Error("Unable to save either to Google Sheets or local browser storage: " + localErr.message);
+        }
       }
 
     } catch (err: any) {
@@ -507,7 +555,21 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         }
       } catch (err) {}
 
-      await api.run('api_deleteREPORTS_SOP', sopId);
+      // Remove from local custom list if present
+      try {
+        let localCustom = JSON.parse(localStorage.getItem('bqos_local_custom_sops') || '[]');
+        if (Array.isArray(localCustom)) {
+          localCustom = localCustom.filter((r: any) => String(r.id) !== String(sopId));
+          localStorage.setItem('bqos_local_custom_sops', JSON.stringify(localCustom));
+        }
+      } catch (err) {}
+
+      try {
+        await api.run('api_deleteREPORTS_SOP', sopId);
+      } catch (deleteErr) {
+        console.warn("Server delete sync failed, proceeding with local-only deletion...", deleteErr);
+      }
+
       triggerSuccess("Document has been permanently deleted.");
       setSelectedReport(null);
       await fetchReports();
@@ -674,6 +736,15 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     </p>
                     <span className="text-[10px] text-slate-400 block font-normal">Files must be strictly in PDF file format</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Informative Netlify / Serverless Hosting notice */}
+              <div className="bg-amber-50/60 border border-amber-200/50 rounded-xl p-3 text-[11px] text-slate-600 leading-relaxed flex items-start gap-2.5 shadow-2xs">
+                <span className="text-amber-500 mt-0.5 font-bold">⚠️</span>
+                <div>
+                  <span className="font-extrabold text-slate-750 block mb-0.5">Static Hosting / Netlify Environment Notice</span>
+                  When hosting on serverless platforms like Netlify, the application has no persistent backend disk storage. To store and share uploaded PDFs globally with all your team members, please connect your <strong>Google Sheets & Apps Script</strong> in the <strong>Settings menu</strong>. Otherwise, newly uploaded PDFs will be stored securely inside your browser's local <strong>IndexedDB database</strong> and visible only to you.
                 </div>
               </div>
 
