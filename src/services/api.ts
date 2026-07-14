@@ -1016,8 +1016,47 @@ export const api = {
             throw new Error(errText || "Offline upload request failed.");
           }
         } catch (e: any) {
-          console.error("Local file system fallback failed inside runDirect:", e);
-          throw e;
+          console.warn("Local server-side fallback failed or is unavailable (e.g. static hosting on Netlify). Storing file locally inside browser IndexedDB...", e);
+          try {
+            const fileId = 'sop_file_' + generateUuid();
+            const fileData = {
+              name: fileName,
+              type: mimeType,
+              base64: `data:${mimeType};base64,${rawBase64}`
+            };
+            
+            const dbOpen = () => {
+              return new Promise<IDBDatabase>((resolve, reject) => {
+                const req = indexedDB.open("SopFileStore", 1);
+                req.onupgradeneeded = () => {
+                  const database = req.result;
+                  if (!database.objectStoreNames.contains("files")) {
+                    database.createObjectStore("files");
+                  }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+              });
+            };
+            
+            const dbInstance = await dbOpen();
+            await new Promise<void>((resolve, reject) => {
+              const tx = dbInstance.transaction("files", "readwrite");
+              const store = tx.objectStore("files");
+              const putReq = store.put(fileData, fileId);
+              putReq.onsuccess = () => resolve();
+              putReq.onerror = () => reject(putReq.error);
+            });
+            
+            return {
+              success: true,
+              url: `indexeddb://${fileId}`,
+              name: fileName
+            };
+          } catch (indexedDbErr: any) {
+            console.error("IndexedDB fallback failed:", indexedDbErr);
+            throw new Error("Failed to store file on server, local disk, or browser IndexedDB database.");
+          }
         }
       }
 

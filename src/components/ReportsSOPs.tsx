@@ -25,6 +25,80 @@ interface ReportsSOPsProps {
   mode?: 'entry' | 'view'; // 'entry' for creation only, 'view' for policy lists/reading
 }
 
+// Helper to generate UUIDs client-side
+function generateUuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+const getSopFile = (id: string): Promise<{ name: string; type: string; base64: string } | null> => {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("SopFileStore", 1);
+      req.onupgradeneeded = () => {
+        const database = req.result;
+        if (!database.objectStoreNames.contains("files")) {
+          database.createObjectStore("files");
+        }
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("files", "readonly");
+          const store = tx.objectStore("files");
+          const getReq = store.get(id);
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        } catch (err) {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+};
+
+const saveToLocalIndexedDB = (fileName: string, mimeType: string, base64Data: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const fileId = 'sop_file_' + generateUuid();
+      const fileData = {
+        name: fileName,
+        type: mimeType,
+        base64: base64Data
+      };
+
+      const req = indexedDB.open("SopFileStore", 1);
+      req.onupgradeneeded = () => {
+        const database = req.result;
+        if (!database.objectStoreNames.contains("files")) {
+          database.createObjectStore("files");
+        }
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("files", "readwrite");
+          const store = tx.objectStore("files");
+          const putReq = store.put(fileData, fileId);
+          putReq.onsuccess = () => resolve(`indexeddb://${fileId}`);
+          putReq.onerror = () => reject(putReq.error);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 // Highly polished preset list
 const PRELOADED_SOPS: SOPReport[] = [
   {
@@ -109,6 +183,94 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
   // Custom inline deletion confirmation modal state
   const [sopToDelete, setSopToDelete] = useState<SOPReport | null>(null);
+
+  // Resolved attachment URLs for IndexedDB local storage offline compatibility
+  const [resolvedSelectedUrl, setResolvedSelectedUrl] = useState<string>('');
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string>('');
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrlToCleanup = '';
+
+    const resolve = async () => {
+      if (!selectedReport?.attachmentUrl) {
+        setResolvedSelectedUrl('');
+        return;
+      }
+      const url = selectedReport.attachmentUrl;
+      if (url.startsWith('indexeddb://')) {
+        const key = url.replace('indexeddb://', '');
+        try {
+          const fileData = await getSopFile(key);
+          if (fileData && isMounted) {
+            const response = await fetch(fileData.base64);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            objectUrlToCleanup = objectUrl;
+            setResolvedSelectedUrl(objectUrl);
+          } else if (isMounted) {
+            setResolvedSelectedUrl('');
+          }
+        } catch (e) {
+          console.error("Failed to retrieve file from IndexedDB:", e);
+          if (isMounted) setResolvedSelectedUrl('');
+        }
+      } else {
+        if (isMounted) setResolvedSelectedUrl(url);
+      }
+    };
+
+    resolve();
+
+    return () => {
+      isMounted = false;
+      if (objectUrlToCleanup) {
+        URL.revokeObjectURL(objectUrlToCleanup);
+      }
+    };
+  }, [selectedReport]);
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrlToCleanup = '';
+
+    const resolve = async () => {
+      if (!previewReport?.attachmentUrl) {
+        setResolvedPreviewUrl('');
+        return;
+      }
+      const url = previewReport.attachmentUrl;
+      if (url.startsWith('indexeddb://')) {
+        const key = url.replace('indexeddb://', '');
+        try {
+          const fileData = await getSopFile(key);
+          if (fileData && isMounted) {
+            const response = await fetch(fileData.base64);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            objectUrlToCleanup = objectUrl;
+            setResolvedPreviewUrl(objectUrl);
+          } else if (isMounted) {
+            setResolvedPreviewUrl('');
+          }
+        } catch (e) {
+          console.error("Failed to retrieve file from IndexedDB:", e);
+          if (isMounted) setResolvedPreviewUrl('');
+        }
+      } else {
+        if (isMounted) setResolvedPreviewUrl(url);
+      }
+    };
+
+    resolve();
+
+    return () => {
+      isMounted = false;
+      if (objectUrlToCleanup) {
+        URL.revokeObjectURL(objectUrlToCleanup);
+      }
+    };
+  }, [previewReport]);
 
   // Fetch Reports
   const fetchReports = async () => {
@@ -209,11 +371,16 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           finalUrl = uploadedUrl;
         } catch (authErr) {
           console.warn("Direct auth token write failed, resorting to standard service fallback...", authErr);
-          const res = await api.run('api_uploadSOPFile', attachmentFile.name, rawBase64, attachmentFile.type) as any;
-          if (res?.success && res.url) {
-            finalUrl = res.url;
-          } else {
-            throw new Error(res?.error || "Apps Script rejected document bundle packet.");
+          try {
+            const res = await api.run('api_uploadSOPFile', attachmentFile.name, rawBase64, attachmentFile.type) as any;
+            if (res?.success && res.url) {
+              finalUrl = res.url;
+            } else {
+              throw new Error(res?.error || "Apps Script rejected document bundle packet.");
+            }
+          } catch (innerErr) {
+            console.warn("Direct GAS upload failed. Falling back to browser-side local store...", innerErr);
+            finalUrl = await saveToLocalIndexedDB(attachmentFile.name, attachmentFile.type, base64Data);
           }
         }
       } else {
@@ -228,21 +395,26 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         } catch (gasErr: any) {
           console.warn("Proxy fallback triggered...", gasErr);
           setUploadProgress('Storing locally on current server disk...');
-          const response = await fetch('/api/upload-offline', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: attachmentFile.name,
-              base64Data: base64Data,
-              mimeType: attachmentFile.type
-            })
-          });
+          try {
+            const response = await fetch('/api/upload-offline', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: attachmentFile.name,
+                base64Data: base64Data,
+                mimeType: attachmentFile.type
+              })
+            });
 
-          if (response.ok) {
-            const uploadRes = await response.json();
-            finalUrl = uploadRes.url;
-          } else {
-            throw new Error("Local and Cloud network gateways rejected disk upload.");
+            if (response.ok) {
+              const uploadRes = await response.json();
+              finalUrl = uploadRes.url;
+            } else {
+              throw new Error("Local server rejected disk upload.");
+            }
+          } catch (offlineErr) {
+            console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
+            finalUrl = await saveToLocalIndexedDB(attachmentFile.name, attachmentFile.type, base64Data);
           }
         }
       }
@@ -752,7 +924,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     )}
                     {selectedReport.attachmentUrl && (
                       <a
-                        href={selectedReport.attachmentUrl}
+                        href={resolvedSelectedUrl || selectedReport.attachmentUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1.5 text-slate-500 hover:text-slate-850 hover:bg-slate-100 border border-slate-200 rounded-lg shadow-xs transition block"
@@ -805,7 +977,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
               <div className="flex items-center gap-2 flex-shrink-0">
                 {previewReport.attachmentUrl && (
                   <a
-                    href={previewReport.attachmentUrl}
+                    href={resolvedPreviewUrl || previewReport.attachmentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 bg-slate-100 hover:bg-[#00B4D8] hover:text-white text-slate-650 rounded-lg text-[11px] font-bold transition flex items-center gap-1 border border-slate-200"
@@ -844,7 +1016,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">Stream-rendering document ...</p>
                     </div>
                     <iframe
-                      src={getHelperUrl(previewReport.attachmentUrl)}
+                      src={getHelperUrl(resolvedPreviewUrl || previewReport.attachmentUrl)}
                       className="w-full h-full border-0 relative z-10"
                       title={previewReport.title}
                       referrerPolicy="no-referrer"

@@ -402,9 +402,33 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         ) as any;
         
         if (res && res.success) {
-          triggerSuccess("Successfully uploaded image report to Google Drive!");
+          triggerSuccess("Successfully uploaded image report!");
           if (res.url) {
-            window.open(res.url, '_blank');
+            if (res.url.startsWith('indexeddb://')) {
+              try {
+                const key = res.url.replace('indexeddb://', '');
+                const req = indexedDB.open("SopFileStore", 1);
+                req.onsuccess = () => {
+                  const db = req.result;
+                  const tx = db.transaction("files", "readonly");
+                  const store = tx.objectStore("files");
+                  const getReq = store.get(key);
+                  getReq.onsuccess = () => {
+                    const fileData = getReq.result;
+                    if (fileData) {
+                      fetch(fileData.base64).then(r => r.blob()).then(blob => {
+                        const objectUrl = URL.createObjectURL(blob);
+                        window.open(objectUrl, '_blank');
+                      });
+                    }
+                  };
+                };
+              } catch (err) {
+                console.error("Failed to open local report:", err);
+              }
+            } else {
+              window.open(res.url, '_blank');
+            }
           }
         } else {
           throw new Error(res?.error || "Unknown Apps Script Drive upload error.");
