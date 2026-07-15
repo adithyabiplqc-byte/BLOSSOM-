@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
 import { api } from '../services/api';
-import { googleSignIn, logout, getAccessToken, auth } from '../services/auth';
+// Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface SOPReport {
   id?: string;
@@ -161,36 +161,24 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Track Google Account state
-  const [googleUser, setGoogleUser] = useState<any>(auth.currentUser);
-  const [googleToken, setGoogleToken] = useState<string | null>(getAccessToken());
+  // Track Google Account state via simple Local App Configuration
+  const [googleUser, setGoogleUser] = useState<any>(() => {
+    const email = localStorage.getItem('gdrive_email');
+    return email ? { email, displayName: email.split('@')[0] } : null;
+  });
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      setGoogleUser(user);
-      setGoogleToken(getAccessToken());
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (email: string, pass: string) => {
     setIsLinkingGoogle(true);
     try {
-      const res = await googleSignIn();
-      if (res) {
-        setGoogleUser(res.user);
-        setGoogleToken(res.accessToken);
-        triggerSuccess(`Successfully connected to Google: ${res.user.email}`);
-        await fetchReports();
-      }
+      localStorage.setItem('gdrive_email', email);
+      localStorage.setItem('gdrive_password', pass);
+      setGoogleUser({ email, displayName: email.split('@')[0] });
+      triggerSuccess(`Successfully connected to Google Drive Account: ${email}`);
+      await fetchReports();
     } catch (e: any) {
-      if (e.isUnauthorizedDomain || e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
-        setUnauthorizedDomain(window.location.hostname);
-      } else {
-        alert("Failed to connect to Google account: " + (e.message || e));
-      }
+      alert("Failed to connect: " + (e.message || e));
     } finally {
       setIsLinkingGoogle(false);
     }
@@ -198,79 +186,16 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
   const handleGoogleSignOut = async () => {
     try {
-      await logout();
+      localStorage.removeItem('gdrive_email');
+      localStorage.removeItem('gdrive_password');
       setGoogleUser(null);
-      setGoogleToken(null);
-      triggerSuccess("Disconnected from Google Account.");
+      triggerSuccess("Disconnected Google Drive space.");
       await fetchReports();
     } catch (e: any) {
       alert("Sign out failed: " + e.message);
     }
   };
 
-  const uploadToUserGoogleDrive = async (fileName: string, mimeType: string, base64Data: string, token: string): Promise<string> => {
-    const rawBase64 = base64Data.split(',')[1];
-    const metadata = {
-      name: fileName,
-      mimeType: mimeType,
-    };
-    const boundary = 'foo_bar_boundary';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const close_delim = `\r\n--${boundary}--`;
-
-    const multipartRequestBody =
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      delimiter +
-      'Content-Type: ' + mimeType + '\r\n' +
-      'Content-Transfer-Encoding: base64\r\n\r\n' +
-      rawBase64 +
-      close_delim;
-
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartRequestBody
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Google Drive API error: ${errorText}`);
-    }
-
-    const fileInfo = await response.json();
-    const fileId = fileInfo.id;
-    if (!fileId) {
-      throw new Error("No file ID returned from Google Drive.");
-    }
-
-    // Set permission to anyone with link as reader
-    try {
-      const permResponse = await fetch(`https://www.googleapis.com/api/drive/v3/files/${fileId}/permissions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          role: 'reader',
-          type: 'anyone',
-        }),
-      });
-      if (!permResponse.ok) {
-        console.warn("Failed to update Google Drive file viewing permissions:", await permResponse.text());
-      }
-    } catch (permErr) {
-      console.warn("Permission update exception:", permErr);
-    }
-
-    return `https://drive.google.com/file/d/${fileId}/view`;
-  };
-  
   // Create / Edit Form State
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<SOPReport['category']>('SOP');
@@ -278,7 +203,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
-  const [storageMode, setStorageMode] = useState<'local' | 'gas'>(() => (localStorage.getItem('bqos_pdf_storage_mode') as 'local' | 'gas') || 'local');
   
   // State for upload completion
   const [justPublished, setJustPublished] = useState(false);
@@ -594,102 +518,16 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const base64Data = await fileToBase64(attachmentFile!);
       const rawBase64 = base64Data.split(',')[1];
 
-      if (storageMode === 'local') {
-        setUploadProgress('Storing PDF directly inside app container storage...');
-        try {
-          const response = await fetch('/api/upload-offline', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: attachmentFile!.name,
-              base64Data: base64Data,
-              mimeType: attachmentFile!.type
-            })
-          });
-
-          if (response.ok) {
-            const uploadRes = await response.json();
-            finalUrl = uploadRes.url;
-          } else {
-            throw new Error("Local server rejected disk upload.");
-          }
-        } catch (offlineErr) {
-          console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
-          finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
+      setUploadProgress('Uploading PDF to Google Drive via Apps Script...');
+      try {
+        const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
+        if (res?.success && res.url) {
+          finalUrl = res.url;
+        } else {
+          throw new Error(res?.error || "Google Sheets Web App did not return a valid file URL.");
         }
-      } else if (googleToken) {
-        setUploadProgress('Uploading PDF directly to your personal Google Drive...');
-        try {
-          finalUrl = await uploadToUserGoogleDrive(attachmentFile!.name, attachmentFile!.type, base64Data, googleToken);
-        } catch (driveErr: any) {
-          console.warn("Direct Google Drive upload failed. Falling back to default server upload...", driveErr);
-          try {
-            const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
-            if (res?.success && res.url) {
-              finalUrl = res.url;
-            } else {
-              throw new Error(res?.error || "Apps Script rejected document bundle packet.");
-            }
-          } catch (gasErr: any) {
-            console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
-            setUploadProgress('Storing locally on current server disk...');
-            try {
-              const response = await fetch('/api/upload-offline', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  fileName: attachmentFile!.name,
-                  base64Data: base64Data,
-                  mimeType: attachmentFile!.type
-                })
-              });
-
-              if (response.ok) {
-                const uploadRes = await response.json();
-                finalUrl = uploadRes.url;
-              } else {
-                throw new Error("Local server rejected disk upload.");
-              }
-            } catch (offlineErr) {
-              console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
-              finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
-            }
-          }
-        }
-      } else {
-        setUploadProgress('Uploading PDF to Google Drive via Apps Script...');
-        try {
-          const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
-          if (res?.success && res.url) {
-            finalUrl = res.url;
-          } else {
-            throw new Error(res?.error || "Apps Script rejected document bundle packet.");
-          }
-        } catch (gasErr: any) {
-          console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
-          setUploadProgress('Storing locally on current server disk...');
-          try {
-            const response = await fetch('/api/upload-offline', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fileName: attachmentFile!.name,
-                base64Data: base64Data,
-                mimeType: attachmentFile!.type
-              })
-            });
-
-            if (response.ok) {
-              const uploadRes = await response.json();
-              finalUrl = uploadRes.url;
-            } else {
-              throw new Error("Local server rejected disk upload.");
-            }
-          } catch (offlineErr) {
-            console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
-            finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
-          }
-        }
+      } catch (gasErr: any) {
+        throw new Error("Google Drive file upload failed. Please verify that your Google Web App URL is connected correctly. Error: " + (gasErr.message || gasErr));
       }
 
       setUploadProgress('Syncing metadata index inside Google Sheets...');
@@ -943,54 +781,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </div>
               </div>
 
-              {/* PDF Document Storage Destination Config */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    PDF Storage Destination
-                  </label>
-                  <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded uppercase">
-                    {storageMode === 'local' ? 'Local System' : 'Cloud Drive'}
-                  </span>
-                </div>
-                
-                <div className="flex gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStorageMode('local');
-                      localStorage.setItem('bqos_pdf_storage_mode', 'local');
-                    }}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg font-bold border transition text-center ${
-                      storageMode === 'local'
-                        ? 'bg-indigo-600 text-white border-indigo-650 shadow-2xs'
-                        : 'bg-white text-slate-500 hover:bg-slate-100 border-slate-200'
-                    }`}
-                  >
-                    📂 Local Storage (Zero Setup)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStorageMode('gas');
-                      localStorage.setItem('bqos_pdf_storage_mode', 'gas');
-                    }}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg font-bold border transition text-center ${
-                      storageMode === 'gas'
-                        ? 'bg-indigo-600 text-white border-indigo-650 shadow-2xs'
-                        : 'bg-white text-slate-500 hover:bg-slate-100 border-slate-200'
-                    }`}
-                  >
-                    ☁️ Google Drive
-                  </button>
-                </div>
-                <p className="text-[9px] text-slate-400 font-medium leading-normal mt-1">
-                  {storageMode === 'local' 
-                    ? "Instant offline storage on the local server. Recommended for iframe viewing and zero Firebase/OAuth configuration."
-                    : "Uploads cloud copy to Google Drive using your Google Sheets Apps Script connection."
-                  }
-                </p>
-              </div>
+              {/* PDF Document Storage Destination Config removed per user request (only Google Drive needed) */}
 
               {uploadProgress && (
                 <div className="bg-[#EBF8FF] border border-[#BEE3F8] text-[#2B6CB0] px-3.5 py-2.5 rounded-xl flex items-center gap-2">

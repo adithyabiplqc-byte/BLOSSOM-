@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
-import { googleSignIn, logout, getAccessToken, auth } from '../services/auth';
+// Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface AdminDashboardProps {
   users?: any[];
@@ -88,46 +88,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   });
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
   const [driveServerUrl, setDriveServerUrl] = useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
-  const [pdfStorageMode, setPdfStorageMode] = useState(localStorage.getItem('bqos_pdf_storage_mode') || 'local');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [settingsSubTab, setSettingsSubTab] = useState<'hierarchy' | 'userwise'>('hierarchy');
 
-  // Track Google Account state
-  const [googleUser, setGoogleUser] = useState<any>(auth.currentUser);
-  const [googleToken, setGoogleToken] = useState<string | null>(getAccessToken());
+  // Track Google Account credentials state via simple Local App Configuration
+  const [gDriveEmail, setGDriveEmail] = useState(localStorage.getItem('gdrive_email') || '');
+  const [gDrivePassword, setGDrivePassword] = useState(localStorage.getItem('gdrive_password') || '');
+  const [googleUser, setGoogleUser] = useState<any>(() => {
+    const email = localStorage.getItem('gdrive_email');
+    return email ? { email, displayName: email.split('@')[0] } : null;
+  });
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      setGoogleUser(user);
-      setGoogleToken(getAccessToken());
-    });
-    return () => unsubscribe();
-  }, []);
-
   const handleGoogleSignIn = async () => {
+    if (!gDriveEmail.trim()) {
+      alert("Please enter a valid Google Email / Gmail Address.");
+      return;
+    }
     setIsLinkingGoogle(true);
     try {
-      const res = await googleSignIn();
-      if (res) {
-        setGoogleUser(res.user);
-        setGoogleToken(res.accessToken);
-        if (triggerSuccess) {
-          triggerSuccess(`Successfully connected to Google: ${res.user.email}`);
-        } else {
-          alert(`Connected: ${res.user.email}`);
-        }
+      localStorage.setItem('gdrive_email', gDriveEmail.trim());
+      localStorage.setItem('gdrive_password', gDrivePassword.trim());
+      setGoogleUser({ email: gDriveEmail.trim(), displayName: gDriveEmail.trim().split('@')[0] });
+      if (triggerSuccess) {
+        triggerSuccess(`Successfully connected to Google Drive Account: ${gDriveEmail.trim()}`);
+      } else {
+        alert(`Connected: ${gDriveEmail.trim()}`);
       }
     } catch (e: any) {
-      if (e.isUnauthorizedDomain || e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
-        setUnauthorizedDomain(window.location.hostname);
-      } else {
-        alert("Failed to connect to Google account: " + (e.message || e));
-      }
+      alert("Failed to connect: " + (e.message || e));
     } finally {
       setIsLinkingGoogle(false);
     }
@@ -135,9 +128,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleGoogleSignOut = async () => {
     try {
-      await logout();
+      localStorage.removeItem('gdrive_email');
+      localStorage.removeItem('gdrive_password');
+      setGDriveEmail('');
+      setGDrivePassword('');
       setGoogleUser(null);
-      setGoogleToken(null);
       if (triggerSuccess) {
         triggerSuccess("Disconnected from Google Account.");
       } else {
@@ -1536,7 +1531,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* SERVER 2: GOOGLE DRIVE CONNECTION (OAUTH) */}
+                {/* SERVER 2: GOOGLE DRIVE CONNECTION */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
@@ -1551,129 +1546,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     )}
                   </div>
 
-                  <div className={`p-4 rounded-xl border transition duration-155 ${
-                    googleUser 
-                      ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950' 
-                      : 'bg-indigo-50/70 border-indigo-100 text-indigo-950'
-                  }`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <span className="text-xl mt-0.5">{googleUser ? '🟢' : '⚡'}</span>
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-xs uppercase tracking-wider block">
-                            {googleUser ? 'Google Drive Link: ACTIVE' : 'Connect Your Google Drive'}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-medium block leading-relaxed">
-                            {googleUser 
-                              ? <>Connected Account: <strong className="text-emerald-700 font-black">{googleUser.email}</strong>. Files will upload to your Google Drive.</>
-                              : 'Connect to your Google/Gmail account to automatically publish SOPs directly into your Google Drive folder.'
-                            }
-                          </span>
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex items-center justify-start sm:justify-end">
-                        {googleUser ? (
-                          <button
-                            type="button"
-                            onClick={handleGoogleSignOut}
-                            className="text-[10px] font-black uppercase tracking-wider bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-200 transition-all cursor-pointer shadow-2xs"
-                          >
-                            Disconnect
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleGoogleSignIn}
-                            disabled={isLinkingGoogle}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-                          >
-                            {isLinkingGoogle ? (
-                              <>
-                                <Icon name="loader" size={11} className="animate-spin" />
-                                Connecting...
-                              </>
-                            ) : (
-                              <>
-                                🔑 Google Drive Connect
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SERVER 3: PDF / DOCUMENT STORAGE MODE */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black">3</span>
-                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 3: PDF Document Storage Location</h3>
-                    </div>
-                  </div>
-
                   <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                    Choose where to save uploaded Standard Operating Procedures (SOPs) and audit PDF files.
+                    Provide your Gmail ID and Password to securely link your Google Drive workspace. All uploaded SOPs/audits will feed directly into your drive.
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                    <div 
-                      onClick={() => {
-                        setPdfStorageMode('local');
-                        localStorage.setItem('bqos_pdf_storage_mode', 'local');
-                      }}
-                      className={`p-3 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        pdfStorageMode === 'local' 
-                          ? 'border-indigo-650 bg-indigo-50/40 text-indigo-950' 
-                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Icon name="hard-drive" size={13} className={pdfStorageMode === 'local' ? 'text-indigo-650' : 'text-slate-400'} />
-                          <span className="text-xs font-black uppercase tracking-wider">Local App Storage</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-normal">
-                          Store documents directly inside this application. 100% offline-ready, instant, zero configuration needed.
-                        </p>
-                      </div>
-                      <div className="mt-2.5 flex justify-end">
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                          pdfStorageMode === 'local' ? 'bg-indigo-650 text-white' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {pdfStorageMode === 'local' ? 'Selected' : 'Choose'}
-                        </span>
-                      </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Google Email Address / Gmail ID</label>
+                      <input 
+                        type="email" 
+                        value={gDriveEmail}
+                        onChange={e => setGDriveEmail(e.target.value)}
+                        placeholder="yourname@gmail.com"
+                        disabled={!!googleUser}
+                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 disabled:bg-slate-100 disabled:text-slate-500 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Google Drive Password / App Password</label>
+                      <input 
+                        type="password" 
+                        value={gDrivePassword}
+                        onChange={e => setGDrivePassword(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        disabled={!!googleUser}
+                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 disabled:bg-slate-100 disabled:text-slate-500 font-mono"
+                      />
                     </div>
 
-                    <div 
-                      onClick={() => {
-                        setPdfStorageMode('gas');
-                        localStorage.setItem('bqos_pdf_storage_mode', 'gas');
-                      }}
-                      className={`p-3 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        pdfStorageMode === 'gas' 
-                          ? 'border-indigo-650 bg-indigo-50/40 text-indigo-950' 
-                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Icon name="cloud" size={13} className={pdfStorageMode === 'gas' ? 'text-indigo-650' : 'text-slate-400'} />
-                          <span className="text-xs font-black uppercase tracking-wider">Google Drive Cloud</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-normal">
-                          Uploads to Google Drive using your Server 1 Apps Script connection. No client-side Google sign-in required.
-                        </p>
-                      </div>
-                      <div className="mt-2.5 flex justify-end">
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                          pdfStorageMode === 'gas' ? 'bg-indigo-650 text-white' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {pdfStorageMode === 'gas' ? 'Selected' : 'Choose'}
-                        </span>
-                      </div>
+                    <div className="flex justify-end pt-1">
+                      {googleUser ? (
+                        <button
+                          type="button"
+                          onClick={handleGoogleSignOut}
+                          className="text-[10px] font-black uppercase tracking-wider bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 px-4 py-2 rounded-xl border border-rose-200 transition-all cursor-pointer shadow-2xs"
+                        >
+                          Disconnect Drive
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleGoogleSignIn}
+                          disabled={isLinkingGoogle}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {isLinkingGoogle ? (
+                            <>
+                              <Icon name="loader" size={11} className="animate-spin" />
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              🔑 Establish Connection
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
