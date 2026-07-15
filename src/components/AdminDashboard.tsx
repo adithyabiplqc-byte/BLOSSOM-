@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
+import { googleSignIn, logout, getAccessToken, auth } from '../services/auth';
 
 interface AdminDashboardProps {
   users?: any[];
@@ -92,6 +93,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [settingsSubTab, setSettingsSubTab] = useState<'hierarchy' | 'userwise'>('hierarchy');
+
+  // Track Google Account state
+  const [googleUser, setGoogleUser] = useState<any>(auth.currentUser);
+  const [googleToken, setGoogleToken] = useState<string | null>(getAccessToken());
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setGoogleUser(user);
+      setGoogleToken(getAccessToken());
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsLinkingGoogle(true);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        setGoogleToken(res.accessToken);
+        if (triggerSuccess) {
+          triggerSuccess(`Successfully connected to Google: ${res.user.email}`);
+        } else {
+          alert(`Connected: ${res.user.email}`);
+        }
+      }
+    } catch (e: any) {
+      alert("Failed to connect to Google account: " + (e.message || e));
+    } finally {
+      setIsLinkingGoogle(false);
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    try {
+      await logout();
+      setGoogleUser(null);
+      setGoogleToken(null);
+      if (triggerSuccess) {
+        triggerSuccess("Disconnected from Google Account.");
+      } else {
+        alert("Disconnected from Google Account.");
+      }
+    } catch (e: any) {
+      alert("Sign out failed: " + e.message);
+    }
+  };
 
   const [selectedDataType, setSelectedDataType] = useState('');
   const [dataRecords, setDataRecords] = useState<any[]>([]);
@@ -1449,19 +1498,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <p className="text-sm text-slate-500 font-medium">Use this section to connect your application to your Google Sheets backend using the Google Apps Script Web App URL.</p>
             
             <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 space-y-6">
-              <div className="space-y-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Google Apps Script Connection</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Web App URL (Exec URL)</label>
-                      {connectionStatus === 'success' && (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
-                          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Live Connected</span>
-                        </div>
-                      )}
+              <div className="space-y-6">
+                {/* SERVER 1: SHEETS DATA SYNC */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">1</span>
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 1: Google Sheets Connection (Data Sync)</h3>
                     </div>
+                    {connectionStatus === 'success' && (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Live Connected</span>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Web App URL (Exec URL)</label>
                     <input 
                       type="text" 
                       value={serverUrl}
@@ -1472,57 +1525,131 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setConnectionStatus('idle');
                       }}
                       placeholder="https://script.google.com/macros/s/.../exec"
-                      className="w-full font-mono text-xs bg-slate-50"
+                      className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
                     />
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                    <button 
-                      onClick={async () => {
-                        if (!serverUrl.trim()) return alert("Please enter a URL first");
-                        setIsSubmitting(true);
-                        setConnectionStatus('idle');
-                        try {
-                          localStorage.setItem('VITE_GAS_URL', serverUrl.trim());
-                          const res = await api.run('api_getInitialData');
-                          if (res && res.success) {
-                            setConnectionStatus('success');
-                            if (configOnlyMode && onLogout) {
-                              triggerSuccess && triggerSuccess("CONNECTION ESTABLISHED! SYNCHRONIZING...");
-                              setTimeout(() => onLogout(), 1500);
-                            } else {
-                              alert("✅ Connection Successful!");
-                            }
-                          } else {
-                            setConnectionStatus('error');
-                            alert("❌ Server Error: " + (res?.error || "Unknown"));
-                          }
-                        } catch (e: any) {
-                          setConnectionStatus('error');
-                          alert("❌ Failed: " + (e.message || "Connection Error"));
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 shadow-lg shadow-indigo-200"
-                    >
-                      <Icon name={isSubmitting ? "refresh-cw" : "zap"} size={16} className={isSubmitting ? "animate-spin" : ""} />
-                      {isSubmitting ? "Connecting..." : "Save & Sync App"}
-                    </button>
-                    
-                    {!configOnlyMode && (
-                      <button 
-                        onClick={() => window.confirm("Reload app to sync?") && window.location.reload()}
-                        className="btn-secondary flex-1 py-3"
-                      >
-                        Manual Reload
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
+                {/* SERVER 2: GOOGLE DRIVE CONNECTION (OAUTH) */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 2: Google Drive Connection</h3>
+                    </div>
+                    {googleUser && (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Connected</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={`p-4 rounded-xl border transition duration-155 ${
+                    googleUser 
+                      ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950' 
+                      : 'bg-indigo-50/70 border-indigo-100 text-indigo-950'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <span className="text-xl mt-0.5">{googleUser ? '🟢' : '⚡'}</span>
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-xs uppercase tracking-wider block">
+                            {googleUser ? 'Google Drive Link: ACTIVE' : 'Connect Your Google Drive'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium block leading-relaxed">
+                            {googleUser 
+                              ? <>Connected Account: <strong className="text-emerald-700 font-black">{googleUser.email}</strong>. Files will upload to your Google Drive.</>
+                              : 'Connect to your Google/Gmail account to automatically publish SOPs directly into your Google Drive folder.'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex items-center justify-start sm:justify-end">
+                        {googleUser ? (
+                          <button
+                            type="button"
+                            onClick={handleGoogleSignOut}
+                            className="text-[10px] font-black uppercase tracking-wider bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-200 transition-all cursor-pointer shadow-2xs"
+                          >
+                            Disconnect
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGoogleSignIn}
+                            disabled={isLinkingGoogle}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                          >
+                            {isLinkingGoogle ? (
+                              <>
+                                <Icon name="loader" size={11} className="animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                🔑 Google Drive Connect
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                  <button 
+                    onClick={async () => {
+                      if (!serverUrl.trim()) return alert("Please enter the server 1 URL first");
+                      setIsSubmitting(true);
+                      setConnectionStatus('idle');
+                      try {
+                        localStorage.setItem('VITE_GAS_URL', serverUrl.trim());
+                        
+                        // Sync to Firestore/Server permanently
+                        const spreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID') || "";
+                        await api.saveServerConfig(serverUrl.trim(), spreadsheetId, driveServerUrl.trim());
+                        
+                        const res = await api.run('api_getInitialData');
+                        if (res && res.success) {
+                          setConnectionStatus('success');
+                          if (configOnlyMode && onLogout) {
+                            triggerSuccess && triggerSuccess("SERVER CONNECTION ESTABLISHED! SYNCHRONIZING...");
+                            setTimeout(() => onLogout(), 1500);
+                          } else {
+                            alert("✅ Server Connection Saved & Synchronized!");
+                          }
+                        } else {
+                          setConnectionStatus('error');
+                          alert("❌ Server Error: " + (res?.error || "Unknown"));
+                        }
+                      } catch (e: any) {
+                        setConnectionStatus('error');
+                        alert("❌ Failed: " + (e.message || "Connection Error"));
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    disabled={isSubmitting}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 shadow-lg shadow-indigo-200"
+                  >
+                    <Icon name={isSubmitting ? "refresh-cw" : "zap"} size={16} className={isSubmitting ? "animate-spin" : ""} />
+                    {isSubmitting ? "Connecting Server..." : "Save & Sync Server"}
+                  </button>
+                  
+                  {!configOnlyMode && (
+                    <button 
+                      onClick={() => window.confirm("Reload app to sync?") && window.location.reload()}
+                      className="btn-secondary flex-1 py-3"
+                    >
+                      Manual Reload
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
                    <Icon name="info" className="text-indigo-600 mt-0.5 shrink-0" size={18} />
                    <div className="space-y-2">
                      <p className="text-[11px] font-bold text-indigo-900 leading-relaxed uppercase tracking-tight">Deployment & Permanent Connection:</p>
@@ -1561,7 +1688,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
-          </div>
         )}
 
         {tab === 'delete' && (

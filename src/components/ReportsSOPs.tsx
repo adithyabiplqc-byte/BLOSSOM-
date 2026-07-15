@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
 import { api } from '../services/api';
+import { googleSignIn, logout, getAccessToken, auth } from '../services/auth';
 
 interface SOPReport {
   id?: string;
@@ -12,6 +13,7 @@ interface SOPReport {
   creator: string;
   zone: string;
   timestamp?: string;
+  googleDriveEmail?: string;
 }
 
 interface ReportsSOPsProps {
@@ -157,6 +159,111 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   const [reports, setReports] = useState<SOPReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Track Google Account state
+  const [googleUser, setGoogleUser] = useState<any>(auth.currentUser);
+  const [googleToken, setGoogleToken] = useState<string | null>(getAccessToken());
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setGoogleUser(user);
+      setGoogleToken(getAccessToken());
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsLinkingGoogle(true);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        setGoogleToken(res.accessToken);
+        triggerSuccess(`Successfully connected to Google: ${res.user.email}`);
+        await fetchReports();
+      }
+    } catch (e: any) {
+      alert("Failed to connect to Google account: " + (e.message || e));
+    } finally {
+      setIsLinkingGoogle(false);
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    try {
+      await logout();
+      setGoogleUser(null);
+      setGoogleToken(null);
+      triggerSuccess("Disconnected from Google Account.");
+      await fetchReports();
+    } catch (e: any) {
+      alert("Sign out failed: " + e.message);
+    }
+  };
+
+  const uploadToUserGoogleDrive = async (fileName: string, mimeType: string, base64Data: string, token: string): Promise<string> => {
+    const rawBase64 = base64Data.split(',')[1];
+    const metadata = {
+      name: fileName,
+      mimeType: mimeType,
+    };
+    const boundary = 'foo_bar_boundary';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const close_delim = `\r\n--${boundary}--`;
+
+    const multipartRequestBody =
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: ' + mimeType + '\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      rawBase64 +
+      close_delim;
+
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartRequestBody
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Google Drive API error: ${errorText}`);
+    }
+
+    const fileInfo = await response.json();
+    const fileId = fileInfo.id;
+    if (!fileId) {
+      throw new Error("No file ID returned from Google Drive.");
+    }
+
+    // Set permission to anyone with link as reader
+    try {
+      const permResponse = await fetch(`https://www.googleapis.com/api/drive/v3/files/${fileId}/permissions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone',
+        }),
+      });
+      if (!permResponse.ok) {
+        console.warn("Failed to update Google Drive file viewing permissions:", await permResponse.text());
+      }
+    } catch (permErr) {
+      console.warn("Permission update exception:", permErr);
+    }
+
+    return `https://drive.google.com/file/d/${fileId}/view`;
+  };
   
   // Create / Edit Form State
   const [title, setTitle] = useState('');
@@ -323,7 +430,8 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
             attachmentName: getValCaseInsensitive(item, 'attachmentName', getValCaseInsensitive(item, 'attachment_name', '')),
             creator: getValCaseInsensitive(item, 'creator', 'Anonymous'),
             zone: getValCaseInsensitive(item, 'zone', activeZone),
-            timestamp: getValCaseInsensitive(item, 'timestamp', new Date().toISOString())
+            timestamp: getValCaseInsensitive(item, 'timestamp', new Date().toISOString()),
+            googleDriveEmail: getValCaseInsensitive(item, 'googleDriveEmail', getValCaseInsensitive(item, 'google_drive_email', ''))
           };
         });
       }
@@ -451,37 +559,78 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const base64Data = await fileToBase64(attachmentFile!);
       const rawBase64 = base64Data.split(',')[1];
 
-      setUploadProgress('Uploading PDF to Google Drive...');
-      try {
-        const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
-        if (res?.success && res.url) {
-          finalUrl = res.url;
-        } else {
-          throw new Error(res?.error || "Apps Script rejected document bundle packet.");
-        }
-      } catch (gasErr: any) {
-        console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
-        setUploadProgress('Storing locally on current server disk...');
+      if (googleToken) {
+        setUploadProgress('Uploading PDF directly to your personal Google Drive...');
         try {
-          const response = await fetch('/api/upload-offline', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: attachmentFile!.name,
-              base64Data: base64Data,
-              mimeType: attachmentFile!.type
-            })
-          });
+          finalUrl = await uploadToUserGoogleDrive(attachmentFile!.name, attachmentFile!.type, base64Data, googleToken);
+        } catch (driveErr: any) {
+          console.warn("Direct Google Drive upload failed. Falling back to default server upload...", driveErr);
+          try {
+            const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
+            if (res?.success && res.url) {
+              finalUrl = res.url;
+            } else {
+              throw new Error(res?.error || "Apps Script rejected document bundle packet.");
+            }
+          } catch (gasErr: any) {
+            console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
+            setUploadProgress('Storing locally on current server disk...');
+            try {
+              const response = await fetch('/api/upload-offline', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fileName: attachmentFile!.name,
+                  base64Data: base64Data,
+                  mimeType: attachmentFile!.type
+                })
+              });
 
-          if (response.ok) {
-            const uploadRes = await response.json();
-            finalUrl = uploadRes.url;
-          } else {
-            throw new Error("Local server rejected disk upload.");
+              if (response.ok) {
+                const uploadRes = await response.json();
+                finalUrl = uploadRes.url;
+              } else {
+                throw new Error("Local server rejected disk upload.");
+              }
+            } catch (offlineErr) {
+              console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
+              finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
+            }
           }
-        } catch (offlineErr) {
-          console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
-          finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
+        }
+      } else {
+        setUploadProgress('Uploading PDF to default Google Drive storage...');
+        try {
+          const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
+          if (res?.success && res.url) {
+            finalUrl = res.url;
+          } else {
+            throw new Error(res?.error || "Apps Script rejected document bundle packet.");
+          }
+        } catch (gasErr: any) {
+          console.warn("Google Apps Script upload failed, attempting local server storage fallback...", gasErr);
+          setUploadProgress('Storing locally on current server disk...');
+          try {
+            const response = await fetch('/api/upload-offline', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: attachmentFile!.name,
+                base64Data: base64Data,
+                mimeType: attachmentFile!.type
+              })
+            });
+
+            if (response.ok) {
+              const uploadRes = await response.json();
+              finalUrl = uploadRes.url;
+            } else {
+              throw new Error("Local server rejected disk upload.");
+            }
+          } catch (offlineErr) {
+            console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
+            finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
+          }
         }
       }
 
@@ -497,7 +646,8 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         attachmentName: finalName,
         creator: user?.username || 'SYSTEM ADMIN',
         zone: activeZone,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        googleDriveEmail: googleUser?.email || ''
       };
 
       let saveRes: any = null;

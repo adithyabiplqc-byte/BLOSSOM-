@@ -1018,11 +1018,17 @@ export const api = {
         const mimeType = args[2];
 
         // 1. First, try to upload directly to Google Apps Script (GAS) to save to Google Drive permanently!
-        const customUrl = localStorage.getItem('VITE_GAS_URL');
-        const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+        const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
+        const customSheetsUrl = localStorage.getItem('VITE_GAS_URL');
+        const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
+        const envSheetsUrl = (import.meta as any).env?.VITE_GAS_URL;
+        
         const candidateUrls: string[] = [];
-        if (customUrl) candidateUrls.push(customUrl);
-        if (envUrl && !envUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envUrl)) candidateUrls.push(envUrl);
+        if (customDriveUrl) candidateUrls.push(customDriveUrl);
+        if (envDriveUrl && !envDriveUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envDriveUrl)) candidateUrls.push(envDriveUrl);
+        if (customSheetsUrl && !candidateUrls.includes(customSheetsUrl)) candidateUrls.push(customSheetsUrl);
+        if (envSheetsUrl && !envSheetsUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envSheetsUrl)) candidateUrls.push(envSheetsUrl);
+
         const hardcodedUrls = [
           "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
           "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
