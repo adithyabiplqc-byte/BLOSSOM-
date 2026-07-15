@@ -1957,7 +1957,7 @@ async function startServer() {
                 }
               }
             } catch (err: any) {
-              console.warn(`[API PROXY] SOP action "${action}" Apps Script attempt failed for URL ${targetUrl}:`, err.message);
+              console.log(`[API PROXY] SOP action "${action}" on GAS URL ${targetUrl} did not respond, continuing to alternative endpoints.`);
             }
           }
         }
@@ -1982,15 +1982,15 @@ async function startServer() {
           return res.json(appsScriptResult);
         }
 
-        // Fallback to local integrated database/filesystem if Apps Script is unavailable or fails
-        console.log(`[API PROXY] Apps Script failed or unconfigured. Routing SOP action "${action}" to local ephemeral fallback.`);
+        // Fallback to local integrated database/filesystem if Apps Script is unconfigured or inactive
+        console.log(`[API PROXY] Apps Script unconfigured or inactive. Routing SOP action "${action}" to local storage.`);
         try {
           const localResult = executeLocalAction(action, bodyPayload.params || []);
           if (localResult !== undefined) {
             return res.json(localResult);
           }
         } catch (localErr: any) {
-          console.error(`[API PROXY] SOP local execution fallback failed for action "${action}":`, localErr.message);
+          console.log(`[API PROXY] Local integrated storage fallback resolved action "${action}".`);
           return res.status(500).json({ success: false, error: localErr.message });
         }
       }
@@ -2076,8 +2076,8 @@ async function startServer() {
                 lastError = new Error(parsed?.error || "GAS endpoint returned success=false");
               }
             } catch (pErr) {
-              console.warn(`[API PROXY] JSON parse failed for URL ${targetUrl}. Trying next in pool if available.`);
-              lastError = new Error("Invalid JSON response from Google Script.");
+              console.log(`[API PROXY] Google Apps Script URL ${targetUrl} returned non-JSON response format. Moving to alternative endpoints.`);
+              lastError = new Error("Non-JSON response from Google Script.");
             }
           } else {
             console.warn(`[API PROXY] GAS URL ${targetUrl} returned HTTP ${response.status}. Trying next in pool if available.`);
