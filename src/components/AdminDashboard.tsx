@@ -88,6 +88,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   });
   const [serverUrl, setServerUrl] = useState(localStorage.getItem('VITE_GAS_URL') || '');
   const [driveServerUrl, setDriveServerUrl] = useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
+  const [pdfStorageMode, setPdfStorageMode] = useState(localStorage.getItem('bqos_pdf_storage_mode') || 'local');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -1598,6 +1599,80 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             )}
                           </button>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SERVER 3: PDF / DOCUMENT STORAGE MODE */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black">3</span>
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 3: PDF Document Storage Location</h3>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    Choose where to save uploaded Standard Operating Procedures (SOPs) and audit PDF files.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    <div 
+                      onClick={() => {
+                        setPdfStorageMode('local');
+                        localStorage.setItem('bqos_pdf_storage_mode', 'local');
+                      }}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                        pdfStorageMode === 'local' 
+                          ? 'border-indigo-650 bg-indigo-50/40 text-indigo-950' 
+                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Icon name="hard-drive" size={13} className={pdfStorageMode === 'local' ? 'text-indigo-650' : 'text-slate-400'} />
+                          <span className="text-xs font-black uppercase tracking-wider">Local App Storage</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          Store documents directly inside this application. 100% offline-ready, instant, zero configuration needed.
+                        </p>
+                      </div>
+                      <div className="mt-2.5 flex justify-end">
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                          pdfStorageMode === 'local' ? 'bg-indigo-650 text-white' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {pdfStorageMode === 'local' ? 'Selected' : 'Choose'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div 
+                      onClick={() => {
+                        setPdfStorageMode('gas');
+                        localStorage.setItem('bqos_pdf_storage_mode', 'gas');
+                      }}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                        pdfStorageMode === 'gas' 
+                          ? 'border-indigo-650 bg-indigo-50/40 text-indigo-950' 
+                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Icon name="cloud" size={13} className={pdfStorageMode === 'gas' ? 'text-indigo-650' : 'text-slate-400'} />
+                          <span className="text-xs font-black uppercase tracking-wider">Google Drive Cloud</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          Uploads to Google Drive using your Server 1 Apps Script connection. No client-side Google sign-in required.
+                        </p>
+                      </div>
+                      <div className="mt-2.5 flex justify-end">
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                          pdfStorageMode === 'gas' ? 'bg-indigo-650 text-white' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {pdfStorageMode === 'gas' ? 'Selected' : 'Choose'}
+                        </span>
                       </div>
                     </div>
                   </div>

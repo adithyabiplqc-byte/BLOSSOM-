@@ -278,6 +278,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  const [storageMode, setStorageMode] = useState<'local' | 'gas'>(() => (localStorage.getItem('bqos_pdf_storage_mode') as 'local' | 'gas') || 'local');
   
   // State for upload completion
   const [justPublished, setJustPublished] = useState(false);
@@ -593,7 +594,30 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const base64Data = await fileToBase64(attachmentFile!);
       const rawBase64 = base64Data.split(',')[1];
 
-      if (googleToken) {
+      if (storageMode === 'local') {
+        setUploadProgress('Storing PDF directly inside app container storage...');
+        try {
+          const response = await fetch('/api/upload-offline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: attachmentFile!.name,
+              base64Data: base64Data,
+              mimeType: attachmentFile!.type
+            })
+          });
+
+          if (response.ok) {
+            const uploadRes = await response.json();
+            finalUrl = uploadRes.url;
+          } else {
+            throw new Error("Local server rejected disk upload.");
+          }
+        } catch (offlineErr) {
+          console.warn("Local server unavailable. Saving to browser local IndexedDB instead...", offlineErr);
+          finalUrl = await saveToLocalIndexedDB(attachmentFile!.name, attachmentFile!.type, base64Data);
+        }
+      } else if (googleToken) {
         setUploadProgress('Uploading PDF directly to your personal Google Drive...');
         try {
           finalUrl = await uploadToUserGoogleDrive(attachmentFile!.name, attachmentFile!.type, base64Data, googleToken);
@@ -633,7 +657,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           }
         }
       } else {
-        setUploadProgress('Uploading PDF to default Google Drive storage...');
+        setUploadProgress('Uploading PDF to Google Drive via Apps Script...');
         try {
           const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
           if (res?.success && res.url) {
@@ -917,6 +941,55 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     <span className="text-[10px] text-slate-400 block font-normal">Files must be strictly in PDF file format</span>
                   </div>
                 </div>
+              </div>
+
+              {/* PDF Document Storage Destination Config */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    PDF Storage Destination
+                  </label>
+                  <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded uppercase">
+                    {storageMode === 'local' ? 'Local System' : 'Cloud Drive'}
+                  </span>
+                </div>
+                
+                <div className="flex gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStorageMode('local');
+                      localStorage.setItem('bqos_pdf_storage_mode', 'local');
+                    }}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg font-bold border transition text-center ${
+                      storageMode === 'local'
+                        ? 'bg-indigo-600 text-white border-indigo-650 shadow-2xs'
+                        : 'bg-white text-slate-500 hover:bg-slate-100 border-slate-200'
+                    }`}
+                  >
+                    📂 Local Storage (Zero Setup)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStorageMode('gas');
+                      localStorage.setItem('bqos_pdf_storage_mode', 'gas');
+                    }}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg font-bold border transition text-center ${
+                      storageMode === 'gas'
+                        ? 'bg-indigo-600 text-white border-indigo-650 shadow-2xs'
+                        : 'bg-white text-slate-500 hover:bg-slate-100 border-slate-200'
+                    }`}
+                  >
+                    ☁️ Google Drive
+                  </button>
+                </div>
+                <p className="text-[9px] text-slate-400 font-medium leading-normal mt-1">
+                  {storageMode === 'local' 
+                    ? "Instant offline storage on the local server. Recommended for iframe viewing and zero Firebase/OAuth configuration."
+                    : "Uploads cloud copy to Google Drive using your Google Sheets Apps Script connection."
+                  }
+                </p>
               </div>
 
               {uploadProgress && (
