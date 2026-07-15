@@ -1491,7 +1491,13 @@ function executeLocalAction(action: string, params: any[]): any {
 
     case 'api_getREPORTS_SOPData': {
       const zone = params[0]?.zone;
+      const userCode = params[0]?.userCode;
+      const userRole = params[0]?.userRole;
+      const username = params[0]?.username;
+      
       let data = db.reports_sop || [];
+      
+      // Perform zone-based filtering
       if (zone && zone !== 'ALL') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
@@ -1499,6 +1505,23 @@ function executeLocalAction(action: string, params: any[]): any {
           return rZone === targetZone || rZone === 'ALL' || rZone === '';
         });
       }
+      
+      // Perform session-based user account filtering if a specific non-admin user session is active
+      const isPowerUser = ['ADMIN', 'QUALITY DIRECTOR', 'AUDIT MANAGER'].includes(String(userRole || '').trim().toUpperCase());
+      if (userCode && !isPowerUser) {
+        data = data.filter((r: any) => {
+          // Keep preloaded templates (preloaded sops usually have ids like 'sop-p1', 'sop-p2' or creator is 'SYSTEM ADMIN')
+          const isPreloaded = String(r.id || '').startsWith('sop-p') || String(r.creator || '').toUpperCase() === 'SYSTEM ADMIN';
+          // Keep if created by this specific user account
+          const isOwnCreated = (r.creatorCode && String(r.creatorCode) === String(userCode)) ||
+                               (r.creator && String(r.creator).toLowerCase() === String(username || '').toLowerCase());
+          // Keep if explicitly marked for ALL users or empty creator
+          const isPublic = !r.creatorCode || r.creatorCode === 'SYSTEM' || r.creatorCode === '';
+          
+          return isPreloaded || isOwnCreated || isPublic;
+        });
+      }
+      
       const deletedList = db.deleted_sop_ids || [];
       return [...data, { id: '__DELETED_SOP_IDS__', deletedList: deletedList }];
     }

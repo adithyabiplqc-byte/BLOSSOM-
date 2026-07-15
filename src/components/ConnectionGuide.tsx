@@ -31,6 +31,7 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
   const [googleUser, setGoogleUser] = React.useState<any>(auth.currentUser);
   const [googleToken, setGoogleToken] = React.useState<string | null>(getAccessToken());
   const [sheetId, setSheetId] = React.useState<string | null>(sheetsService.getSpreadsheetId());
+  const [unauthorizedDomain, setUnauthorizedDomain] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -54,7 +55,12 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
         setOauthResult({ success: true, message: "Logged in successfully! Let's choose a spreadsheet next." });
       }
     } catch (e: any) {
-      setOauthResult({ success: false, message: e.message || "Failed to sign in with Google." });
+      if (e.isUnauthorizedDomain || e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
+        setUnauthorizedDomain(window.location.hostname);
+        setOauthResult({ success: false, message: `Firebase Domain Authorization Required: ${window.location.hostname} needs to be registered in your Firebase Console.` });
+      } else {
+        setOauthResult({ success: false, message: e.message || "Failed to sign in with Google." });
+      }
     } finally {
       setProcessingOAuth(false);
     }
@@ -397,142 +403,145 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
             </div>
           </div>
 
-          {!googleUser ? (
-            <div className="text-center py-4 space-y-4 border-t border-slate-100/60 pt-4">
-              <p className="text-xs text-slate-500 max-w-md mx-auto font-medium">
-                Store and synchronize all your ERP, Quality Forms, and inspection data directly onto your personal Google Drive Sheets securely.
-              </p>
-              
-              {/* Google Sign In Button - Styled with Material colors */}
-              <button 
-                onClick={handleGoogleSignIn}
-                disabled={processingOAuth}
-                className="gsi-material-button inline-flex items-center bg-white hover:bg-slate-50 text-slate-700 font-bold border border-slate-200 shadow-sm rounded-xl px-4 py-2.5 transition-all text-xs cursor-pointer disabled:opacity-50"
-              >
-                <div className="gsi-material-button-content-wrapper flex items-center gap-3">
-                  <div className="gsi-material-button-icon w-4 h-4 flex items-center justify-center shrink-0">
-                    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block' }}>
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                    </svg>
-                  </div>
-                  <span className="gsi-material-button-contents font-black uppercase text-[10px] tracking-wider">Sign in with Google Account</span>
+          <div className="space-y-6">
+            {/* SPREADSHEET CONFIGURATION PANEL - ACCESSIBLE TO EVERYONE WITH OR WITHOUT LOGIN */}
+            {!sheetId ? (
+              <div className="space-y-4 bg-white border border-indigo-50 p-6 rounded-2xl shadow-sm">
+                <div className="flex items-center gap-2 border-b pb-2.5 mb-2 border-slate-100">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">1</span>
+                  <p className="text-xs font-black text-slate-800 uppercase tracking-wider">Configure Google Sheet Database</p>
                 </div>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  {googleUser.photoURL ? (
-                    <img src={googleUser.photoURL} referrerPolicy="no-referrer" className="w-10 h-10 rounded-full" alt="profile" />
-                  ) : (
-                    <div className="w-10 h-10 bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold rounded-full">G</div>
-                  )}
-                  <div>
-                    <h4 className="text-sm font-black text-slate-800">{googleUser.displayName || 'Authorized'}</h4>
-                    <p className="text-[10px] text-slate-500 font-medium">{googleUser.email}</p>
+                
+                <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
+                  You can connect any shared Google Sheet directly without signing in! Ensure your Google Sheet is shared as <strong>"Anyone with the link can edit"</strong> or accessible by your Apps Script.
+                </p>
+
+                <div className="space-y-3 pt-1">
+                  <label className="text-slate-500 text-[10px] font-black uppercase tracking-wider block">Spreadsheet ID or Full URL:</label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input 
+                      type="text" 
+                      value={spreadsheetInput}
+                      onChange={(e) => setSpreadsheetInput(e.target.value)}
+                      placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                      className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono focus:border-indigo-500 outline-none transition-all shadow-inner"
+                    />
+                    <button 
+                      onClick={handleConnectSpreadsheet}
+                      disabled={processingOAuth}
+                      className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest disabled:opacity-50 shrink-0 cursor-pointer transition"
+                    >
+                      {processingOAuth ? 'Checking...' : 'Link Sheet'}
+                    </button>
+                  </div>
+
+                  {/* High visibility Bypass link for zero-auth setups */}
+                  <div className="mt-3 bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl space-y-3">
+                    <div className="flex items-start gap-2 text-[11px] text-indigo-900 leading-relaxed font-bold">
+                      <span className="text-sm mt-0.5">💡</span>
+                      <p>
+                        <strong>Direct Bypass Mode (No Firebase Required):</strong> You can instantly bypass online validation check and register your database directly. Paste your Sheet URL above, then click below:
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={forceLinkSpreadsheet}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest py-2.5 px-4 rounded-xl transition duration-150 shadow-md cursor-pointer"
+                    >
+                      Bypass Verification & Connect Sheet ID Directly
+                    </button>
                   </div>
                 </div>
-                <button 
-                  onClick={handleLogout}
-                  className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100 p-2 rounded-lg transition-all"
-                >
-                  Sign Out
-                </button>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center gap-2 text-emerald-800">
+                  <Icon name="shield-check" size={20} />
+                  <h4 className="text-xs font-black uppercase tracking-wider leading-none">Spreadsheet Successfully Connected!</h4>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 py-1">
+                  <a 
+                    href={`https://docs.google.com/spreadsheets/d/${sheetId}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex-1 text-center bg-white text-emerald-700 border border-emerald-200 font-bold text-[10px] uppercase tracking-wider py-2.5 rounded-xl hover:bg-emerald-100/50 transition-all shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Icon name="external-link" size={12} />
+                    Open Google Spreadsheet ↗
+                  </a>
+                  
+                  <button 
+                    onClick={async () => {
+                      await api.disconnect();
+                    }}
+                    className="text-slate-500 hover:text-red-600 bg-white border border-slate-200 rounded-xl py-2.5 px-4 hover:bg-red-50 transition-all font-bold text-[10px] uppercase tracking-wider cursor-pointer"
+                  >
+                    Change Sheet ID
+                  </button>
+                </div>
+                
+                <p className="text-[9px] text-emerald-600 font-black tracking-wide uppercase italic">
+                  All forms, workorders, quality inspection, and bulk report entries are synchronized with your spreadsheet in real time.
+                </p>
+              </div>
+            )}
+
+            {/* SECURE GOOGLE LOGIN SECTION - OPTIONAL FOR AUTO CREATION & DRIVE */}
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b pb-2.5 border-slate-100">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-white text-[10px] font-black">2</span>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Google Account Auth (Optional Assistant)</h4>
               </div>
 
-              {!sheetId ? (
-                <div className="space-y-4 bg-white border border-indigo-50 p-6 rounded-xl shadow-sm">
-                  <div className="text-center py-2">
-                    <p className="text-xs font-bold text-slate-700 uppercase tracking-tight mb-2">Configure Your Cloud Sheet Database</p>
-                    <button
-                      onClick={handleCreateNewSheet}
-                      disabled={processingOAuth}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[11px] tracking-widest py-3 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-150 active:scale-[0.98]"
-                    >
-                      <Icon name="file-spreadsheet" size={16} />
-                      {processingOAuth ? 'Creating database...' : 'Create New Google Sheet Automatically'}
-                    </button>
-                  </div>
-
-                  <div className="relative flex py-2 items-center">
-                    <div className="flex-grow border-t border-slate-150"></div>
-                    <span className="flex-shrink mx-4 text-slate-400 text-[10px] font-black uppercase tracking-widest">or link existing</span>
-                    <div className="flex-grow border-t border-slate-150"></div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-slate-500 text-[10px] font-black uppercase tracking-wider block">Spreadsheet ID or full URL:</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={spreadsheetInput}
-                        onChange={(e) => setSpreadsheetInput(e.target.value)}
-                        placeholder="https://docs.google.com/spreadsheets/d/.../edit"
-                        className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-mono focus:border-indigo-500 outline-none transition-all shadow-inner"
-                      />
-                      <button 
-                        onClick={handleConnectSpreadsheet}
-                        disabled={processingOAuth}
-                        className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest disabled:opacity-50 shrink-0"
-                      >
-                        {processingOAuth ? 'Checking...' : 'Link Sheet'}
-                      </button>
-                    </div>
-
-                    {showForceButton && (
-                      <div className="mt-3 bg-red-50 border border-red-200 p-4 rounded-xl space-y-2">
-                        <p className="text-[11px] text-red-800 font-bold">
-                          ⚠️ Unable to automatically verify sheet API access (can occur due to iframe limitations or scopes). If this is a valid sheet, you can bypass validation and connect directly!
-                        </p>
-                        <button
-                          type="button"
-                          onClick={forceLinkSpreadsheet}
-                          className="bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest py-2 px-4 rounded-xl transition duration-150 shadow"
-                        >
-                          Bypass Verification & Link Sheet ID Anyway
-                        </button>
+              {!googleUser ? (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    Signing in with Google is <strong>strictly optional</strong>. It is only required if you want to use the automatic sheet generator (Creates Sheets on your behalf) or upload PDF documents directly to your personal Google Drive folders.
+                  </p>
+                  
+                  {/* Google Sign In Button - Styled with Material colors */}
+                  <button 
+                    onClick={handleGoogleSignIn}
+                    disabled={processingOAuth}
+                    className="gsi-material-button inline-flex items-center bg-white hover:bg-slate-50 text-slate-700 font-bold border border-slate-200 shadow-sm rounded-xl px-4 py-2.5 transition-all text-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <div className="gsi-material-button-content-wrapper flex items-center gap-3">
+                      <div className="gsi-material-button-icon w-4 h-4 flex items-center justify-center shrink-0">
+                        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block' }}>
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                        </svg>
                       </div>
-                    )}
-                  </div>
+                      <span className="gsi-material-button-contents font-black uppercase text-[10px] tracking-wider">Google Sign-In (Optional)</span>
+                    </div>
+                  </button>
                 </div>
               ) : (
-                <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-800">
-                    <Icon name="shield-check" size={20} />
-                    <h4 className="text-xs font-black uppercase tracking-wider leading-none">Spreadsheet Successfully Connected!</h4>
+                <div className="flex items-center justify-between bg-slate-50 border border-slate-150 p-4 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    {googleUser.photoURL ? (
+                      <img src={googleUser.photoURL} referrerPolicy="no-referrer" className="w-10 h-10 rounded-full" alt="profile" />
+                    ) : (
+                      <div className="w-10 h-10 bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold rounded-full">G</div>
+                    )}
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">{googleUser.displayName || 'Authorized'}</h4>
+                      <p className="text-[10px] text-slate-500 font-medium">{googleUser.email}</p>
+                    </div>
                   </div>
-                  
-                  <div className="flex flex-col sm:flex-row gap-3 py-1">
-                    <a 
-                      href={`https://docs.google.com/spreadsheets/d/${sheetId}`} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="flex-1 text-center bg-white text-emerald-700 border border-emerald-200 font-bold text-[10px] uppercase tracking-wider py-2 rounded-lg hover:bg-emerald-100/50 transition-all shadow-sm"
-                    >
-                      Open Google Spreadsheet ↗
-                    </a>
-                    
-                    <button 
-                      onClick={async () => {
-                        await api.disconnect();
-                      }}
-                      className="text-slate-500 hover:text-red-600 bg-white border border-slate-200 rounded-lg py-2 px-4 hover:bg-red-50 transition-all font-bold text-[10px] uppercase tracking-wider"
-                    >
-                      Change Sheet
-                    </button>
-                  </div>
-                  
-                  <p className="text-[9px] text-emerald-600 font-black tracking-wide uppercase italic">
-                    All forms, workorders, quality inspection, and bulk report entries are synchronized with your spreadsheet in real time.
-                  </p>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-200 p-2 rounded-lg transition-all cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
                 </div>
               )}
             </div>
-          )}
+          </div>
 
           {oauthResult && (
             <div className={`p-3 rounded-xl mt-1 text-[10px] font-black uppercase tracking-tight text-center ${oauthResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
@@ -744,6 +753,60 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
           </button>
         </div>
       </div>
+
+      {unauthorizedDomain && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fade-in" id="firebase-domain-auth-modal">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-rose-100 space-y-5 animate-scale-up">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <h3 className="text-sm font-black text-rose-950 uppercase tracking-wider">Domain Authorization Required</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Firebase Authentication is blocking this request.</p>
+              </div>
+            </div>
+            
+            <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100/80 space-y-2">
+              <p className="text-xs text-rose-900 leading-relaxed font-semibold">
+                Your application is currently running on <strong className="text-rose-700 font-black">{unauthorizedDomain}</strong>, which is not registered as an authorized domain in Firebase Authentication.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
+              <p className="font-extrabold uppercase text-[10px] tracking-wider text-slate-400">How to authorize this domain:</p>
+              <ol className="list-decimal list-inside space-y-1.5 pl-1 text-[11px]">
+                <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Firebase Console</a></li>
+                <li>Navigate to <strong className="text-slate-800">Authentication</strong> &gt; <strong className="text-slate-800">Settings</strong></li>
+                <li>Scroll down to <strong className="text-slate-800">Authorized domains</strong></li>
+                <li>Click <strong className="text-indigo-600 font-bold">Add domain</strong> and enter exactly:</li>
+              </ol>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-xl p-2.5">
+              <code className="text-xs font-mono font-bold text-slate-800 select-all">{unauthorizedDomain}</code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(unauthorizedDomain);
+                  alert("Copied domain to clipboard!");
+                }}
+                className="text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-2xs hover:shadow-sm cursor-pointer transition-all"
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setUnauthorizedDomain(null)}
+                className="w-full bg-slate-900 hover:bg-slate-850 text-white text-[11px] font-black uppercase tracking-widest py-2.5 px-5 rounded-xl cursor-pointer transition shadow-md"
+              >
+                Got it, close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

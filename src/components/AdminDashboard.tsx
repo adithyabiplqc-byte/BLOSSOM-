@@ -98,6 +98,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [googleUser, setGoogleUser] = useState<any>(auth.currentUser);
   const [googleToken, setGoogleToken] = useState<string | null>(getAccessToken());
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -121,7 +122,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
       }
     } catch (e: any) {
-      alert("Failed to connect to Google account: " + (e.message || e));
+      if (e.isUnauthorizedDomain || e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
+        setUnauthorizedDomain(window.location.hostname);
+      } else {
+        alert("Failed to connect to Google account: " + (e.message || e));
+      }
     } finally {
       setIsLinkingGoogle(false);
     }
@@ -2024,6 +2029,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {unauthorizedDomain && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fade-in" id="firebase-domain-auth-modal">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-rose-100 space-y-5 animate-scale-up">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <h3 className="text-sm font-black text-rose-950 uppercase tracking-wider">Domain Authorization Required</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Firebase Authentication is blocking this request.</p>
+              </div>
+            </div>
+            
+            <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100/80 space-y-2">
+              <p className="text-xs text-rose-900 leading-relaxed font-semibold">
+                Your application is currently running on <strong className="text-rose-700 font-black">{unauthorizedDomain}</strong>, which is not registered as an authorized domain in Firebase Authentication.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
+              <p className="font-extrabold uppercase text-[10px] tracking-wider text-slate-400">How to authorize this domain:</p>
+              <ol className="list-decimal list-inside space-y-1.5 pl-1 text-[11px]">
+                <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Firebase Console</a></li>
+                <li>Navigate to <strong className="text-slate-800">Authentication</strong> &gt; <strong className="text-slate-800">Settings</strong></li>
+                <li>Scroll down to <strong className="text-slate-800">Authorized domains</strong></li>
+                <li>Click <strong className="text-indigo-600 font-bold">Add domain</strong> and enter exactly:</li>
+              </ol>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-xl p-2.5">
+              <code className="text-xs font-mono font-bold text-slate-800 select-all">{unauthorizedDomain}</code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(unauthorizedDomain);
+                  if (triggerSuccess) {
+                    triggerSuccess("Copied domain to clipboard!");
+                  } else {
+                    alert("Copied domain to clipboard!");
+                  }
+                }}
+                className="text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-2xs hover:shadow-sm cursor-pointer transition-all"
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setUnauthorizedDomain(null)}
+                className="w-full bg-slate-900 hover:bg-slate-850 text-white text-[11px] font-black uppercase tracking-widest py-2.5 px-5 rounded-xl cursor-pointer transition shadow-md"
+              >
+                Got it, close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
