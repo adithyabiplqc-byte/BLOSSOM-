@@ -2452,24 +2452,70 @@ function arraysEqual(a, b) {
 
 /**
  * Uploads a base64 encoded document (like a PDF) directly to the Google Drive of the Apps Script owner,
- * making Google Sheets / Google Drive a real document storage server.
+ * and organizes them into category folders under a main "Blossom Quality Documents" folder.
  */
-function api_uploadSOPFile(fileName, base64Data, mimeType) {
+function api_uploadSOPFile(fileName, base64Data, mimeType, category) {
   try {
     var decoded = Utilities.base64Decode(base64Data);
     var blob = Utilities.newBlob(decoded, mimeType, fileName);
-    var file = DriveApp.createFile(blob);
+    
+    // Find or create the main folder
+    var mainFolderName = "Blossom Quality Documents";
+    var mainFolders = DriveApp.getFoldersByName(mainFolderName);
+    var mainFolder;
+    if (mainFolders.hasNext()) {
+      mainFolder = mainFolders.next();
+    } else {
+      mainFolder = DriveApp.createFolder(mainFolderName);
+    }
+    
+    // Determine sub-folder category
+    var subFolderName = category || "Others";
+    // Normalize sub-folder names to match standard casing
+    var standardCategories = {
+      "SOP": "SOP",
+      "SUPPLIER AUDIT": "Inspection Reports",
+      "CHANNEL PARTNER AUDIT": "Inspection Reports",
+      "SHOP AUDIT": "Inspection Reports",
+      "OTHER AUDITS": "Others",
+      "INSPECTION REPORTS": "Inspection Reports",
+      "SPECIFICATIONS": "Specifications",
+      "TEST REPORTS": "Test Reports",
+      "LAB REPORTS": "Lab Reports",
+      "WORK INSTRUCTIONS": "Work Instructions",
+      "DRAWINGS": "Drawings",
+      "QUALITY MANUALS": "Quality Manuals",
+      "OTHERS": "Others",
+      "OTHER": "Others"
+    };
+    
+    var resolvedFolder = standardCategories[subFolderName.toUpperCase()] || subFolderName;
+    
+    // Find or create category sub-folder
+    var subFolders = mainFolder.getFoldersByName(resolvedFolder);
+    var subFolder;
+    if (subFolders.hasNext()) {
+      subFolder = subFolders.next();
+    } else {
+      subFolder = mainFolder.createFolder(resolvedFolder);
+    }
+    
+    // Create the file in the category sub-folder
+    var file = subFolder.createFile(blob);
+    
     try {
       // Set access permissons to allow anyone with url to read
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (shareErr) {
       console.error("Warning: setting file sharing permissions failed in Apps Script", shareErr);
     }
+    
     return {
       success: true,
       url: file.getUrl(),
       name: file.getName(),
-      id: file.getId()
+      id: file.getId(),
+      downloadUrl: "https://drive.google.com/uc?export=download&id=" + file.getId()
     };
   } catch (err) {
     return { success: false, error: err.toString() };

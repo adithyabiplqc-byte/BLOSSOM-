@@ -1500,12 +1500,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             
             <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 space-y-6">
               <div className="space-y-6">
-                {/* SERVER 1: SHEETS DATA SYNC */}
+                {/* GOOGLE SHEETS & DRIVE CONNECTION */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">1</span>
-                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 1: Google Sheets Connection (Data Sync)</h3>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">✓</span>
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Google Sheets & Drive Connection (Data Sync & Uploads)</h3>
                     </div>
                     {connectionStatus === 'success' && (
                       <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
@@ -1528,81 +1528,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       placeholder="https://script.google.com/macros/s/.../exec"
                       className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
                     />
-                  </div>
-                </div>
-
-                {/* SERVER 2: GOOGLE DRIVE CONNECTION */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
-                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Server 2: Google Drive Connection</h3>
-                    </div>
-                    {googleUser && (
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Connected</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                    Provide your Gmail ID and Password to securely link your Google Drive workspace. All uploaded SOPs/audits will feed directly into your drive.
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Google Email Address / Gmail ID</label>
-                      <input 
-                        type="email" 
-                        value={gDriveEmail}
-                        onChange={e => setGDriveEmail(e.target.value)}
-                        placeholder="yourname@gmail.com"
-                        disabled={!!googleUser}
-                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 disabled:bg-slate-100 disabled:text-slate-500 font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Google Drive Password / App Password</label>
-                      <input 
-                        type="password" 
-                        value={gDrivePassword}
-                        onChange={e => setGDrivePassword(e.target.value)}
-                        placeholder="••••••••••••••••"
-                        disabled={!!googleUser}
-                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 disabled:bg-slate-100 disabled:text-slate-500 font-mono"
-                      />
-                    </div>
-
-                    <div className="flex justify-end pt-1">
-                      {googleUser ? (
-                        <button
-                          type="button"
-                          onClick={handleGoogleSignOut}
-                          className="text-[10px] font-black uppercase tracking-wider bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 px-4 py-2 rounded-xl border border-rose-200 transition-all cursor-pointer shadow-2xs"
-                        >
-                          Disconnect Drive
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleGoogleSignIn}
-                          disabled={isLinkingGoogle}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-                        >
-                          {isLinkingGoogle ? (
-                            <>
-                              <Icon name="loader" size={11} className="animate-spin" />
-                              Connecting...
-                            </>
-                          ) : (
-                            <>
-                              🔑 Establish Connection
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </div>
                 

@@ -6,8 +6,19 @@ import { api } from '../services/api';
 interface SOPReport {
   id?: string;
   title: string;
-  category: 'SOP' | 'SUPPLIER AUDIT' | 'CHANNEL PARTNER AUDIT' | 'SHOP AUDIT' | 'OTHER AUDITS';
+  category: string;
   description: string;
+  department?: string;
+  version?: string;
+  remarks?: string;
+  driveFileId?: string;
+  viewUrl?: string;
+  downloadUrl?: string;
+  fileSize?: string;
+  uploadedBy?: string;
+  uploadDate?: string;
+  lastModified?: string;
+  status?: string;
   attachmentUrl?: string;
   attachmentName?: string;
   creator: string;
@@ -16,6 +27,29 @@ interface SOPReport {
   timestamp?: string;
   googleDriveEmail?: string;
 }
+
+const DOCUMENT_CATEGORIES = [
+  'SOP',
+  'Inspection Reports',
+  'Specifications',
+  'Test Reports',
+  'Lab Reports',
+  'Work Instructions',
+  'Drawings',
+  'Quality Manuals',
+  'Others'
+] as const;
+
+const DEPARTMENTS = [
+  'Quality',
+  'Production',
+  'Maintenance',
+  'Logistics',
+  'HR & Admin',
+  'Compliance',
+  'R&D',
+  'Others'
+] as const;
 
 interface ReportsSOPsProps {
   user: any;
@@ -198,11 +232,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
   // Create / Edit Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<SOPReport['category']>('SOP');
+  const [category, setCategory] = useState<string>('SOP');
+  const [department, setDepartment] = useState<string>('Quality');
+  const [version, setVersion] = useState<string>('1.0');
+  const [remarks, setRemarks] = useState<string>('');
   const [description, setDescription] = useState('');
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  
+  // Library View Search, Filter and Sorting State
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
+  const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState<string>('ALL');
+  const [sortMode, setSortMode] = useState<string>('date_desc');
   
   // State for upload completion
   const [justPublished, setJustPublished] = useState(false);
@@ -360,7 +402,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           return {
             id,
             title: getValCaseInsensitive(item, 'title', 'Untitled'),
-            category: String(getValCaseInsensitive(item, 'category', 'SOP')).toUpperCase() as SOPReport['category'],
+            category: String(getValCaseInsensitive(item, 'category', 'SOP')) as SOPReport['category'],
             description: getValCaseInsensitive(item, 'description', ''),
             attachmentUrl: getValCaseInsensitive(item, 'attachmentUrl', getValCaseInsensitive(item, 'attachment_url', '')),
             attachmentName: getValCaseInsensitive(item, 'attachmentName', getValCaseInsensitive(item, 'attachment_name', '')),
@@ -368,7 +410,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
             creatorCode: getValCaseInsensitive(item, 'creatorCode', getValCaseInsensitive(item, 'creator_code', '')),
             zone: getValCaseInsensitive(item, 'zone', activeZone),
             timestamp: getValCaseInsensitive(item, 'timestamp', new Date().toISOString()),
-            googleDriveEmail: getValCaseInsensitive(item, 'googleDriveEmail', getValCaseInsensitive(item, 'google_drive_email', ''))
+            googleDriveEmail: getValCaseInsensitive(item, 'googleDriveEmail', getValCaseInsensitive(item, 'google_drive_email', '')),
+            
+            department: getValCaseInsensitive(item, 'department', 'Quality'),
+            version: getValCaseInsensitive(item, 'version', '1.0'),
+            remarks: getValCaseInsensitive(item, 'remarks', ''),
+            driveFileId: getValCaseInsensitive(item, 'driveFileId', getValCaseInsensitive(item, 'drive_file_id', '')),
+            viewUrl: getValCaseInsensitive(item, 'viewUrl', getValCaseInsensitive(item, 'view_url', '')),
+            downloadUrl: getValCaseInsensitive(item, 'downloadUrl', getValCaseInsensitive(item, 'download_url', '')),
+            fileSize: getValCaseInsensitive(item, 'fileSize', getValCaseInsensitive(item, 'file_size', '')),
+            uploadedBy: getValCaseInsensitive(item, 'uploadedBy', getValCaseInsensitive(item, 'uploaded_by', '')),
+            uploadDate: getValCaseInsensitive(item, 'uploadDate', getValCaseInsensitive(item, 'upload_date', '')),
+            lastModified: getValCaseInsensitive(item, 'lastModified', getValCaseInsensitive(item, 'last_modified', '')),
+            status: getValCaseInsensitive(item, 'status', 'ACTIVE')
           };
         });
       }
@@ -487,9 +541,21 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     return "Shared PDF Guideline";
   };
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = 2;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
   const resetFormState = () => {
     setTitle('');
     setCategory('SOP');
+    setDepartment('Quality');
+    setVersion('1.0');
+    setRemarks('');
     setDescription('');
     setAttachmentFile(null);
     setUploadProgress('');
@@ -513,21 +579,67 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     try {
       let finalUrl = '';
       let finalName = '';
+      let driveFileId = '';
+      let downloadUrl = '';
 
       finalName = attachmentFile!.name;
       const base64Data = await fileToBase64(attachmentFile!);
       const rawBase64 = base64Data.split(',')[1];
+      const sizeStr = formatBytes(attachmentFile.size);
 
       setUploadProgress('Uploading PDF to Google Drive via Apps Script...');
       try {
-        const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type) as any;
+        const res = await api.run('api_uploadSOPFile', attachmentFile!.name, rawBase64, attachmentFile!.type, category) as any;
         if (res?.success && res.url) {
           finalUrl = res.url;
+          driveFileId = res.id || '';
+          downloadUrl = res.downloadUrl || `https://drive.google.com/uc?export=download&id=${res.id}`;
         } else {
           throw new Error(res?.error || "Google Sheets Web App did not return a valid file URL.");
         }
       } catch (gasErr: any) {
-        throw new Error("Google Drive file upload failed. Please verify that your Google Web App URL is connected correctly. Error: " + (gasErr.message || gasErr));
+        console.warn("GAS permanent upload failed. Executing auto-healing fallback to IndexedDB...", gasErr);
+        // Fallback to local IndexedDB storage so they can test immediately without updated GAS Web App!
+        try {
+          const fileId = 'sop_file_' + Date.now();
+          const fileData = {
+            name: attachmentFile!.name,
+            type: attachmentFile!.type,
+            base64: base64Data
+          };
+          
+          const dbOpen = () => {
+            return new Promise<IDBDatabase>((resolve, reject) => {
+              const req = indexedDB.open("SopFileStore", 1);
+              req.onupgradeneeded = () => {
+                const database = req.result;
+                if (!database.objectStoreNames.contains("files")) {
+                  database.createObjectStore("files");
+                }
+              };
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+            });
+          };
+          
+          const dbInstance = await dbOpen();
+          await new Promise<void>((resolve, reject) => {
+            const tx = dbInstance.transaction("files", "readwrite");
+            const store = tx.objectStore("files");
+            const putReq = store.put(fileData, fileId);
+            putReq.onsuccess = () => resolve();
+            putReq.onerror = () => reject(putReq.error);
+          });
+          
+          finalUrl = `indexeddb://${fileId}`;
+          driveFileId = fileId;
+          downloadUrl = finalUrl;
+          
+          // Let the user know they are using local fallback
+          alert("Notice: Google Drive Web App is not redeployed or unconfigured. Document saved locally inside your browser's offline storage for testing.");
+        } catch (idxDbErr: any) {
+          throw new Error("Google Drive file upload failed, and browser local storage fallback failed: " + idxDbErr.message);
+        }
       }
 
       setUploadProgress('Syncing metadata index inside Google Sheets...');
@@ -544,7 +656,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         creatorCode: user?.userCode || 'SYSTEM',
         zone: activeZone,
         timestamp: new Date().toISOString(),
-        googleDriveEmail: googleUser?.email || ''
+        googleDriveEmail: googleUser?.email || '',
+        
+        department,
+        version,
+        remarks: remarks.trim(),
+        driveFileId,
+        viewUrl: finalUrl,
+        downloadUrl,
+        fileSize: sizeStr,
+        uploadedBy: user?.username || 'SYSTEM ADMIN',
+        uploadDate: new Date().toISOString().split('T')[0],
+        lastModified: new Date().toISOString(),
+        status: 'ACTIVE'
       };
 
       let saveRes: any = null;
@@ -664,11 +788,41 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     return cleanUrl;
   };
 
-  // Filtering Logic
-  const filteredReports = reports.filter(r => {
-    return r.title.toLowerCase().includes(search.toLowerCase()) || 
-           r.description.toLowerCase().includes(search.toLowerCase());
-  });
+  // Filtering and Sorting Logic
+  const filteredReports = reports
+    .filter(r => {
+      // Search term match
+      const matchesSearch = r.title.toLowerCase().includes(search.toLowerCase()) || 
+                            r.description.toLowerCase().includes(search.toLowerCase()) ||
+                            (r.remarks && r.remarks.toLowerCase().includes(search.toLowerCase())) ||
+                            (r.department && r.department.toLowerCase().includes(search.toLowerCase()));
+      
+      // Category filter match
+      const matchesCategory = selectedCategoryFilter === 'ALL' || 
+                              String(r.category || '').toUpperCase() === selectedCategoryFilter.toUpperCase();
+      
+      // Department filter match
+      const matchesDepartment = selectedDepartmentFilter === 'ALL' || 
+                                String(r.department || 'Quality').toUpperCase() === selectedDepartmentFilter.toUpperCase();
+      
+      return matchesSearch && matchesCategory && matchesDepartment;
+    })
+    .sort((a, b) => {
+      if (sortMode === 'date_desc') {
+        const timeA = new Date(a.timestamp || a.uploadDate || 0).getTime();
+        const timeB = new Date(b.timestamp || b.uploadDate || 0).getTime();
+        return timeB - timeA;
+      } else if (sortMode === 'date_asc') {
+        const timeA = new Date(a.timestamp || a.uploadDate || 0).getTime();
+        const timeB = new Date(b.timestamp || b.uploadDate || 0).getTime();
+        return timeA - timeB;
+      } else if (sortMode === 'name_asc') {
+        return a.title.localeCompare(b.title);
+      } else if (sortMode === 'name_desc') {
+        return b.title.localeCompare(a.title);
+      }
+      return 0;
+    });
 
   // Render Section
   return (
@@ -714,33 +868,74 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </div>
               </div>
               
-              {/* Type Heading Box */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Document Heading / Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="e.g. SOP for Wearing Test"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                {/* Category Selection */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">SOP / Document Category *</label>
+                  <select
+                    value={category}
+                    onChange={e => setCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold tracking-tight focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
+                  >
+                    {DOCUMENT_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Department Selection */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Department *</label>
+                  <select
+                    value={department}
+                    onChange={e => setDepartment(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold tracking-tight focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
+                  >
+                    {DEPARTMENTS.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {/* Selection Dropbox type */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Type Heading Box */}
+                <div className="space-y-1 col-span-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Document Heading / Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="e.g. SOP for Wearing Test"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
+                  />
+                </div>
+
+                {/* Version input */}
+                <div className="space-y-1 col-span-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Version / Revision *</label>
+                  <input
+                    type="text"
+                    required
+                    value={version}
+                    onChange={e => setVersion(e.target.value)}
+                    placeholder="e.g. 1.0, Rev A"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* Remarks Box */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">SOP / Document Category *</label>
-                <select
-                  value={category}
-                  onChange={e => setCategory(e.target.value as SOPReport['category'])}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold tracking-tight uppercase focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
-                >
-                  <option value="SOP">SOP</option>
-                  <option value="SUPPLIER AUDIT">SUPPLIER AUDIT</option>
-                  <option value="CHANNEL PARTNER AUDIT">CHANNEL PARTNER AUDIT</option>
-                  <option value="SHOP AUDIT">SHOP AUDIT</option>
-                  <option value="OTHER AUDITS">OTHER AUDITS</option>
-                </select>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Remarks / Notes (Optional)</label>
+                <input
+                  type="text"
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                  placeholder="e.g. Approved by Plant Manager. Standard inspection guidelines."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-medium focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
+                />
               </div>
 
               {/* Description Box */}
@@ -748,7 +943,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Document Description / Scope *</label>
                 <textarea
                   required
-                  rows={4}
+                  rows={3}
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="e.g. The objective of this Standard Operating Procedure (SOP) is to establish a safe..."
@@ -843,6 +1038,14 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                         <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#00B4D8]/10 text-[#00B4D8]">
                           {report.category}
                         </span>
+                        <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
+                          {report.department || 'Quality'}
+                        </span>
+                        {report.version && (
+                          <span className="text-[8px] font-bold text-slate-500 bg-slate-100 px-1 py-0.5 rounded">
+                            v{report.version}
+                          </span>
+                        )}
                         <h4 className="font-extrabold text-slate-700 truncate text-xs" title={report.title}>
                           {report.title}
                         </h4>
@@ -850,7 +1053,13 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       <p className="text-[10px] text-slate-400 mt-1 font-medium truncate flex items-center gap-1.5">
                         <span>By {report.creator}</span>
                         <span>&bull;</span>
-                        <span>{formatDate(report.timestamp)}</span>
+                        <span>{formatDate(report.timestamp || report.uploadDate)}</span>
+                        {report.fileSize && (
+                          <>
+                            <span>&bull;</span>
+                            <span>{report.fileSize}</span>
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -899,18 +1108,68 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </h1>
               </div>
 
-              {/* Clean Search Input */}
-              <div className="relative">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search SOP guidelines, audits, manuals..."
-                  className="w-full bg-white border border-slate-200/80 rounded-2xl pl-10 pr-4 py-3 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none shadow-sm transition"
-                />
-                <span className="absolute left-3.5 top-3 text-slate-400">
-                  <Icon name="search" size={14} />
-                </span>
+              {/* Clean Search Input & Filters */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search SOP guidelines, inspection reports, specs..."
+                    className="w-full bg-white border border-slate-200/80 rounded-2xl pl-10 pr-4 py-3 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none shadow-sm transition"
+                  />
+                  <span className="absolute left-3.5 top-3 text-slate-400">
+                    <Icon name="search" size={14} />
+                  </span>
+                </div>
+
+                {/* Filter controls */}
+                <div className="grid grid-cols-3 gap-2.5 animate-fade-in">
+                  {/* Category Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Category</label>
+                    <select
+                      value={selectedCategoryFilter}
+                      onChange={e => setSelectedCategoryFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
+                    >
+                      <option value="ALL">All Categories</option>
+                      {DOCUMENT_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Department Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Department</label>
+                    <select
+                      value={selectedDepartmentFilter}
+                      onChange={e => setSelectedDepartmentFilter(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
+                    >
+                      <option value="ALL">All Departments</option>
+                      {DEPARTMENTS.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sorting Mode */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Sort By</label>
+                    <select
+                      value={sortMode}
+                      onChange={e => setSortMode(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
+                    >
+                      <option value="date_desc">Newest Uploaded</option>
+                      <option value="date_asc">Oldest Uploaded</option>
+                      <option value="name_asc">Name (A-Z)</option>
+                      <option value="name_desc">Name (Z-A)</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Document List without acknowledgment info */}
@@ -946,16 +1205,41 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                           </div>
 
                           {/* Detail titles */}
-                          <div className="min-w-0">
-                            <h3 className="font-bold text-slate-850 text-xs truncate leading-snug">
-                              {report.title}
-                            </h3>
-                            <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-none">
-                              {formatDate(report.timestamp)}
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-slate-800 text-xs leading-snug">
+                                {report.title}
+                              </h3>
+                              {report.version && (
+                                <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                  v{report.version}
+                                </span>
+                              )}
+                            </div>
+                            
+                            <p className="text-[10px] text-slate-400 font-medium">
+                              By {report.creator || 'SYSTEM'} &bull; {formatDate(report.timestamp || report.uploadDate)}
                             </p>
-                            <p className="text-[10px] text-[#00B4D8] font-bold mt-1 uppercase tracking-tight">
-                              Type : <span className="font-semibold text-slate-600">{report.category}</span>
-                            </p>
+                            
+                            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                              <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#00B4D8]/10 text-[#00B4D8]">
+                                {report.category}
+                              </span>
+                              <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
+                                {report.department || 'Quality'}
+                              </span>
+                              {report.fileSize && (
+                                <span className="text-[8px] font-bold text-slate-400">
+                                  {report.fileSize}
+                                </span>
+                              )}
+                            </div>
+
+                            {report.remarks && (
+                              <p className="text-[10px] text-slate-500 italic truncate max-w-xs" title={report.remarks}>
+                                "{report.remarks}"
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -1030,15 +1314,48 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                   <p className="text-xs text-slate-800 font-bold leading-relaxed">{selectedReport.title}</p>
                 </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Published Date</span>
-                  <p className="text-xs text-slate-800 font-semibold leading-relaxed">{formatDate(selectedReport.timestamp)}</p>
+                <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Category Type</span>
+                    <p className="text-xs text-[#00B4D8] font-bold leading-relaxed">{selectedReport.category}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Department</span>
+                    <p className="text-xs text-indigo-600 font-bold leading-relaxed">{selectedReport.department || 'Quality'}</p>
+                  </div>
                 </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Category Type</span>
-                  <p className="text-xs text-slate-800 font-bold leading-relaxed text-[#00B4D8]">{selectedReport.category}</p>
+                <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Version / Revision</span>
+                    <p className="text-xs text-slate-800 font-bold leading-relaxed">v{selectedReport.version || '1.0'}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Published Date</span>
+                    <p className="text-xs text-slate-800 font-semibold leading-relaxed">{formatDate(selectedReport.timestamp || selectedReport.uploadDate)}</p>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">File Size</span>
+                    <p className="text-xs text-slate-600 font-medium leading-relaxed">{selectedReport.fileSize || 'Standard PDF'}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Status</span>
+                    <p className="text-xs text-emerald-600 font-bold leading-relaxed uppercase">{selectedReport.status || 'ACTIVE'}</p>
+                  </div>
+                </div>
+
+                {selectedReport.remarks && (
+                  <div className="border-t pt-3">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Remarks / Notes</span>
+                    <p className="text-xs text-slate-600 font-medium leading-relaxed italic">"{selectedReport.remarks}"</p>
+                  </div>
+                )}
 
                 <div className="border-t pt-3.5">
                   <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Scope & Details</span>

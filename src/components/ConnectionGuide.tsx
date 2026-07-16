@@ -258,20 +258,16 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
 
   const makePermanent = async () => {
     if (inputUrl && !inputUrl.includes('/exec')) {
-      setPingResult({ success: false, message: "Sheets Web App URL must end in /exec" });
-      return;
-    }
-    if (driveInputUrl && !driveInputUrl.includes('/exec')) {
-      setPingDriveResult({ success: false, message: "Drive Web App URL must end in /exec" });
+      setPingResult({ success: false, message: "Web App URL must end in /exec" });
       return;
     }
     
     setPinging(true);
     try {
       const currentSpreadsheetId = spreadsheetInput.trim() || sheetsService.getSpreadsheetId() || '';
-      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId, driveInputUrl) as any;
+      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId, inputUrl) as any;
       if (res.success) {
-        setPingResult({ success: true, message: "Both configurations saved permanently on server! This app is fully synced." });
+        setPingResult({ success: true, message: "Configuration saved permanently on server! This app is fully synced." });
         localStorage.removeItem('VITE_GAS_URL');
         localStorage.removeItem('VITE_GAS_DRIVE_URL');
         setTimeout(() => window.location.reload(), 2000);
@@ -647,8 +643,8 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
               {/* SERVER 1: SHEETS DATA CONNECTION */}
               <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">1</span>
-                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Server 1: Google Apps Script for Sheets (Data Sync)</label>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">✓</span>
+                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Google Apps Script Connection (Sheets & Drive Storage)</label>
                 </div>
                 <div className="flex gap-2">
                   <input 
@@ -673,36 +669,7 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
                 )}
               </div>
 
-              {/* SERVER 2: DRIVE PDF STORAGE CONNECTION */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
-                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Server 2: Google Apps Script for Drive (PDF Uploads)</label>
-                </div>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={driveInputUrl}
-                    onChange={(e) => { setDriveInputUrl(e.target.value); setPingDriveResult(null); }}
-                    placeholder="https://script.google.com/macros/s/.../exec (same or separate web app)"
-                    className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
-                  />
-                  <button 
-                    onClick={testDriveConnection}
-                    disabled={pingingDrive}
-                    className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50"
-                  >
-                    {pingingDrive ? 'Pinging...' : 'Test'}
-                  </button>
-                </div>
-                {pingDriveResult && (
-                  <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingDriveResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                    {pingDriveResult.message}
-                  </div>
-                )}
-              </div>
-
-              {/* SAVE BOTH PERMANENTLY */}
+              {/* SAVE CONFIGURATION PERMANENTLY */}
               <div className="pt-2">
                 <button
                   type="button"
@@ -711,13 +678,13 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs tracking-widest py-4 px-6 rounded-xl transition duration-150 shadow-md shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
                 >
                   <Icon name="save" size={14} />
-                  Save Dual Server Connections Permanently
+                  Save Server Connection Permanently
                 </button>
               </div>
 
               {/* Direct Google Drive PDF Upload Status */}
               <div className="mt-4 pt-4 border-t border-slate-200/60">
-                {(inputUrl.includes('/exec') || driveInputUrl.includes('/exec')) ? (
+                {inputUrl.includes('/exec') ? (
                   <div className="bg-emerald-50 border border-emerald-150 p-4 rounded-xl flex items-start gap-2.5">
                     <span className="text-emerald-600 text-sm">✓</span>
                     <div>
