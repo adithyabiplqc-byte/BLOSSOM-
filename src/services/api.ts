@@ -145,9 +145,8 @@ export const api = {
         }
       }
 
-      if (data && (data.gasUrl || finalUrl)) {
-        this.isServerConfigured = true;
-      }
+      // Always treat server as configured because we have a fully-functional local fallback Express database
+      this.isServerConfigured = true;
       return data;
     } catch (e) {
       return { hasGasUrl: false };
@@ -1016,6 +1015,30 @@ export const api = {
         const fileName = args[0];
         const rawBase64 = args[1];
         const mimeType = args[2];
+        const category = args[3] || "SOP";
+
+        // Direct Google Drive REST API Upload using active Google login accessToken!
+        const accessToken = getAccessToken();
+        if (accessToken) {
+          try {
+            console.log("[runDirect api_uploadSOPFile] Google Access Token found. Uploading directly to Google Drive via REST API...");
+            
+            // Decode base64 to Blob
+            const byteCharacters = atob(rawBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const fileBlob = new Blob([byteArray], { type: mimeType });
+            
+            const uploadResult = await sheetsService.uploadSOPFileToDrive(fileBlob, fileName, category);
+            console.log("[runDirect api_uploadSOPFile] Direct Google Drive REST API upload successful!", uploadResult.url);
+            return uploadResult;
+          } catch (restErr: any) {
+            console.warn("[runDirect api_uploadSOPFile] Direct Google Drive REST API upload failed, falling back to Apps Script/local...", restErr);
+          }
+        }
 
         // 1. First, try to upload directly to Google Apps Script (GAS) to save to Google Drive permanently!
         const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
@@ -1049,7 +1072,7 @@ export const api = {
                 mode: 'cors',
                 body: JSON.stringify({
                   action: 'api_uploadSOPFile',
-                  params: [fileName, rawBase64, mimeType],
+                  params: [fileName, rawBase64, mimeType, category],
                   spreadsheetId: activeSheetId
                 })
               });

@@ -1959,7 +1959,9 @@ async function startServer() {
           for (const targetUrl of sopCandidateUrls) {
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 40000);
+              const isHardcoded = source === 'hardcoded' || HARDCODED_GAS_URLS.includes(targetUrl);
+              const timeoutDuration = isHardcoded ? 3000 : 40000;
+              const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
               
               const response = await fetch(targetUrl, {
                 method: "POST",
@@ -2072,7 +2074,9 @@ async function startServer() {
       for (const targetUrl of candidateUrls) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 40000); // 40 seconds per attempt (prevents client timeouts and accommodates GAS startup/execution)
+          const isHardcoded = source === 'hardcoded' || HARDCODED_GAS_URLS.includes(targetUrl);
+          const timeoutDuration = isHardcoded ? 3000 : 40000;
+          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration); // Fast 3s for hardcoded, generous 40s for custom scripts
           
           const response = await fetch(targetUrl, {
             method: "POST",

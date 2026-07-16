@@ -261,7 +261,7 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
   };
 };
 
-const parseFactoryAnalytics = (logs: any, activeZone: string): FactoryAnalysisMetrics => {
+const parseFactoryAnalytics = (logs: any, activeZone: string, zoneMappings: any[] = []): FactoryAnalysisMetrics => {
   const realDefects: Record<string, number> = {};
   const realUnits: Record<string, { checked: number; defects: number }> = {};
   const realWorkers: Record<string, { checked: number; defects: number; unit: string }> = {};
@@ -288,6 +288,28 @@ const parseFactoryAnalytics = (logs: any, activeZone: string): FactoryAnalysisMe
     realWorkers[w].checked += checked;
     realWorkers[w].defects += defects;
   };
+
+  // Pre-populate with defined zones, units, and workers from zoneMappings (if available) so they appear right next in the analysis
+  if (Array.isArray(zoneMappings)) {
+    zoneMappings.forEach(item => {
+      const itemZone = String(item.zone || '').trim();
+      const itemUnit = String(item.unit || '').trim();
+      const itemWorker = String(item.worker || '').trim();
+
+      const matchesActiveZone = !activeZone || activeZone === 'ALL' || itemZone.toUpperCase() === activeZone.toUpperCase();
+      if (matchesActiveZone) {
+        if (itemZone) {
+          addUnitData(itemZone, 0, 0);
+        }
+        if (itemUnit) {
+          addUnitData(itemUnit, 0, 0);
+        }
+        if (itemWorker) {
+          addWorkerData(itemWorker, 0, 0, itemUnit || itemZone || 'Sewing');
+        }
+      }
+    });
+  }
 
   // 1. Process Material
   (logs.material || []).forEach((r: any) => {
@@ -426,7 +448,7 @@ const parseFactoryAnalytics = (logs: any, activeZone: string): FactoryAnalysisMe
       rk.toUpperCase().includes(du.name.split(' ')[0].toUpperCase()) ||
       du.name.toUpperCase().includes(rk.toUpperCase())
     );
-    if (!isAlreadyMatched && realUnits[rk].checked > 0) {
+    if (!isAlreadyMatched && (realUnits[rk].checked > 0 || realUnits[rk].checked === 0) && rk.trim() !== '') {
       const ch = realUnits[rk].checked;
       const def = realUnits[rk].defects;
       const rate = Number(((1 - def / (ch || 1)) * 100).toFixed(1));
@@ -460,8 +482,8 @@ const parseFactoryAnalytics = (logs: any, activeZone: string): FactoryAnalysisMe
 
   Object.keys(realWorkers).forEach(name => {
     const w = realWorkers[name];
-    if (w.checked >= 1) { // 1 checked piece minimum ensures immediate responsiveness to user inputs
-      const rate = Number(((w.defects / w.checked) * 100).toFixed(2));
+    if (w.checked >= 0) { // 0 checked piece minimum ensures immediate responsiveness to newly registered operators
+      const rate = Number(((w.defects / (w.checked || 1)) * 100).toFixed(2));
       const alreadyBest = realBestList.some(o => o.name.toUpperCase() === name.toUpperCase());
       const alreadyBack = realBackList.some(o => o.name.toUpperCase() === name.toUpperCase());
       if (!alreadyBest && !alreadyBack) {
@@ -518,14 +540,16 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         inline, 
         endline, 
         aql, 
-        finalAudit
+        finalAudit,
+        zoneMappings
       ] = await Promise.all([
         api.run('api_getMaterialData').catch(() => []),
         api.run('api_getCuttingData').catch(() => []),
         api.run('api_getInlineData').catch(() => []),
         api.run('api_getEndlineData').catch(() => []),
         api.run('api_getAQLData').catch(() => []),
-        api.run('api_getFinalAuditData').catch(() => [])
+        api.run('api_getFinalAuditData').catch(() => []),
+        api.run('api_getZoneMappings').catch(() => [])
       ]);
 
       const logStore = {
@@ -556,7 +580,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
       };
 
       // Generate analytics metrics (defects, units, workers)
-      const computedMetrics = parseFactoryAnalytics(payload, globalZone || 'ALL');
+      const computedMetrics = parseFactoryAnalytics(payload, globalZone || 'ALL', Array.isArray(zoneMappings) ? zoneMappings : []);
       setMetrics(computedMetrics);
 
       try {
@@ -820,17 +844,71 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     }
     
     // Section: Workers matrix
+    if (currentY > 160) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10.5);
     doc.text("6. QUALITY AUDITING OPERATOR LEDGERS", 14, currentY);
+
+    // DRAW A MAGNIFICENT GRAPH SHOWING OPERATOR DEFECT RATE VARIATION!
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("VISUAL OPERATOR DEFECT RATE INDEX (HIGH DEFECT TENDENCY CONCERN)", 14, currentY + 5);
+
+    // Draw a neat bounding box for the visual worker chart
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, currentY + 7, 182, 38, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(14, currentY + 7, 182, 38, 'D');
+
+    let workerBarY = currentY + 12;
+    metrics.backWorkers.slice(0, 3).forEach((w) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      const displayWorkerName = w.name.length > 30 ? w.name.substring(0, 30) + '...' : w.name;
+      doc.text(`${displayWorkerName} (${w.unit})`, 18, workerBarY + 3.5);
+      
+      // Draw bar background
+      doc.setFillColor(226, 232, 240);
+      doc.rect(75, workerBarY, 80, 4, 'F');
+      
+      // Defect rate bar fill (red/rose color for back operators since they have high defect rates)
+      let r = 244, g = 63, b = 94; // red
+      
+      // Compute proportion based on max defect rate or simple 20% limit for visualization
+      const maxLimit = 20;
+      const rateNum = typeof w.rate === 'number' ? w.rate : parseFloat(String(w.rate || '0'));
+      const fillWidth = Math.min(80, (rateNum / maxLimit) * 80);
+      doc.setFillColor(r, g, b);
+      doc.rect(75, workerBarY, fillWidth, 4, 'F');
+      
+      // Value label
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(r, g, b);
+      doc.text(`${rateNum.toFixed(2)}% defect rate`, 160, workerBarY + 3.5);
+      
+      workerBarY += 9;
+    });
+
+    currentY += 51;
+
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.text("Top Quality Operators (Best Performers):", 14, currentY + 5);
+    doc.text("Top Quality Operators (Best Performers):", 14, currentY);
     
     const bestRows = metrics.bestWorkers.map(w => [w.name, w.unit, w.checked.toString(), w.defects.toString(), `${w.rate}%`]);
     autoTable(doc, {
-      startY: currentY + 7,
+      startY: currentY + 2,
       head: [['Operator Name', 'Section / Unit', 'Checked Qty', 'Defects Count', 'Defect Rate']],
       body: bestRows,
       theme: 'striped',

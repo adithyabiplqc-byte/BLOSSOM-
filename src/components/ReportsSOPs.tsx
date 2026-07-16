@@ -593,7 +593,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         if (res?.success && res.url) {
           finalUrl = res.url;
           driveFileId = res.id || '';
-          downloadUrl = res.downloadUrl || `https://drive.google.com/uc?export=download&id=${res.id}`;
+          downloadUrl = res.downloadUrl || (res.id ? `https://drive.google.com/uc?export=download&id=${res.id}` : res.url);
         } else {
           throw new Error(res?.error || "Google Sheets Web App did not return a valid file URL.");
         }
@@ -781,9 +781,21 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       }
       return cleanUrl;
     }
-    // For general non-Drive HTTP URLs, wrap in Google View Docs helper if running inside sandboxed frame
-    if (cleanUrl.startsWith("http")) {
-      return `https://docs.google.com/gview?url=${encodeURIComponent(cleanUrl)}&embedded=true`;
+
+    // Convert relative path to absolute path for Google GView and proper iframe loading
+    let absoluteUrl = cleanUrl;
+    if (cleanUrl.startsWith("/")) {
+      absoluteUrl = window.location.origin + cleanUrl;
+    }
+
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+    if (absoluteUrl.startsWith("http")) {
+      if (isLocal) {
+        // Localhost cannot be fetched by Google GView, return raw absolute URL
+        return absoluteUrl;
+      }
+      return `https://docs.google.com/gview?url=${encodeURIComponent(absoluteUrl)}&embedded=true`;
     }
     return cleanUrl;
   };

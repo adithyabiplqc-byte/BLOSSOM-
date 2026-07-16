@@ -1640,5 +1640,141 @@ export const sheetsService = {
     }
 
     return resJson.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+  },
+
+  async uploadSOPFileToDrive(fileBlob: Blob, fileName: string, category: string): Promise<{ success: boolean; url: string; name: string; id: string; downloadUrl: string }> {
+    const accessToken = getAccessToken();
+    if (!accessToken) throw new Error('Authorization required to upload to Google Drive.');
+
+    // Helper to query folders in Drive
+    const findFolder = async (name: string, parentId?: string): Promise<string | null> => {
+      let q = `name = '${name.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      if (parentId) {
+        q += ` and '${parentId}' in parents`;
+      }
+      const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.files && data.files.length > 0) {
+          return data.files[0].id;
+        }
+      }
+      return null;
+    };
+
+    // Helper to create a folder in Drive
+    const createFolder = async (name: string, parentId?: string): Promise<string> => {
+      const metadata: any = {
+        name: name,
+        mimeType: 'application/vnd.google-apps.folder'
+      };
+      if (parentId) {
+        metadata.parents = [parentId];
+      }
+      const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(metadata)
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to create Drive folder: ${errText}`);
+      }
+      const data = await res.json();
+      return data.id;
+    };
+
+    // 1. Find or create the main "Blossom Quality Documents" folder
+    const mainFolderName = "Blossom Quality Documents";
+    let mainFolderId = await findFolder(mainFolderName);
+    if (!mainFolderId) {
+      mainFolderId = await createFolder(mainFolderName);
+    }
+
+    // 2. Resolve subfolder category
+    const subFolderName = category || "Others";
+    const standardCategories: Record<string, string> = {
+      "SOP": "SOP",
+      "SUPPLIER AUDIT": "Inspection Reports",
+      "CHANNEL PARTNER AUDIT": "Inspection Reports",
+      "SHOP AUDIT": "Inspection Reports",
+      "OTHER AUDITS": "Others",
+      "INSPECTION REPORTS": "Inspection Reports",
+      "SPECIFICATIONS": "Specifications",
+      "TEST REPORTS": "Test Reports",
+      "LAB REPORTS": "Lab Reports",
+      "WORK INSTRUCTIONS": "Work Instructions",
+      "DRAWINGS": "Drawings",
+      "QUALITY MANUALS": "Quality Manuals",
+      "OTHERS": "Others",
+      "OTHER": "Others"
+    };
+    const resolvedFolder = standardCategories[subFolderName.toUpperCase()] || subFolderName;
+
+    // 3. Find or create the category folder inside the main folder
+    let subFolderId = await findFolder(resolvedFolder, mainFolderId);
+    if (!subFolderId) {
+      subFolderId = await createFolder(resolvedFolder, mainFolderId);
+    }
+
+    // 4. Upload the file to the subFolder
+    const metadata = {
+      name: fileName,
+      mimeType: fileBlob.type || 'application/pdf',
+      parents: [subFolderId]
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', fileBlob);
+
+    const uploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink';
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: form
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Google Drive upload failed: ${errText}`);
+    }
+
+    const resJson = await res.json();
+    const fileId = resJson.id;
+
+    // 5. Set sharing permissions so anyone with the link can view
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone'
+        })
+      });
+    } catch (permErr) {
+      console.warn("Failed to set public reader permission on Drive file:", permErr);
+    }
+
+    const webUrl = resJson.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+    return {
+      success: true,
+      url: webUrl,
+      name: fileName,
+      id: fileId,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${fileId}`
+    };
   }
 };
