@@ -1232,13 +1232,25 @@ export const api = {
 
     const customUrl = localStorage.getItem('VITE_GAS_URL');
     const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+    const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
+    const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
+
     const hardcodedUrls = [
       "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
       "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
     ];
 
     const candidateUrls: string[] = [];
-    if (customUrl) candidateUrls.push(customUrl);
+    
+    // If uploading files, prioritize Google Drive Apps Script URL candidates
+    if (method === 'api_uploadSOPFile') {
+      if (customDriveUrl) candidateUrls.push(customDriveUrl);
+      if (envDriveUrl && !envDriveUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envDriveUrl)) {
+        candidateUrls.push(envDriveUrl);
+      }
+    }
+
+    if (customUrl && !candidateUrls.includes(customUrl)) candidateUrls.push(customUrl);
     if (envUrl && !envUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envUrl)) candidateUrls.push(envUrl);
     hardcodedUrls.forEach(url => {
       if (!candidateUrls.includes(url)) {
