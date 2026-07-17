@@ -1514,20 +1514,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     )}
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Web App URL (Exec URL)</label>
-                    <input 
-                      type="text" 
-                      value={serverUrl}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setServerUrl(val);
-                        localStorage.setItem('VITE_GAS_URL', val.trim());
-                        setConnectionStatus('idle');
-                      }}
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
-                    />
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Sheets Web App URL (Exec URL)</label>
+                      <input 
+                        type="text" 
+                        value={serverUrl}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setServerUrl(val);
+                          localStorage.setItem('VITE_GAS_URL', val.trim());
+                          setConnectionStatus('idle');
+                        }}
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Drive Web App URL (For PDF Uploads - Exec URL)</label>
+                      <input 
+                        type="text" 
+                        value={driveServerUrl}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setDriveServerUrl(val);
+                          localStorage.setItem('VITE_GAS_DRIVE_URL', val.trim());
+                          setConnectionStatus('idle');
+                        }}
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
+                      />
+                    </div>
                   </div>
                 </div>
                 

@@ -1087,7 +1087,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                           <Icon name="eye" size={13} />
                         </button>
                       )}
-                      {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
+                      {user?.role === 'ADMIN' && (
                         <button
                           type="button"
                           onClick={() => setSopToDelete(report)}
@@ -1270,7 +1270,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                               <Icon name="eye" size={13} />
                             </button>
                           )}
-                          {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
+                          {user?.role === 'ADMIN' && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1307,7 +1307,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </button>
 
                 {/* Delete option restricted to Admin only */}
-                {(user?.role === 'ADMIN' || user?.role === 'USER' || user?.role === 'QUALITY DIRECTOR' || user?.role === 'FABRIC MANAGER' || user?.role === 'AUDIT MANAGER' || true) && (
+                {user?.role === 'ADMIN' && (
                   <button
                     onClick={() => setSopToDelete(selectedReport)}
                     className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-xl transition duration-150 shadow-xs flex items-center gap-1"

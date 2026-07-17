@@ -261,11 +261,15 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
       setPingResult({ success: false, message: "Web App URL must end in /exec" });
       return;
     }
+    if (driveInputUrl && !driveInputUrl.includes('/exec')) {
+      setPingDriveResult({ success: false, message: "Drive Web App URL must end in /exec" });
+      return;
+    }
     
     setPinging(true);
     try {
       const currentSpreadsheetId = spreadsheetInput.trim() || sheetsService.getSpreadsheetId() || '';
-      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId, inputUrl) as any;
+      const res = await api.saveServerConfig(inputUrl, currentSpreadsheetId, driveInputUrl.trim() || inputUrl) as any;
       if (res.success) {
         setPingResult({ success: true, message: "Configuration saved permanently on server! This app is fully synced." });
         localStorage.removeItem('VITE_GAS_URL');
@@ -641,32 +645,62 @@ export default function ConnectionGuide({ error, onClose, isPermanentlyConnected
             
             <div className="space-y-6">
               {/* SERVER 1: SHEETS DATA CONNECTION */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-3 shadow-inner">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">✓</span>
-                  <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Google Apps Script Connection (Sheets & Drive Storage)</label>
-                </div>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={inputUrl}
-                    onChange={(e) => { setInputUrl(e.target.value); setPingResult(null); }}
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
-                  />
-                  <button 
-                    onClick={testConnection}
-                    disabled={pinging}
-                    className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50"
-                  >
-                    {pinging ? 'Pinging...' : 'Test'}
-                  </button>
-                </div>
-                {pingResult && (
-                  <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                    {pingResult.message}
+              <div className="bg-white p-5 rounded-2xl border border-slate-150 space-y-4 shadow-inner">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">1</span>
+                    <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Google Sheets Apps Script Connection (Data Sync)</label>
                   </div>
-                )}
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={inputUrl}
+                      onChange={(e) => { setInputUrl(e.target.value); setPingResult(null); }}
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
+                    />
+                    <button 
+                      onClick={testConnection}
+                      disabled={pinging}
+                      className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50 hover:scale-105 transition-transform"
+                    >
+                      {pinging ? 'Pinging...' : 'Test Sheets'}
+                    </button>
+                  </div>
+                  {pingResult && (
+                    <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                      {pingResult.message}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
+                    <label className="text-slate-800 font-black uppercase text-[10px] tracking-wider block">Google Drive Apps Script Connection (Automatic PDF Storage)</label>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={driveInputUrl}
+                      onChange={(e) => { setDriveInputUrl(e.target.value); setPingDriveResult(null); }}
+                      placeholder="https://script.google.com/macros/s/.../exec (Optional, defaults to Sheets URL if same)"
+                      className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-indigo-500 outline-none transition-all"
+                    />
+                    <button 
+                      onClick={testDriveConnection}
+                      disabled={pingingDrive}
+                      className="bg-slate-800 text-white px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-900 disabled:opacity-50 hover:scale-105 transition-transform"
+                    >
+                      {pingingDrive ? 'Pinging...' : 'Test Drive'}
+                    </button>
+                  </div>
+                  {pingDriveResult && (
+                    <div className={`p-2 rounded-lg mt-1 text-[10px] font-bold uppercase tracking-tight ${pingDriveResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                      {pingDriveResult.message}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* SAVE CONFIGURATION PERMANENTLY */}
