@@ -444,16 +444,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
       let customMapped = mapped.filter(r => !preloadedIds.has(r.id));
       
-      // Secondary safety client-side filtering by session user Code
-      const isPowerUser = ['ADMIN', 'QUALITY DIRECTOR', 'AUDIT MANAGER'].includes(String(user?.role || '').trim().toUpperCase());
-      if (user?.userCode && !isPowerUser) {
-        customMapped = customMapped.filter(r => {
-          const isOwnCreated = (r.creatorCode && String(r.creatorCode) === String(user.userCode)) ||
-                               (r.creator && String(r.creator).toLowerCase() === String(user.username || '').toLowerCase());
-          const isPublic = !r.creatorCode || r.creatorCode === 'SYSTEM' || r.creatorCode === '';
-          return isOwnCreated || isPublic;
-        });
-      }
       const finalReports = [...customMapped, ...PRELOADED_SOPS];
 
       // Exclude any deleted ones
@@ -483,16 +473,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
       let customMapped = localCustom.filter(r => !preloadedIds.has(r.id));
       
-      // Secondary safety client-side filtering by session user Code
-      const isPowerUser = ['ADMIN', 'QUALITY DIRECTOR', 'AUDIT MANAGER'].includes(String(user?.role || '').trim().toUpperCase());
-      if (user?.userCode && !isPowerUser) {
-        customMapped = customMapped.filter(r => {
-          const isOwnCreated = (r.creatorCode && String(r.creatorCode) === String(user.userCode)) ||
-                               (r.creator && String(r.creator).toLowerCase() === String(user.username || '').toLowerCase());
-          const isPublic = !r.creatorCode || r.creatorCode === 'SYSTEM' || r.creatorCode === '';
-          return isOwnCreated || isPublic;
-        });
-      }
       const finalReports = [...customMapped, ...PRELOADED_SOPS];
 
       setReports(finalReports.filter(r => !deletedSet.has(r.id)));
@@ -1087,7 +1067,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                           <Icon name="eye" size={13} />
                         </button>
                       )}
-                      {user?.role === 'ADMIN' && (
+                      {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
                         <button
                           type="button"
                           onClick={() => setSopToDelete(report)}
@@ -1270,7 +1250,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                               <Icon name="eye" size={13} />
                             </button>
                           )}
-                          {user?.role === 'ADMIN' && (
+                          {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1307,7 +1287,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </button>
 
                 {/* Delete option restricted to Admin only */}
-                {user?.role === 'ADMIN' && (
+                {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
                   <button
                     onClick={() => setSopToDelete(selectedReport)}
                     className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-xl transition duration-150 shadow-xs flex items-center gap-1"
