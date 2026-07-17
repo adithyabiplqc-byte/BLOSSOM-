@@ -1938,20 +1938,33 @@ async function startServer() {
         let appsScriptSuccess = false;
         let appsScriptResult: any = null;
 
-        // Try dedicated drive script first if configured
-        let sopCandidateUrls = [...candidateUrls];
-        let driveUrl = null;
-        try {
-          if (fs.existsSync(CONFIG_DRIVE_FILE)) {
-            driveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+        // Try dedicated drive script first if configured ONLY for file upload action
+        let sopCandidateUrls: string[] = [];
+        if (action === 'api_uploadSOPFile') {
+          let driveUrl = null;
+          try {
+            if (fs.existsSync(CONFIG_DRIVE_FILE)) {
+              driveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+            }
+          } catch (e) {}
+          if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
+            driveUrl = fsConfig.gasDriveUrl;
           }
-        } catch (e) {}
-        if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
-          driveUrl = fsConfig.gasDriveUrl;
-        }
-        if (driveUrl && !sopCandidateUrls.includes(driveUrl)) {
-          sopCandidateUrls = [driveUrl, ...sopCandidateUrls];
-          console.log(`[API PROXY] Using dedicated PDF/Drive Server URL: ${driveUrl}`);
+          
+          if (driveUrl) {
+            sopCandidateUrls.push(driveUrl);
+          }
+          // Fallback to standard Sheets URL as backup
+          candidateUrls.forEach(url => {
+            if (url !== driveUrl) {
+              sopCandidateUrls.push(url);
+            }
+          });
+          console.log(`[API PROXY] Uploading file. Dedicated PDF/Drive Server URL candidate count: ${sopCandidateUrls.length}`);
+        } else {
+          // Metadata actions (save, delete, get) must only go to the Google Sheets Web App
+          sopCandidateUrls = [...candidateUrls];
+          console.log(`[API PROXY] Synchronizing metadata. Target Sheets Server URL candidate count: ${sopCandidateUrls.length}`);
         }
 
         // Try Apps Script first if candidate URLs exist

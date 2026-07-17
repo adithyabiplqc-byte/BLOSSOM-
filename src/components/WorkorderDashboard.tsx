@@ -220,6 +220,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   };
 
   const handleDelete = (wo: any) => {
+    if (user?.role !== 'ADMIN') {
+      alert('Unauthorized: Delete option is restricted to admin user only.');
+      return;
+    }
     if (!window.confirm('Delete this workorder?')) return;
     setWorkorders(workorders.filter(w => w.id !== wo.id));
     api.run('api_deleteWorkorder', wo.id, wo.zone || wo.location).then(() => refreshData());
@@ -394,7 +398,9 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   {canManage && (
                     <>
                       <button onClick={() => startEdit(selectedWO)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Icon name="edit" size={20} /></button>
-                      <button onClick={() => handleDelete(selectedWO)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Icon name="trash-2" size={20} /></button>
+                      {user?.role === 'ADMIN' && (
+                        <button onClick={() => handleDelete(selectedWO)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Icon name="trash-2" size={20} /></button>
+                      )}
                     </>
                   )}
                   <button onClick={() => setSelectedWO(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><Icon name="x" size={24} /></button>
