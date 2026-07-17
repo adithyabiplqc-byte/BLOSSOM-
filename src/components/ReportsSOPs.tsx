@@ -783,11 +783,18 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   // Filtering and Sorting Logic
   const filteredReports = reports
     .filter(r => {
+      if (!r) return false;
       // Search term match
-      const matchesSearch = r.title.toLowerCase().includes(search.toLowerCase()) || 
-                            r.description.toLowerCase().includes(search.toLowerCase()) ||
-                            (r.remarks && r.remarks.toLowerCase().includes(search.toLowerCase())) ||
-                            (r.department && r.department.toLowerCase().includes(search.toLowerCase()));
+      const titleStr = String(r.title || '').toLowerCase();
+      const descStr = String(r.description || '').toLowerCase();
+      const remarksStr = String(r.remarks || '').toLowerCase();
+      const deptStr = String(r.department || '').toLowerCase();
+      const searchLower = String(search || '').toLowerCase();
+
+      const matchesSearch = titleStr.includes(searchLower) || 
+                            descStr.includes(searchLower) ||
+                            remarksStr.includes(searchLower) ||
+                            deptStr.includes(searchLower);
       
       // Category filter match
       const matchesCategory = selectedCategoryFilter === 'ALL' || 
@@ -800,6 +807,9 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       return matchesSearch && matchesCategory && matchesDepartment;
     })
     .sort((a, b) => {
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
       if (sortMode === 'date_desc') {
         const timeA = new Date(a.timestamp || a.uploadDate || 0).getTime();
         const timeB = new Date(b.timestamp || b.uploadDate || 0).getTime();
@@ -809,9 +819,9 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         const timeB = new Date(b.timestamp || b.uploadDate || 0).getTime();
         return timeA - timeB;
       } else if (sortMode === 'name_asc') {
-        return a.title.localeCompare(b.title);
+        return String(a.title || '').localeCompare(String(b.title || ''));
       } else if (sortMode === 'name_desc') {
-        return b.title.localeCompare(a.title);
+        return String(b.title || '').localeCompare(String(a.title || ''));
       }
       return 0;
     });
