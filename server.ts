@@ -1985,8 +1985,8 @@ async function startServer() {
         }
 
         if (appsScriptSuccess) {
-          // Sync deletion locally as well to ensure deleted_sop_ids includes it
-          if (action === 'api_deleteREPORTS_SOP') {
+          // Sync deletion and saving locally as well to ensure local DB and Google Sheets are in perfect sync
+          if (action === 'api_deleteREPORTS_SOP' || action === 'api_saveREPORTS_SOP') {
             try {
               executeLocalAction(action, bodyPayload.params || []);
             } catch (err) {}

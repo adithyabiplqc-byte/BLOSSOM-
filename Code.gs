@@ -504,7 +504,7 @@ function getReportSheetName(baseName, data) {
   const normPrefix = prefix.trim().toUpperCase();
   const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
   const isUserSheet = userSynonyms.indexOf(normPrefix) !== -1;
-  const isSystemSheet = isUserSheet || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN'].indexOf(normPrefix) !== -1;
+  const isSystemSheet = isUserSheet || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'REPORTS_SOPDATA'].indexOf(normPrefix) !== -1;
   if (isSystemSheet) {
     if (isUserSheet) return 'USERS';
     if (normPrefix === 'ZONES') return 'ZONE';
@@ -2570,7 +2570,42 @@ function api_saveREPORTS_SOP(report) {
  * Retrieves all registered SOP and PDF document nodes in Google Sheets.
  */
 function api_getREPORTS_SOPData(params) {
-  return getDataFromSheet('REPORTS_SOP');
+  var ss = getSS();
+  var allSheets = ss.getSheets();
+  var mergedData = [];
+  var seenIds = {};
+  
+  // 1. Fetch from the main 'REPORTS_SOP' sheet
+  var mainData = getDataFromSheet('REPORTS_SOP') || [];
+  if (Array.isArray(mainData)) {
+    for (var i = 0; i < mainData.length; i++) {
+      var row = mainData[i];
+      if (row && row.id) {
+        mergedData.push(row);
+        seenIds[String(row.id)] = true;
+      }
+    }
+  }
+  
+  // 2. Fetch from any other zoned SOP sheets (like 'REPORTS_SOP - KERALA')
+  for (var s = 0; s < allSheets.length; s++) {
+    var sheet = allSheets[s];
+    var name = sheet.getName().toUpperCase().trim();
+    if (name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
+      var zonedData = getDataFromSheet(sheet.getName()) || [];
+      if (Array.isArray(zonedData)) {
+        for (var j = 0; j < zonedData.length; j++) {
+          var zRow = zonedData[j];
+          if (zRow && zRow.id && !seenIds[String(zRow.id)]) {
+            mergedData.push(zRow);
+            seenIds[String(zRow.id)] = true;
+          }
+        }
+      }
+    }
+  }
+  
+  return mergedData;
 }
 
 /**
@@ -2578,46 +2613,56 @@ function api_getREPORTS_SOPData(params) {
  */
 function api_deleteREPORTS_SOP(id) {
   try {
-    const sheet = getOrCreateSheet('REPORTS_SOP');
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
-    const idIdx = normHeaders.indexOf('id');
+    const ss = getSS();
+    const allSheets = ss.getSheets();
+    const targetId = String(id || '').trim();
     
-    if (idIdx !== -1) {
-      for (let i = 1; i < data.length; i++) {
-        var cellVal = String(data[i][idIdx] || '').trim();
-        var targetId = String(id || '').trim();
-        if (cellVal === targetId) {
-          // Robustly attempt to parse the attachment URL and trash the file from Google Drive
-          try {
-            var urlIdx = normHeaders.indexOf('attachmenturl');
-            if (urlIdx !== -1) {
-              var fileUrl = String(data[i][urlIdx] || '');
-              if (fileUrl) {
-                var fileId = null;
-                var match = fileUrl.match(/\/d\/([^\/]+)/);
-                if (match && match[1]) {
-                  fileId = match[1];
-                } else {
-                  var matchId = fileUrl.match(/id=([^&]+)/);
-                  if (matchId && matchId[1]) {
-                    fileId = matchId[1];
+    for (let s = 0; s < allSheets.length; s++) {
+      const sheet = allSheets[s];
+      const name = sheet.getName().toUpperCase().trim();
+      
+      if (name === 'REPORTS_SOP' || name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
+        const idIdx = normHeaders.indexOf('id');
+        
+        if (idIdx !== -1) {
+          for (let i = 1; i < data.length; i++) {
+            var cellVal = String(data[i][idIdx] || '').trim();
+            if (cellVal === targetId) {
+              // Robustly attempt to parse the attachment URL and trash the file from Google Drive
+              try {
+                var urlIdx = normHeaders.indexOf('attachmenturl');
+                if (urlIdx !== -1) {
+                  var fileUrl = String(data[i][urlIdx] || '');
+                  if (fileUrl) {
+                    var fileId = null;
+                    var match = fileUrl.match(/\/d\/([^\/]+)/);
+                    if (match && match[1]) {
+                      fileId = match[1];
+                    } else {
+                      var matchId = fileUrl.match(/id=([^&]+)/);
+                      if (matchId && matchId[1]) {
+                        fileId = matchId[1];
+                      }
+                    }
+                    if (fileId) {
+                      var file = DriveApp.getFileById(fileId);
+                      file.setTrashed(true);
+                    }
                   }
                 }
-                if (fileId) {
-                  var file = DriveApp.getFileById(fileId);
-                  file.setTrashed(true);
-                }
+              } catch (driveErr) {
+                console.error("Warning: Could not trash file from Google Drive: " + driveErr.toString());
               }
-            }
-          } catch (driveErr) {
-            console.error("Warning: Could not trash file from Google Drive: " + driveErr.toString());
-          }
 
-          sheet.deleteRow(i + 1);
-          clearSheetCache('REPORTS_SOP');
-          return { success: true };
+              sheet.deleteRow(i + 1);
+              clearSheetCache(sheet.getName());
+              clearSheetCache('REPORTS_SOP');
+              return { success: true };
+            }
+          }
         }
       }
     }
