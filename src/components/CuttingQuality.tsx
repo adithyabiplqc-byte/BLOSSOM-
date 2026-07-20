@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { ZONES } from '../constants';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
+import SearchableSelect from './SearchableSelect';
 
 interface CuttingQualityProps {
   user: any;
@@ -181,18 +182,18 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone Selection</label>
-          <select 
+          <SearchableSelect 
             value={form.zone} 
             onChange={e => setForm({...form, zone: e.target.value})}
             className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl font-bold"
           >
             <option value="">Select Zone...</option>
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
-          <select 
+          <SearchableSelect 
             value={form.wo} 
             onChange={e => setForm({...form, wo: e.target.value})} 
             required
@@ -226,7 +227,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
             }
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 

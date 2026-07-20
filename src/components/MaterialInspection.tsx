@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 import { SUPPLIERS, ITEMS, COLORS, SIZES, ZONES } from '../constants';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 
 interface MaterialInspectionProps {
   user: any;
@@ -160,14 +161,14 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone</label>
-          <select 
+          <SearchableSelect 
             value={header.zone} 
             onChange={e => setHeader({...header, zone: e.target.value})} 
             required 
             className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl disabled:bg-slate-50"
           >
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bill No</label>
@@ -182,7 +183,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Supplier Name</label>
-          <select 
+          <SearchableSelect 
             value={header.supplierName} 
             onChange={e => setHeader({...header, supplierName: e.target.value})} 
             required 
@@ -190,7 +191,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
           >
             <option value="">Select Supplier...</option>
             {currentSuppliers.map((s: string) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GRN</label>
@@ -246,13 +247,13 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
             <div key={idx} className="flex flex-col md:flex-row gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-fade-in relative group">
               <div className="flex-1 space-y-1">
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Item Name</label>
-                <select 
+                <SearchableSelect 
                   value={item.itemName} 
                   onChange={e => updateItem(idx, 'itemName', e.target.value)}
                   className="w-full text-xs font-bold"
                 >
                   {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
               <div className="w-full md:w-24 space-y-1">
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Received Quantity</label>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 import { api } from '../services/api';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
@@ -874,7 +875,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 {/* Category Selection */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">SOP / Document Category *</label>
-                  <select
+                  <SearchableSelect
                     value={category}
                     onChange={e => setCategory(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold tracking-tight focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
@@ -882,13 +883,13 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     {DOCUMENT_CATEGORIES.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 {/* Department Selection */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Department *</label>
-                  <select
+                  <SearchableSelect
                     value={department}
                     onChange={e => setDepartment(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold tracking-tight focus:bg-white focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition"
@@ -896,7 +897,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     {DEPARTMENTS.map(dept => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 
@@ -1130,7 +1131,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                   {/* Category Filter */}
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Category</label>
-                    <select
+                    <SearchableSelect
                       value={selectedCategoryFilter}
                       onChange={e => setSelectedCategoryFilter(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
@@ -1139,13 +1140,13 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       {DOCUMENT_CATEGORIES.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   {/* Department Filter */}
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Department</label>
-                    <select
+                    <SearchableSelect
                       value={selectedDepartmentFilter}
                       onChange={e => setSelectedDepartmentFilter(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
@@ -1154,13 +1155,13 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       {DEPARTMENTS.map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   {/* Sorting Mode */}
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Sort By</label>
-                    <select
+                    <SearchableSelect
                       value={sortMode}
                       onChange={e => setSortMode(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
@@ -1169,7 +1170,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       <option value="date_asc">Oldest Uploaded</option>
                       <option value="name_asc">Name (A-Z)</option>
                       <option value="name_desc">Name (Z-A)</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               </div>

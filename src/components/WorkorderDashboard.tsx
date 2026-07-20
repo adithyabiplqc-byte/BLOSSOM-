@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { api } from '../services/api';
 import { ZONES, COLORS, SIZES, CUPSIZES } from '../constants';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 
 interface WorkorderDashboardProps {
   workorders: any[];
@@ -281,9 +282,9 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label>Zone</label>
-                  <select className="w-full" value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
+                  <SearchableSelect className="w-full" value={form.zone} onChange={e => setForm({...form, zone: e.target.value})}>
                     {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label>Workorder Number</label>
@@ -292,7 +293,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                  <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label>{getStyleLabel()}</label>
-                    <select 
+                    <SearchableSelect 
                       className="w-full" 
                       value={form.style} 
                       onChange={e => setForm({...form, style: e.target.value})} 
@@ -300,11 +301,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     >
                       <option value="">Select Style</option>
                       {displayStyles.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label>{getColorLabel()}</label>
-                    <select 
+                    <SearchableSelect 
                       className="w-full" 
                       value={form.colour} 
                       onChange={e => setForm({...form, colour: e.target.value})} 
@@ -312,13 +313,13 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     >
                       <option value="">Select Colour</option>
                       {displayColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label>Size From</label>
-                    <select 
+                    <SearchableSelect 
                       className="w-full" 
                       value={form.sizeFrom} 
                       onChange={e => setForm({...form, sizeFrom: e.target.value})} 
@@ -326,11 +327,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     >
                       <option value="">Select Size From</option>
                       {displaySizesFrom.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label>Size To</label>
-                    <select 
+                    <SearchableSelect 
                       className="w-full" 
                       value={form.sizeTo} 
                       onChange={e => setForm({...form, sizeTo: e.target.value})} 
@@ -338,20 +339,20 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     >
                       <option value="">Select Size To</option>
                       {displaySizesTo.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label>Cup (Optional)</label>
-                    <select 
+                    <SearchableSelect 
                       className="w-full" 
                       value={form.cup} 
                       onChange={e => setForm({...form, cup: e.target.value})} 
                     >
                       <option value="">Select Cup (Optional)</option>
                       {displayCups.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label>Quantity</label>
@@ -360,7 +361,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                 </div>
                 <div>
                   <label>Workflow Status</label>
-                  <select className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
+                  <SearchableSelect className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
                     <option value="CUTTING">CUTTING</option>
                     <option value="INLINE">INLINE</option>
                     <option value="ENDLINE">ENDLINE</option>
@@ -369,7 +370,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     <option value="AQL">AQL</option>
                     <option value="FINAL">FINAL AUDIT</option>
                     <option value="COMPLETED">COMPLETED</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div className="flex gap-2">
                   <button 

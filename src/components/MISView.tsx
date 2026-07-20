@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import Icon from './Icon';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import SearchableSelect from './SearchableSelect';
 
 interface MISViewProps {
   id: string;
@@ -2186,7 +2187,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                   <Icon name="calendar" size={14} />
                 </span>
-                <select
+                <SearchableSelect
                   className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none transition appearance-none cursor-pointer"
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
@@ -2197,7 +2198,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       {new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -2541,7 +2542,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                   <Icon name="calendar" size={14} />
                 </span>
-                <select
+                <SearchableSelect
                   className="w-full bg-white border border-slate-200 focus:border-violet-500 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none transition appearance-none cursor-pointer"
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
@@ -2552,7 +2553,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       {new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -2892,7 +2893,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                   <Icon name="calendar" size={14} />
                 </span>
-                <select
+                <SearchableSelect
                   className="w-full bg-white border border-slate-200 focus:border-rose-500 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none transition appearance-none cursor-pointer"
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
@@ -2903,7 +2904,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       {new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -3939,7 +3940,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                   <Icon name="calendar" size={14} />
                 </span>
-                <select
+                <SearchableSelect
                   className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none transition appearance-none cursor-pointer"
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
@@ -3950,7 +3951,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       {new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -4208,8 +4209,8 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
               <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Select Date:</span>
-              <select
-                className="bg-transparent border-none text-xs font-black text-slate-800 focus:outline-none cursor-pointer uppercase font-mono"
+              <SearchableSelect
+                className="bg-transparent border-none text-xs font-black text-slate-800 focus:outline-none cursor-pointer uppercase font-mono min-w-[120px]"
                 value={selectedDateC5}
                 onChange={e => setSelectedDateC5(e.target.value)}
               >
@@ -4219,7 +4220,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                     {d}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           </div>
         </div>

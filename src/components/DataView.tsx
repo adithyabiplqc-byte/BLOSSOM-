@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import { api } from '../services/api';
 import { SUBMODULES, ZONES } from '../constants';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 
 const HOURLY_ROUNDS = [
   { index: 1, label: '9 TO 10' },
@@ -819,7 +820,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zone:</span>
-            <select 
+            <SearchableSelect 
               className="py-1 px-3 text-xs w-32 disabled:bg-slate-50 disabled:text-slate-400 font-bold bg-white border border-slate-200 rounded-lg shadow-sm"
               value={selectedZone}
               onChange={e => {
@@ -839,7 +840,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               ) : (
                 <option value={userAssignedZone}>{userAssignedZone}</option>
               )}
-            </select>
+            </SearchableSelect>
           </div>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -911,16 +912,16 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                   <Icon name="calendar" size={12} className="text-slate-400" />
                   Date Filter:
                 </span>
-                <select 
+                <SearchableSelect 
                   value={selectedMatrixDate}
                   onChange={e => setSelectedMatrixDate(e.target.value)}
-                  className="py-0.5 px-2 text-xs bg-transparent border-none font-bold text-slate-700 focus:ring-0 cursor-pointer"
+                  className="py-0.5 px-2 text-xs bg-transparent border-none font-bold text-slate-700 focus:ring-0 cursor-pointer min-w-[120px]"
                 >
                   <option value="ALL">ALL RECORDS</option>
                   {uniqueDatesInInline.map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
           </div>

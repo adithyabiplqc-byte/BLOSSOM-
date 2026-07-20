@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface AdminDashboardProps {
@@ -841,13 +842,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">User Role</label>
-                <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                <SearchableSelect value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
                   {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Zone</label>
-                <select 
+                <SearchableSelect 
                   value={newUser.zone} 
                   onChange={e => {
                     const nextZone = e.target.value;
@@ -862,11 +863,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="">Select Zone...</option>
                   <option value="COMMON">COMMON (All Zones)</option>
                   {currentZones.map(z => <option key={z} value={z}>{z}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
-                <select 
+                <SearchableSelect 
                   value={newUser.location} 
                   onChange={e => setNewUser({...newUser, location: e.target.value})}
                 >
@@ -874,7 +875,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {getUnitsForZone(newUser.zone).map(u => (
                     <option key={u} value={u}>{u}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <button 
                 type="button"
@@ -893,7 +894,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <h2 className="text-xl font-bold">Edit User</h2>
             <div className="space-y-3">
               <label>Select User Code</label>
-              <select 
+              <SearchableSelect 
                 value={editingUserCode} 
                 onChange={e => setEditingUserCode(e.target.value)}
               >
@@ -901,7 +902,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {filteredUsers.map(u => (
                   <option key={u.userCode} value={u.userCode}>{u.userCode} - {u.username}</option>
                 ))}
-              </select>
+              </SearchableSelect>
 
               {editingUser && (
                 <div className="space-y-3 pt-4 border-t border-slate-100 animate-fade-in">
@@ -942,16 +943,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   <div>
                     <label>Role</label>
-                    <select value={editingUser.role} onChange={e => {
+                    <SearchableSelect value={editingUser.role} onChange={e => {
                       const updated = { ...editingUser, role: e.target.value };
                       setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
                     }}>
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label>Zone</label>
-                    <select value={editingUser.zone || ''} onChange={e => {
+                    <SearchableSelect value={editingUser.zone || ''} onChange={e => {
                       const nextZone = e.target.value;
                       const units = getUnitsForZone(nextZone);
                       const updated = { 
@@ -964,11 +965,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <option value="">Select Zone...</option>
                       <option value="COMMON">COMMON (All Zones)</option>
                       {currentZones.map(z => <option key={z} value={z}>{z}</option>)}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
-                    <select 
+                    <SearchableSelect 
                       value={editingUser.location || ''} 
                       onChange={e => {
                         const updated = { ...editingUser, location: e.target.value };
@@ -979,7 +980,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {getUnitsForZone(editingUser.zone || '').map(u => (
                         <option key={u} value={u}>{u}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <button 
                     onClick={handleUpdate} 
@@ -998,7 +999,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-6">
             <div className="max-w-xs">
               <label>Select User Code</label>
-              <select 
+              <SearchableSelect 
                 value={restrictingUserCode} 
                 onChange={e => setRestrictingUserCode(e.target.value)}
               >
@@ -1006,7 +1007,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {filteredUsers.filter(u => u.role !== 'ADMIN').map(u => (
                   <option key={u.userCode} value={u.userCode}>{u.username.toUpperCase()} ({u.role}) - {u.userCode}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             {restrictingUser && (
@@ -1160,7 +1161,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block">Option 2: Add Unit</span>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
-                          <select 
+                          <SearchableSelect 
                             value={newUnitZone} 
                             onChange={e => setNewUnitZone(e.target.value)}
                             className="bg-white border-slate-200"
@@ -1169,7 +1170,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {uniqueZones.map(z => (
                               <option key={z} value={z}>{z}</option>
                             ))}
-                          </select>
+                          </SearchableSelect>
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Unit Name</label>
@@ -1221,7 +1222,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 block">Option 3: Add Worker</span>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
-                          <select 
+                          <SearchableSelect 
                             value={newWorkerZone} 
                             onChange={e => {
                               const val = e.target.value;
@@ -1235,11 +1236,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {uniqueZones.map(z => (
                               <option key={z} value={z}>{z}</option>
                             ))}
-                          </select>
+                          </SearchableSelect>
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Unit</label>
-                          <select 
+                          <SearchableSelect 
                             value={newWorkerUnit} 
                             onChange={e => setNewWorkerUnit(e.target.value)}
                             className="bg-white border-slate-200"
@@ -1249,7 +1250,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {getUnitsForZone(newWorkerZone).map(u => (
                               <option key={u} value={u}>{u}</option>
                             ))}
-                          </select>
+                          </SearchableSelect>
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Worker Name</label>
@@ -1370,17 +1371,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <div className="max-w-xs">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select User to Configure</label>
-                  <select 
+                  <SearchableSelect 
                     value={selectedUserCode} 
                     onChange={e => fetchUserSettings(e.target.value)}
-                    className="bg-white border-slate-200 w-full rounded-xl"
+                    className="bg-white border-slate-200 w-full rounded-xl animate-none shadow-none focus:ring-0"
                   >
                     <option value="">Select Target...</option>
                     <option value="GLOBAL">🌐 SYSTEM GLOBAL SETTINGS</option>
                     {filteredUsers.map(u => (
                       <option key={u.userCode} value={u.userCode}>{u.username} ({u.userCode})</option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 {selectedUserCode && (
@@ -1649,16 +1650,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-4 bg-rose-50 p-6 rounded-2xl border border-rose-100">
               <div>
                 <label className="text-rose-900">Select User to Delete</label>
-                <select 
+                <SearchableSelect 
                   value={deletingUserCode} 
                   onChange={e => setDeletingUserCode(e.target.value)}
-                  className="border-rose-200 focus:ring-rose-500"
+                  className="border-rose-200 focus:ring-rose-500 w-full"
                 >
                   <option value="">Choose account...</option>
                   {filteredUsers.filter(u => u.username !== currentUser.username).map(u => (
                     <option key={u.userCode} value={u.userCode}>{u.username.toUpperCase()} ({u.userCode})</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               {deletingUser && (
                 <div className="space-y-4 animate-slide-up">
@@ -1705,7 +1706,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Data Category</label>
-                <select
+                <SearchableSelect
                   value={selectedDataType}
                   onChange={e => {
                     setSelectedDataType(e.target.value);
@@ -1722,7 +1723,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="FINAL">Final Audit Reports</option>
                   <option value="MATERIAL">Material Reports</option>
                   <option value="WORKORDER">Workorders</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               {selectedDataType && (

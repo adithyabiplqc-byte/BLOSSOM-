@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { ZONES, UNITS } from '../constants';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
+import SearchableSelect from './SearchableSelect';
 
 interface AQLInspectionProps {
   user: any;
@@ -114,13 +115,13 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone</label>
-          <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
+          <SearchableSelect value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
-          <select value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
+          <SearchableSelect value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
             <option value="">Select Workorder</option>
             {workorders
               .filter(w => {
@@ -131,13 +132,13 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
             }
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unit</label>
-          <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
+          <SearchableSelect value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold">
             {currentUnits.map((u: string) => <option key={u} value={u}>{u}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 

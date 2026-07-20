@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS, DEFECTS, OPERATIONS, WORKERS, MACHINES, SIZES, COLORS } from '../constants';
 import Icon from './Icon';
+import SearchableSelect from './SearchableSelect';
 
 interface EndlineQualityProps {
   user: any;
@@ -810,23 +811,18 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block pl-0.5 text-left">
               Unit / Location
             </label>
-            <div className="relative">
-              <select
-                value={form.unit}
-                onChange={e => setForm({ ...form, unit: e.target.value })}
-                className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 pl-3 pr-8 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                <option value="">Select Location...</option>
-                {currentUnits.map((u: string) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+            <SearchableSelect
+              value={form.unit}
+              onChange={e => setForm({ ...form, unit: e.target.value })}
+              className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              <option value="">Select Location...</option>
+              {currentUnits.map((u: string) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </SearchableSelect>
           </div>
 
           {/* Dropdown 4: Active Workorder / STYLE Spec */}
@@ -834,61 +830,56 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block pl-0.5 text-left">
               Active Job / Style
             </label>
-            <div className="relative">
-              <select
-                value={form.wo}
-                onChange={e => setForm({ ...form, wo: e.target.value })}
-                className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 pl-3 pr-8 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                <option value="">Select Job...</option>
-                {workorders
-                  .filter(w => {
-                    const wZone = String(w.zone || w.location || '').toUpperCase().trim();
-                    const fZone = String(form.zone).toUpperCase().trim();
-                    let matchesZone = wZone === fZone || fZone === '' || fZone === 'ALL';
-                    if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
-                      const matchingRows = zoneMappings.filter(m => 
-                        String(m.zone || '').toUpperCase().trim() === fZone || 
-                        String(m.id || '').toUpperCase().trim() === fZone
-                      );
-                      matchesZone = matchingRows.some(m => 
-                        String(m.zone || '').toUpperCase().trim() === wZone || 
-                        String(m.id || '').toUpperCase().trim() === wZone
-                      );
-                    }
-                    if (!matchesZone) return false;
+            <SearchableSelect
+              value={form.wo}
+              onChange={e => setForm({ ...form, wo: e.target.value })}
+              className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              <option value="">Select Job...</option>
+              {workorders
+                .filter(w => {
+                  const wZone = String(w.zone || w.location || '').toUpperCase().trim();
+                  const fZone = String(form.zone).toUpperCase().trim();
+                  let matchesZone = wZone === fZone || fZone === '' || fZone === 'ALL';
+                  if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                    const matchingRows = zoneMappings.filter(m => 
+                      String(m.zone || '').toUpperCase().trim() === fZone || 
+                      String(m.id || '').toUpperCase().trim() === fZone
+                    );
+                    matchesZone = matchingRows.some(m => 
+                      String(m.zone || '').toUpperCase().trim() === wZone || 
+                      String(m.id || '').toUpperCase().trim() === wZone
+                    );
+                  }
+                  if (!matchesZone) return false;
 
-                    const statusUpper = normalizeStatus(w.status);
-                    if (
-                      statusUpper !== 'ENDLINE' && 
-                      statusUpper !== 'INLINEANDENDLINE' && 
-                      statusUpper !== 'PASSANDHOLD' && 
-                      !statusUpper.includes('HOLD')
-                    ) {
-                      return false;
-                    }
+                  const statusUpper = normalizeStatus(w.status);
+                  if (
+                    statusUpper !== 'ENDLINE' && 
+                    statusUpper !== 'INLINEANDENDLINE' && 
+                    statusUpper !== 'PASSANDHOLD' && 
+                    !statusUpper.includes('HOLD')
+                  ) {
+                    return false;
+                  }
 
-                    const targetQty = Number(w.quantity || w.orderQty || 0);
-                    const passedQty = endlineRecords
-                      .filter(r => String(r.wo || r.workorderNumber) === String(w.workorderNumber))
-                      .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
+                  const targetQty = Number(w.quantity || w.orderQty || 0);
+                  const passedQty = endlineRecords
+                    .filter(r => String(r.wo || r.workorderNumber) === String(w.workorderNumber))
+                    .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
 
-                    if (targetQty > 0 && passedQty >= targetQty) {
-                      return false;
-                    }
+                  if (targetQty > 0 && passedQty >= targetQty) {
+                    return false;
+                  }
 
-                    return true;
-                  })
-                  .map(w => (
-                    <option key={w.id || w.workorderNumber} value={w.workorderNumber}>
-                      {w.style || w.STYLE_NAME || w.workorderNumber} ({w.workorderNumber})
-                    </option>
-                  ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+                  return true;
+                })
+                .map(w => (
+                  <option key={w.id || w.workorderNumber} value={w.workorderNumber}>
+                    {w.style || w.STYLE_NAME || w.workorderNumber} ({w.workorderNumber})
+                  </option>
+                ))}
+            </SearchableSelect>
           </div>
 
           {/* Dropdown 4b: Colour Specifications Selector */}
@@ -896,23 +887,18 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-indigo-500 uppercase tracking-wider block pl-0.5 text-left font-bold">
               Select Colour
             </label>
-            <div className="relative">
-              <select
-                value={form.color}
-                onChange={e => setForm({ ...form, color: e.target.value })}
-                className="w-full bg-white border-2 border-indigo-150 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2 px-3 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                <option value="">Select Color...</option>
-                {currentColors.map((c: string) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-500">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+            <SearchableSelect
+              value={form.color}
+              onChange={e => setForm({ ...form, color: e.target.value })}
+              className="w-full bg-white border-2 border-indigo-150 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              <option value="">Select Color...</option>
+              {currentColors.map((c: string) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </SearchableSelect>
           </div>
 
           {/* Dropdown 5: Line Reference */}
@@ -920,22 +906,18 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block pl-0.5 text-left">
               Line Code
             </label>
-            <div className="relative">
-              <select
-                value={form.line}
-                onChange={e => setForm({ ...form, line: e.target.value })}
-                className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 pl-3 pr-8 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                {currentLines.map((l: string) => (
-                  <option key={l} value={l}>
-                    Line {l}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+            <SearchableSelect
+              value={form.line}
+              onChange={e => setForm({ ...form, line: e.target.value })}
+              align="right"
+              className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              {currentLines.map((l: string) => (
+                <option key={l} value={l}>
+                  Line {l}
+                </option>
+              ))}
+            </SearchableSelect>
           </div>
 
           {/* Dropdown 6: Cup Category */}
@@ -943,22 +925,18 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block pl-0.5 text-left">
               Cup Category
             </label>
-            <div className="relative">
-              <select
-                value={form.cupsize}
-                onChange={e => setForm({ ...form, cupsize: e.target.value })}
-                className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 pl-3 pr-8 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                {currentCupSizes.map((c: string) => (
-                  <option key={c} value={c}>
-                    Cup {c}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+            <SearchableSelect
+              value={form.cupsize}
+              onChange={e => setForm({ ...form, cupsize: e.target.value })}
+              align="right"
+              className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              {currentCupSizes.map((c: string) => (
+                <option key={c} value={c}>
+                  Cup {c}
+                </option>
+              ))}
+            </SearchableSelect>
           </div>
 
           {/* Dropdown 7: Size */}
@@ -966,24 +944,19 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block pl-0.5 text-left">
               Garment Size
             </label>
-            <div className="relative">
-              <select
-                value={form.size}
-                onChange={e => setForm({ ...form, size: e.target.value })}
-                className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 pl-3 pr-8 shadow-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50"
-              >
-                {currentSizes.map((s: string) => (
-                  <option key={s} value={s}>
-                    Size {s}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <Icon name="chevron-down" size={12} />
-              </div>
-            </div>
+            <SearchableSelect
+              value={form.size}
+              onChange={e => setForm({ ...form, size: e.target.value })}
+              align="right"
+              className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
+            >
+              {currentSizes.map((s: string) => (
+                <option key={s} value={s}>
+                  Size {s}
+                </option>
+              ))}
+            </SearchableSelect>
           </div>
-
         </div>
       </div>
 
@@ -1202,46 +1175,46 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">operator</label>
-                            <select
+                            <SearchableSelect
                               value={item.worker}
                               onChange={e => handleDefectItemChange(idx, 'worker', e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentWorkers.map((w: string) => <option key={w} value={w}>{w}</option>)}
-                            </select>
+                            </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
                             <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">operation</label>
-                            <select
+                            <SearchableSelect
                               value={item.operation}
                               onChange={e => handleDefectItemChange(idx, 'operation', e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentOperations.map((op: string) => <option key={op} value={op}>{op}</option>)}
-                            </select>
+                            </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
                             <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">defect description</label>
-                            <select
+                            <SearchableSelect
                               value={item.defect}
                               onChange={e => handleDefectItemChange(idx, 'defect', e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentDefects.map((df: string) => <option key={df} value={df}>{df}</option>)}
-                            </select>
+                            </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
                             <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">machine reference</label>
-                            <select
+                            <SearchableSelect
                               value={item.machine}
                               onChange={e => handleDefectItemChange(idx, 'machine', e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentMachines.map((m: string) => <option key={m} value={m}>{m}</option>)}
-                            </select>
+                            </SearchableSelect>
                           </div>
                         </div>
                       </div>

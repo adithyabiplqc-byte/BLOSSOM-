@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { ZONES, UNITS, WORKERS, MACHINES, COLORS, SIZES, CUPSIZES } from '../constants';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
+import SearchableSelect from './SearchableSelect';
 
 interface InlineQualityProps {
   user: any;
@@ -1057,7 +1058,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zone Selection</label>
-          <select 
+          <SearchableSelect 
             value={form.zone} 
             onChange={e => {
               const newZone = e.target.value;
@@ -1067,24 +1068,24 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           >
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1 font-bold">Unit Selection</label>
-          <select 
+          <SearchableSelect 
             value={form.unit} 
             onChange={e => setForm({...form, unit: e.target.value, wo: ''})} 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           >
             <option value="">All Units</option>
             {currentUnits.map((u: string) => <option key={u} value={u}>{u}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
-          <select 
+          <SearchableSelect 
             value={form.wo} 
             onChange={e => setForm({...form, wo: e.target.value})} 
             required 
@@ -1122,7 +1123,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
               })
               .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style})</option>)
             }
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
@@ -1141,7 +1142,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans">Worker / Operator</label>
-          <select 
+          <SearchableSelect 
             value={form.worker} 
             onChange={e => setForm({...form, worker: e.target.value})} 
             required 
@@ -1149,12 +1150,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           >
             <option value="">Select Worker...</option>
             {dynamicWorkers.map((w: string) => <option key={w} value={w}>{w}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans">Machine Dropdown</label>
-          <select 
+          <SearchableSelect 
             value={form.machine} 
             onChange={e => setForm({...form, machine: e.target.value})} 
             required 
@@ -1162,12 +1163,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           >
             <option value="">Select Machine...</option>
             {dynamicMachines.map((m: string) => <option key={m} value={m}>{m}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1 font-sans font-bold">Select Colour</label>
-          <select 
+          <SearchableSelect 
             value={form.color} 
             onChange={e => setForm({...form, color: e.target.value})} 
             required 
@@ -1175,33 +1176,35 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           >
             <option value="">Select Color...</option>
             {currentColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 font-sans font-bold">Garment Size</label>
-          <select 
+          <SearchableSelect 
             value={form.size} 
             onChange={e => setForm({...form, size: e.target.value})} 
             required 
+            align="right"
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
             <option value="">Select Size...</option>
             {currentSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans font-bold">Cup Category</label>
-          <select 
+          <SearchableSelect 
             value={form.cupsize} 
             onChange={e => setForm({...form, cupsize: e.target.value})} 
             required 
+            align="right"
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
             <option value="">Select Cup...</option>
             {currentCups.map((c: string) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
