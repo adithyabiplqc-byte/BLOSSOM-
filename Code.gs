@@ -416,11 +416,15 @@ function areSynonyms(h1, h2) {
   if (norm1 === norm2) return true;
 
   var groups = [
-    ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty'],
+    ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'receivedqty', 'quantity', 'orderqty', 'totalaudited', 'qty'],
     ['checkedquantity', 'checkedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty'],
     ['passedquantity', 'passquantity', 'passqty', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity'],
     ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty'],
-    ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
+    ['receiveddate', 'received_date', 'datereceived'],
+    ['checkingdate', 'checkeddate', 'checkdate', 'checking_date', 'checked_date'],
+    ['itemremarks', 'itemremark', 'item_remarks', 'item_remark'],
+    ['generalremarks', 'generalremark', 'general_remarks', 'general_remark'],
+    ['remarks', 'remark', 'notes', 'note', 'comments', 'comment'],
     ['style', 'stylename', 'style_name', 'styles', 'stylenames'],
     ['color', 'colour', 'colors', 'colours'],
     ['workordernumber', 'workorderno', 'workorderNumber', 'workorderNo', 'wo', 'wonum', 'wonumber'],
@@ -446,7 +450,7 @@ function resolveSynonymValue(header, record) {
   var groups = [
     {
       canonical: 'totalquantity',
-      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'quantity', 'orderqty', 'totalaudited', 'qty']
+      synonyms: ['totalquantity', 'totalqty', 'totalquentity', 'receivedquantity', 'receivedqty', 'quantity', 'orderqty', 'totalaudited', 'qty']
     },
     {
       canonical: 'checkedquantity',
@@ -461,12 +465,28 @@ function resolveSynonymValue(header, record) {
       synonyms: ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty']
     },
     {
+      canonical: 'receiveddate',
+      synonyms: ['receiveddate', 'received_date', 'datereceived', 'receiveddate']
+    },
+    {
+      canonical: 'checkingdate',
+      synonyms: ['checkingdate', 'checkeddate', 'checkdate', 'checking_date', 'checked_date']
+    },
+    {
+      canonical: 'itemremarks',
+      synonyms: ['itemremarks', 'itemremark', 'item_remarks', 'item_remark']
+    },
+    {
+      canonical: 'generalremarks',
+      synonyms: ['generalremarks', 'generalremark', 'general_remarks', 'general_remark']
+    },
+    {
       canonical: 'location',
       synonyms: ['location']
     },
     {
       canonical: 'remarks',
-      synonyms: ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment']
+      synonyms: ['remarks', 'remark', 'notes', 'note', 'comments', 'comment']
     },
     {
       canonical: 'style',

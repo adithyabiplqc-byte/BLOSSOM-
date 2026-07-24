@@ -334,7 +334,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       // Dynamic comprehensive synonym map for key unification
       const canonicalKeys: { [canonical: string]: string[] } = {
         wo: ['wo', 'workorder', 'workordernumber', 'workorderno', 'wonum', 'wonumber', 'workorderNo', 'workOrderNumber', 'work_order_number', 'wo_number', 'woNo', 'wono', 'WO'],
-        totalQty: ['totalqty', 'orderqty', 'order_qty', 'orderquantity', 'quantity', 'totalQty', 'orderQty', 'orderQuantity'],
+        totalQty: ['totalqty', 'orderqty', 'order_qty', 'orderquantity', 'quantity', 'totalQty', 'orderQty', 'orderQuantity', 'receivedquantity', 'receivedqty', 'received_qty', 'receivedQuantity'],
         checkedQty: ['checkedqty', 'pcschecked', 'pcs_checked', 'checkedquantity', 'checked_quantity', 'pcscheckedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty', 'CHECKEDQTY', 'pcsChecked', 'checkedQty', 'checkedQuantity'],
         reworkQty: ['reworkqty', 'rework_qty', 'reworkqty', 'reworkQty', 'rework'],
         rejectedQty: ['rejectedqty', 'rejected_qty', 'rejectedquantity', 'rejected_quantity', 'failqty', 'fail_qty', 'complaintpcs', 'complaint_pcs', 'rejected', 'reject', 'failedqty', 'failQty', 'complaintPcs', 'REJECTEDQTY', 'REJECTED_QTY'],
@@ -344,8 +344,11 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         size: ['size', 'sizes'],
         cupsize: ['cupsize', 'cup', 'cups', 'cupSize', 'cup_size'],
         relaxingTime: ['relaxingtime', 'relaxtime', 'relax_time', 'relaxingTime', 'relaxTime', 'relaxationTime', 'relaxationtime'],
-        remarks: ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
-        checkingDate: ['checkingdate', 'date', 'receiveddate', 'checkingDate'],
+        receivedDate: ['receiveddate', 'received_date', 'receivedDate', 'date_received', 'received_date_time'],
+        checkingDate: ['checkingdate', 'checkeddate', 'checkdate', 'checking_date', 'checked_date', 'checkingDate'],
+        itemRemarks: ['itemremarks', 'itemremark', 'item_remarks', 'item_remark', 'itemRemarks', 'itemRemark'],
+        generalRemarks: ['generalremarks', 'generalremark', 'general_remarks', 'general_remark', 'generalRemarks', 'generalRemark'],
+        remarks: ['remarks', 'remark', 'notes', 'note', 'comments', 'comment'],
         unit: ['unit', 'units'],
         line: ['line', 'lines'],
         worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName'],
