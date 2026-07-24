@@ -15,11 +15,25 @@ interface WorkorderDashboardProps {
 }
 
 const normalizeStatus = (statusStr: string): string => {
-  return String(statusStr || "")
+  const s = String(statusStr || "")
     .toUpperCase()
     .trim()
     .replace(/&/g, "AND")
     .replace(/[^A-Z0-9]/g, "");
+  
+  if (s === 'PRECUTTINGPASSANDHOLD' || s === 'PRECUTTINGPASSED' || s === 'CUTTINGPASSANDHOLD') {
+    return 'CUTTING';
+  }
+  if (s === 'ENDLINEPASSANDHOLD') {
+    return 'INLINEANDENDLINE';
+  }
+  if (s === 'AQLPASSANDHOLD') {
+    return 'AQL';
+  }
+  if (s === 'FINALPASSANDHOLD') {
+    return 'FINAL';
+  }
+  return s;
 };
 
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
@@ -84,7 +98,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     cup: '', 
     quantity: '', 
     colour: '',
-    status: 'CUTTING'
+    status: 'PRECUTTING'
   });
 
   const [search, setSearch] = useState('');
@@ -207,7 +221,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         cup: '',
         quantity: '', 
         colour: '',
-        status: 'CUTTING'
+        status: 'PRECUTTING'
       });
       setIsEditing(false);
       setSelectedWO(null);

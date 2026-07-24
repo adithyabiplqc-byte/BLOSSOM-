@@ -603,143 +603,65 @@ export const sheetsService = {
     }
   },
 
-  resolveSynonymSheetNameClient(sheetName: string, sheets: any[], record?: any): string {
-    const titleList = sheets.map((s: any) => s.properties?.title || "");
-    if (titleList.includes(sheetName)) return sheetName;
-
-    const synonymsMap: { [key: string]: string[] } = {
-      'USERS': ['USERS'],
-      'MATERIAL': [
-        'MATERIAL', 'MATERIAL REPORT', 'MATERIAL QUALITY', 'STORE MATERIAL INSPECTION DATA', 'MATERIAL INSPECTION',
-        'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
-        'MATERIAL REPORT - KERALA', 'MATERIAL REPORT - TIRUPUR', 'MATERIAL REPORT - BANGLORE',
-        'MATERIAL QUALITY - KERALA', 'MATERIAL QUALITY - TIRUPUR', 'MATERIAL QUALITY - BANGLORE',
-        'MATERIAL REPORT KERALA', 'MATERIAL REPORT TIRUPUR', 'MATERIAL REPORT BANGLORE'
-      ],
-      'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT', 'CUTTING - KERALA', 'CUTTING - TIRUPUR', 'CUTTING - BANGLORE'],
-      'INLINE': ['INLINE', 'INLINE REPORT', 'INLINE QUALITY', 'SEWING DEFECT', 'SEWING DEFECTS', 'INLINE - KERALA', 'INLINE - TIRUPUR', 'INLINE - BANGLORE', '8ROUND SYSTEM', '8ROUND SYSTEM - KERALA', '8ROUND SYSTEM - TIRUPUR', '8ROUND SYSTEM - BANGLORE', '8ROUND_SYSTEM', '8 ROUND SYSTEM', '8ROUND', '8 ROUNDS'],
-      'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT', 'ENDLINE - KERALA', 'ENDLINE - TIRUPUR', 'ENDLINE - BANGLORE'],
-      'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION', 'AQL - KERALA', 'AQL - TIRUPUR', 'AQL - BANGLORE'],
-      'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL', 'FINAL - KERALA', 'FINAL - TIRUPUR', 'FINAL - BANGLORE'],
-      'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'WORKORDERS - KERALA', 'WORKORDER - KERALA', 'WORKORDER - TIRUPUR', 'WORKORDER - BANGLORE'],
-      'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS', 'REPORTS', 'SOPS'],
-      'ZONE': ['ZONE', 'ZONES'],
-      'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY', 'REWORK - KERALA', 'REWORK - TIRUPUR', 'REWORK - BANGLORE']
-    };
-
-    const canonicalKeys: { [key: string]: string } = {
-      'REWORK': 'REWORK',
-      'REWORK REPORT': 'REWORK',
-      'REWORK QUALITY': 'REWORK',
-      'MATERIAL': 'MATERIAL',
-      'MATERIAL REPORT': 'MATERIAL',
-      'MATERIAL QUALITY KERALA': 'MATERIAL',
-      'MATERIAL QUALITY TIRUPUR': 'MATERIAL',
-      'MATERIAL QUALITY BANGLORE': 'MATERIAL',
-      'MATERIAL QUALITY': 'MATERIAL',
-      'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
-      'MATERIAL INSPECTION': 'MATERIAL',
-      'CUTTING': 'CUTTING',
-      'CUTTING QUALITY': 'CUTTING',
-      'CUTTING REPORT': 'CUTTING',
-      'INLINE': 'INLINE',
-      'INLINE REPORT': 'INLINE',
-      'INLINE QUALITY': 'INLINE',
-      'SEWING DEFECT': 'INLINE',
-      'SEWING DEFECTS': 'INLINE',
-      'ENDLINE': 'ENDLINE',
-      'ENDLINE QUALITY': 'ENDLINE',
-      'ENDLINE REPORT': 'ENDLINE',
-      'AQL': 'AQL',
-      'AQL REPORT': 'AQL',
-      'AQL INSPECTION': 'AQL',
-      'FINAL': 'FINAL AUDIT',
-      'FINAL AUDIT': 'FINAL AUDIT',
-      'FINAL AUDIT REPORT': 'FINAL AUDIT',
-      'FINAL REPORT': 'FINAL AUDIT',
-      '8ROUND': 'INLINE',
-      '8 ROUNDS': 'INLINE',
-      '8ROUND_SYSTEM': 'INLINE',
-      '8 ROUND SYSTEM': 'INLINE',
-      '8ROUND SYSTEM': 'INLINE',
-      'REPORTS': 'REPORTS_SOP',
-      'SOP REPORTS': 'REPORTS_SOP',
-      'SOPS': 'REPORTS_SOP',
-      'REPORTS & SOPS': 'REPORTS_SOP',
-      'WORKORDER': 'WORKORDER',
-      'WORKORDERS': 'WORKORDER',
-      'WORK ORDER': 'WORKORDER'
-    };
-
-    let baseName = sheetName;
-    const hyphenIdx = sheetName.indexOf(' - ');
+  getCanonicalBase(baseName: string): string {
+    if (!baseName) return '';
+    const norm = baseName.toUpperCase().trim();
+    
+    let cleanBase = norm;
+    const hyphenIdx = norm.indexOf(' - ');
     if (hyphenIdx !== -1) {
-      baseName = sheetName.slice(0, hyphenIdx);
+      cleanBase = norm.slice(0, hyphenIdx).trim();
+    }
+    
+    const mapping: { [key: string]: string } = {
+      'USERS': 'USERS', 'USER': 'USERS', 'SERVER USERS': 'USERS', 'USERLOGIN DETAILS': 'USERS', 'USERLOGIN': 'USERS', 'USER LOGIN': 'USERS', 'USER_LOGIN': 'USERS', 'USER_LOGIN_DETAILS': 'USERS', 'USERLOGIN_DETAILS': 'USERS', 'SERVER_USERS': 'USERS',
+      'MATERIAL': 'MATERIAL', 'MATERIAL REPORT': 'MATERIAL', 'MATERIAL QUALITY': 'MATERIAL', 'MATERIAL INSPECTION': 'MATERIAL', 'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
+      'CUTTING': 'CUTTING', 'CUTTING QUALITY': 'CUTTING', 'CUTTING REPORT': 'CUTTING',
+      'INLINE': 'INLINE', 'INLINE REPORT': 'INLINE', 'INLINE QUALITY': 'INLINE', 'SEWING DEFECT': 'INLINE', 'SEWING DEFECTS': 'INLINE', '8ROUND SYSTEM': 'INLINE', '8ROUND': 'INLINE', '8 ROUND SYSTEM': 'INLINE', '8ROUND_SYSTEM': 'INLINE', '8 ROUNDS': 'INLINE',
+      'ENDLINE': 'ENDLINE', 'ENDLINE QUALITY': 'ENDLINE', 'ENDLINE REPORT': 'ENDLINE',
+      'AQL': 'AQL', 'AQL REPORT': 'AQL', 'AQL INSPECTION': 'AQL',
+      'WORKORDER': 'WORKORDER', 'WORKORDERS': 'WORKORDER', 'WORK ORDER': 'WORKORDER',
+      'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT',
+      'REWORK': 'REWORK', 'REWORK REPORT': 'REWORK', 'REWORK QUALITY': 'REWORK',
+      'REPORTS_SOP': 'REPORTS_SOP', 'REPORTS_SOPDATA': 'REPORTS_SOP', 'SOP': 'REPORTS_SOP', 'REPORTS - SOP': 'REPORTS_SOP', 'SOP REPORTS': 'REPORTS_SOP', 'SOP_REPORTS': 'REPORTS_SOP', 'REPORTS & SOPS': 'REPORTS_SOP', 'REPORTS': 'REPORTS_SOP', 'SOPS': 'REPORTS_SOP',
+      'ZONE': 'ZONE', 'ZONES': 'ZONE', 'ZONE_MAPPINGS': 'ZONE',
+      'UNIT': 'UNIT', 'UNITS': 'UNIT',
+      'SETTINGS': 'SETTINGS', 'GLOBAL': 'SETTINGS',
+      'ADMIN': 'ADMIN'
+    };
+    
+    return mapping[cleanBase] || cleanBase;
+  },
+
+  resolveSynonymSheetNameClient(sheetName: string, sheets: any[], record?: any): string {
+    const canonical = this.getCanonicalBase(sheetName);
+    const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP'];
+    if (systemSheets.includes(canonical)) {
+      return canonical;
     }
 
-    const normBase = baseName.toUpperCase().trim();
-    if (canonicalKeys[normBase]) {
-      baseName = canonicalKeys[normBase];
-    } else if (canonicalKeys[baseName]) {
-      baseName = canonicalKeys[baseName];
+    const rawZone = record?.zone || record?.location;
+    const zone = String(rawZone || '').trim().toUpperCase();
+    if (zone && zone !== 'ALL' && zone !== 'SYSTEM' && zone !== 'WORKORDER' && zone !== 'COMMON') {
+      return canonical + " - " + zone;
     }
 
-    const normalizedBase = String(baseName || '').trim().toUpperCase();
-    const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
-    const isUserSheet = userSynonyms.includes(normalizedBase);
-    if (isUserSheet || normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL' || normalizedBase === 'ADMIN' || normalizedBase === 'ZONE' || normalizedBase === 'UNIT') {
-      if (isUserSheet) return 'USERS';
-      if (normalizedBase === 'SETTINGS' || normalizedBase === 'GLOBAL') return 'SETTINGS';
-      if (normalizedBase === 'ADMIN') return 'ADMIN';
-      if (normalizedBase === 'ZONE') return 'ZONE';
-      if (normalizedBase === 'UNIT') return 'UNIT';
-      const synonyms = synonymsMap[baseName];
-      if (synonyms) {
-        for (const syn of synonyms) {
-          if (titleList.includes(syn)) return syn;
-        }
-      }
-      return baseName;
+    // Dynamic resolution alignment to match the pre-existing unzoned sheets in the spreadsheet
+    const sheetTitles = (sheets || []).map(s => String(s?.properties?.title || s?.name || s || '').toUpperCase().trim());
+    if (canonical === 'CUTTING' && sheetTitles.includes('CUTTING QUALITY')) {
+      return 'CUTTING QUALITY';
+    }
+    if (canonical === 'MATERIAL' && sheetTitles.includes('MATERIAL REPORT')) {
+      return 'MATERIAL REPORT';
+    }
+    if (canonical === 'ENDLINE' && sheetTitles.includes('ENDLINE QUALITY')) {
+      return 'ENDLINE QUALITY';
+    }
+    if (canonical === 'AQL' && sheetTitles.includes('AQL REPORT')) {
+      return 'AQL REPORT';
     }
 
-    // Restore zone-routing for A1-A6 modules (e.g. MATERIAL, CUTTING, etc)
-    const zoneRouteModules = ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL AUDIT', 'WORKORDER', 'REWORK'];
-    if (zoneRouteModules.includes(baseName)) {
-      const rawZone = record?.zone || record?.location;
-      const zone = String(rawZone || '').trim().toUpperCase();
-      if (zone && zone !== 'ALL' && zone !== 'SYSTEM' && zone !== 'WORKORDER') {
-        const zonedName1 = baseName + " - " + zone;
-        const zonedName2 = baseName + " " + zone;
-        for (const name of [zonedName1, zonedName2]) {
-          if (titleList.includes(name)) return name;
-        }
-        const baseSyns = synonymsMap[baseName] || [];
-        for (const syn of baseSyns) {
-          if (titleList.includes(syn + " - " + zone) || titleList.includes(syn + " " + zone)) {
-            return titleList.includes(syn + " - " + zone) ? (syn + " - " + zone) : (syn + " " + zone);
-          }
-          if (syn.endsWith(zone) && titleList.includes(syn)) {
-            return syn;
-          }
-        }
-        
-        // If a zone is specified, do NOT fall back to an unzoned sheet.
-        // Instead return the zonedName1 directly so that a zoned sheet is used/created.
-        return zonedName1;
-      }
-    }
-
-    const synonyms = synonymsMap[baseName];
-    if (synonyms) {
-      for (const syn of synonyms) {
-        if (titleList.includes(syn)) {
-          return syn;
-        }
-      }
-      return synonyms[0] || baseName;
-    }
-
-    return baseName;
+    return canonical;
   },
 
   async getData(sheetName: string): Promise<any[]> {
@@ -923,15 +845,20 @@ export const sheetsService = {
             }
 
             let uniqueId = undefined;
+            let shouldDeduplicate = false;
+
             if (sheetName === 'USERS') {
               uniqueId = record.id || record.userCode;
+              shouldDeduplicate = true;
             } else if (sheetName === 'WORKORDER') {
               uniqueId = record.id || record.workorderNumber;
+              shouldDeduplicate = true;
             } else {
-              uniqueId = record.id;
+              uniqueId = record.id || `${record.workorderNumber || record.wo || ''}_${record.checkingDate || record.timestamp || ''}_${record.submodule || ''}_${record.bundleNo || ''}_${record.reworkQty || ''}_${record.checkedQty || ''}`;
+              shouldDeduplicate = true;
             }
 
-            if (uniqueId) {
+            if (shouldDeduplicate && uniqueId && uniqueId !== '_____') {
               if (seenIds.has(uniqueId)) continue;
               seenIds.add(uniqueId);
             }
@@ -969,6 +896,11 @@ export const sheetsService = {
   },
 
   async saveData(sheetName: string, record: any): Promise<{ success: boolean }> {
+    const isRegistry = ['USERS', 'WORKORDER', 'SETTINGS', 'ZONE', 'UNIT', 'ADMIN'].includes(sheetName.toUpperCase().trim());
+    if (!isRegistry) {
+      record.id = generateUuid();
+    }
+
     if (localStorage.getItem('BQOS_DEMO_MODE') === 'true') {
       this.saveOfflineData(sheetName, record);
       return { success: true };

@@ -1204,7 +1204,13 @@ function executeLocalAction(action: string, params: any[]): any {
         db.workorders = db.workorders || [];
         const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
         if (woIdx !== -1) {
-          db.workorders[woIdx].status = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+          let nextStatus = 'INLINE_AND_ENDLINE';
+          if (report.submodule === 'PRECUTTING') {
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
+          } else {
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+          }
+          db.workorders[woIdx].status = nextStatus;
         }
       }
       writeLocalDb(db);
@@ -1384,65 +1390,155 @@ function executeLocalAction(action: string, params: any[]): any {
       return { success: true };
     }
     
+    case 'aggregateZonedData': {
+      const moduleName = params[0] || 'CUTTING';
+      const zoneArg = params[1] || (typeof params[0] === 'object' ? params[0]?.zone : undefined);
+      let key = 'cutting_reports';
+      const mUpper = String(moduleName).toUpperCase();
+      if (mUpper.includes('MATERIAL')) key = 'material_reports';
+      else if (mUpper.includes('INLINE') || mUpper.includes('8ROUND')) key = 'sewing_reports';
+      else if (mUpper.includes('ENDLINE')) key = 'endline_reports';
+      else if (mUpper.includes('AQL')) key = 'aql_reports';
+      else if (mUpper.includes('FINAL')) key = 'final_reports';
+
+      let data = db[key] || [];
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
+      }
+      return data;
+    }
+
     case 'api_getMaterialData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.material_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_getCuttingData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.cutting_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_getInlineData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_get8ROUNDSYSTEMData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_getEndlineData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.endline_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_getAQLData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.aql_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
     
     case 'api_getFinalAuditData': {
-      const zone = params[0]?.zone;
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.final_reports || [];
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          const rUnit = String(r.unit || '').trim().toUpperCase();
+          if (rZone === zTarget || rUnit === zTarget) return true;
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zTarget);
+          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+          return rZone.includes(zTarget) || zTarget.includes(rZone);
+        });
       }
       return data;
     }
@@ -1956,8 +2052,7 @@ async function startServer() {
           for (const targetUrl of sopCandidateUrls) {
             try {
               const controller = new AbortController();
-              const isHardcoded = source === 'hardcoded' || HARDCODED_GAS_URLS.includes(targetUrl);
-              const timeoutDuration = isHardcoded ? 3000 : 40000;
+              const timeoutDuration = 45000;
               const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
               
               const response = await fetch(targetUrl, {
@@ -2071,9 +2166,8 @@ async function startServer() {
       for (const targetUrl of candidateUrls) {
         try {
           const controller = new AbortController();
-          const isHardcoded = source === 'hardcoded' || HARDCODED_GAS_URLS.includes(targetUrl);
-          const timeoutDuration = isHardcoded ? 3000 : 40000;
-          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration); // Fast 3s for hardcoded, generous 40s for custom scripts
+          const timeoutDuration = 45000;
+          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
           
           const response = await fetch(targetUrl, {
             method: "POST",

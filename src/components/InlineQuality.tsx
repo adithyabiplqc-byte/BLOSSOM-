@@ -163,11 +163,13 @@ const ensureArray = (val: any, fallback: string[] = []): string[] => {
 };
 
 const normalizeStatus = (statusStr: string): string => {
-  return String(statusStr || "")
+  const s = String(statusStr || "")
     .toUpperCase()
     .trim()
     .replace(/&/g, "AND")
     .replace(/[^A-Z0-9]/g, "");
+  
+  return s;
 };
 
 const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
@@ -1114,14 +1116,18 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                 const matchesUnit = (fUnit === "" || fUnit === "COMMON" || wUnit === "" || wUnit === fUnit || wUnit === "COMMON");
                 const matchesStatus = (
                   status === 'INLINE' || 
+                  status === 'ENDLINE' || 
                   status === 'INLINEANDENDLINE' || 
+                  status === 'PRECUTTINGPASSANDHOLD' ||
+                  status === 'CUTTINGPASSANDHOLD' ||
                   status === 'PASSANDHOLD' || 
+                  status === 'ENDLINEPASSANDHOLD' ||
                   status.includes('HOLD')
                 );
                 
                 return matchesZone && matchesUnit && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style})</option>)
+              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

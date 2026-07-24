@@ -857,6 +857,9 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   if (
                     statusUpper !== 'ENDLINE' && 
                     statusUpper !== 'INLINEANDENDLINE' && 
+                    statusUpper !== 'INLINE' &&
+                    statusUpper !== 'PRECUTTINGPASSANDHOLD' &&
+                    statusUpper !== 'CUTTINGPASSANDHOLD' &&
                     statusUpper !== 'PASSANDHOLD' && 
                     !statusUpper.includes('HOLD')
                   ) {
@@ -876,7 +879,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                 })
                 .map(w => (
                   <option key={w.id || w.workorderNumber} value={w.workorderNumber}>
-                    {w.style || w.STYLE_NAME || w.workorderNumber} ({w.workorderNumber})
+                    {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                   </option>
                 ))}
             </SearchableSelect>

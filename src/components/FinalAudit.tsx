@@ -99,8 +99,8 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     setIsSubmitting(true);
     try {
       await api.run('api_saveFINALAUDIT', { 
-        ...form, 
         ...selectedWO, 
+        ...form, 
         moveToComplete,
         inspector: user.username, 
         timestamp: new Date().toISOString() 
@@ -132,9 +132,10 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
                 const status = String(w.status || "").toUpperCase().trim();
-                return wZone === fZone && status === 'FINAL';
+                const matchesStatus = (status === 'FINAL' || status === 'FINALPASSANDHOLD');
+                return wZone === fZone && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber}</option>)
+              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

@@ -26,6 +26,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
     billNo: '',
     supplierName: currentSuppliers[0] || '',
     grn: '',
+    materialType: 'Packing Material',
     receivedDate: new Date().toISOString().split('T')[0],
     checkingDate: new Date().toISOString().split('T')[0],
     remarks: ''
@@ -77,6 +78,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
       billNo: '',
       supplierName: currentSuppliers[0] || '',
       grn: '',
+      materialType: 'Packing Material',
       receivedDate: new Date().toISOString().split('T')[0],
       checkingDate: new Date().toISOString().split('T')[0],
       remarks: ''
@@ -103,6 +105,10 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
     }
     if (!header.grn.trim()) {
       alert("Please enter GRN.");
+      return;
+    }
+    if (!header.materialType) {
+      alert("Please select a Material Type.");
       return;
     }
     if (!header.receivedDate) {
@@ -203,6 +209,18 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
             required 
             className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
           />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Material Type</label>
+          <SearchableSelect 
+            value={header.materialType} 
+            onChange={e => setHeader({...header, materialType: e.target.value})} 
+            required 
+            className="w-full bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-xl"
+          >
+            <option value="Packing Material">Packing Material</option>
+            <option value="Raw Material">Raw Material</option>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Received Date</label>

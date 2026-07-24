@@ -32,6 +32,7 @@ interface SOPReport {
 const DOCUMENT_CATEGORIES = [
   'SOP',
   'Inspection Reports',
+  'Audit Report',
   'Specifications',
   'Test Reports',
   'Lab Reports',

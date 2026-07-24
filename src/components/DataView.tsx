@@ -334,18 +334,22 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       // Dynamic comprehensive synonym map for key unification
       const canonicalKeys: { [canonical: string]: string[] } = {
         wo: ['wo', 'workorder', 'workordernumber', 'workorderno', 'wonum', 'wonumber', 'workorderNo', 'workOrderNumber', 'work_order_number', 'wo_number', 'woNo', 'wono', 'WO'],
+        totalQty: ['totalqty', 'orderqty', 'order_qty', 'orderquantity', 'quantity', 'totalQty', 'orderQty', 'orderQuantity'],
         checkedQty: ['checkedqty', 'pcschecked', 'pcs_checked', 'checkedquantity', 'checked_quantity', 'pcscheckedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty', 'CHECKEDQTY', 'pcsChecked', 'checkedQty', 'checkedQuantity'],
-        failQty: ['failqty', 'complaintpcs', 'complaint_pcs', 'rejectedquantity', 'rejected_quantity', 'rejectedqty', 'rejected_qty', 'fail_qty', 'failqtypcs', 'failedpieces', 'rejected', 'reject', 'failedqty', 'FAILQTY', 'failQty', 'complaintPcs'],
+        reworkQty: ['reworkqty', 'rework_qty', 'reworkqty', 'reworkQty', 'rework'],
+        rejectedQty: ['rejectedqty', 'rejected_qty', 'rejectedquantity', 'rejected_quantity', 'failqty', 'fail_qty', 'complaintpcs', 'complaint_pcs', 'rejected', 'reject', 'failedqty', 'failQty', 'complaintPcs', 'REJECTEDQTY', 'REJECTED_QTY'],
         passQty: ['passqty', 'passedquantity', 'passquantity', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity', 'passedqty', 'PASSQTY', 'passQty', 'passedQty'],
         style: ['style', 'stylename', 'style_name', 'styles', 'stylenames', 'styleName'],
         color: ['color', 'colour', 'colors', 'colours'],
         size: ['size', 'sizes'],
         cupsize: ['cupsize', 'cup', 'cups', 'cupSize', 'cup_size'],
+        relaxingTime: ['relaxingtime', 'relaxtime', 'relax_time', 'relaxingTime', 'relaxTime', 'relaxationTime', 'relaxationtime'],
         remarks: ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
         checkingDate: ['checkingdate', 'date', 'receiveddate', 'checkingDate'],
         unit: ['unit', 'units'],
         line: ['line', 'lines'],
-        worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName']
+        worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName'],
+        materialType: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'materialType', 'materialCategory']
       };
 
       // For each canonical target, find and unify matching keys in the row
@@ -370,7 +374,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
   const filteredData = useMemo(() => {
     if (!Array.isArray(normalizedData)) return [];
-    return normalizedData.filter(row => {
+    const matched = normalizedData.filter(row => {
       if (!row) return false;
       // Zone filter
       const zoneMatch = selectedZone === 'ALL' || 
@@ -392,6 +396,18 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
       return zoneMatch && itemMatch && searchMatch;
     });
+
+    const seenKeys = new Set();
+    const result: any[] = [];
+    matched.forEach(row => {
+      const key = row.id || `${row.workorderNumber || row.wo || ''}_${row.checkingDate || row.date || row.timestamp || ''}_${row.submodule || ''}_${row.bundleNo || ''}_${row.round || ''}_${row.reworkQty || ''}_${row.checkedQty || ''}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        result.push(row);
+      }
+    });
+
+    return result;
   }, [normalizedData, selectedZone, selectedItem, activeSearch]);
 
   const uniqueDatesInInline = useMemo(() => {
@@ -529,145 +545,181 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
   }, [filteredData, id, selectedMatrixDate]);
 
   const headers = useMemo(() => {
-    if (filteredData.length === 0) return [];
-    // Collect all unique keys from all rows to ensure no missing columns
-    const allKeys = new Set<string>();
-    filteredData.forEach(row => {
-      Object.keys(row).forEach(key => {
-        if (!hiddenColumns.includes(key)) allKeys.add(key);
-      });
-    });
-    
     const customOrders: { [key: string]: string[] } = {
       'B1': [
         'timestamp',
         'receivedDate',
         'checkingDate',
-        'grn',
-        'billNo',
         'supplierName',
+        'billNo',
+        'grn',
         'itemName',
-        'style',
-        'receivedQuantity',
-        'checkedQty',
-        'passQty',
-        'failQty',
-        'itemRemarks',
-        'generalRemarks',
-        'zone',
-        'inspector'
-      ],
-      'B2': [
-        'timestamp',
-        'checkingDate',
-        'wo',
-        'style',
-        'color',
-        'size',
         'totalQty',
         'checkedQty',
         'passQty',
-        'reworkQty',
-        'failQty',
-        'remarks',
+        'rejectedQty',
+        'itemRemarks',
+        'generalRemarks',
         'inspector',
-        'zone'
+        'zone',
+        'materialType'
       ],
-      'B3': [
+      'B2': [
         'timestamp',
-        'checkingDate',
         'wo',
         'style',
         'color',
         'size',
         'cupsize',
+        'totalQty',
+        'fabricType',
+        'checkedQty',
+        'reworkQty',
+        'reworkPercent',
+        'rejectedQty',
+        'rejectionPercent',
+        'relaxingTime',
+        'cuttableWidth',
+        'layLength',
+        'shade',
+        'layLengthCheck',
+        'alignmentCheck',
+        'plyCountCheck',
+        'markerCheck',
+        'ratioCheck',
+        'inspector',
+        'zone'
+      ],
+      'B3': [
+        'wo',
+        'style',
+        'color',
+        'size',
+        'cupsize',
+        'totalQty',
+        'checkedQty',
+        'failQty',
+        'reworkPercent',
         'line',
         'unit',
         'worker',
         'machine',
         'round',
-        'checkedQty',
-        'failQty',
+        'status',
         'remarks',
+        'checkingDate',
+        'timestamp',
         'inspector',
         'zone'
       ],
       'B4': [
-        'timestamp',
-        'checkingDate',
         'wo',
         'style',
         'color',
         'size',
         'cupsize',
-        'line',
-        'unit',
         'totalQty',
         'openQty',
         'checkedQty',
-        'passQty',
         'reworkQty',
+        'reworkPercent',
+        'passQty',
         'failQty',
+        'line',
+        'unit',
         'worker',
         'operation',
         'defect',
         'machineWorker',
+        'status',
         'remarks',
+        'checkingDate',
+        'timestamp',
         'inspector',
         'zone'
       ],
       'B5': [
-        'timestamp',
-        'checkingDate',
         'wo',
         'style',
         'color',
         'size',
+        'cupsize',
         'totalQty',
         'sampleSize',
         'allowedDefects',
         'foundDefects',
+        'reworkPercent',
         'status',
         'remarks',
+        'checkingDate',
+        'timestamp',
         'inspector',
         'zone'
       ],
       'B6': [
-        'timestamp',
-        'checkingDate',
         'wo',
         'style',
         'color',
         'size',
+        'cupsize',
         'totalQty',
         'checkedQty',
         'cartonsChecked',
+        'reworkPercent',
         'passQty',
         'failQty',
         'status',
         'remarks',
+        'checkingDate',
+        'timestamp',
         'inspector',
         'zone'
       ]
     };
 
     const targetOrder = customOrders[id];
+
+    if (filteredData.length === 0) {
+      if (targetOrder) {
+        return targetOrder.filter(k => !hiddenColumns.includes(k));
+      }
+      return [];
+    }
+
+    // Collect all unique keys from all rows to ensure no missing columns
+    const allKeys = new Set<string>();
+    filteredData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (!hiddenColumns.includes(key)) allKeys.add(key);
+      });
+      // Virtual column for rework %
+      if (!hiddenColumns.includes('reworkPercent')) {
+        allKeys.add('reworkPercent');
+      }
+    });
+    
     if (targetOrder) {
-      const orderedHeaders = targetOrder.filter(k => allKeys.has(k));
+      const filteredTarget = targetOrder.filter(k => !hiddenColumns.includes(k));
+      if (id === 'B2' || id === 'B1') {
+        return filteredTarget;
+      }
       const remainingHeaders = Array.from(allKeys).filter(k => !targetOrder.includes(k));
-      return [...orderedHeaders, ...remainingHeaders];
+      return [...filteredTarget, ...remainingHeaders];
     }
     
-    // Sort headers: timestamp first, then others
+    // Sort headers: main keys first, metadata keys last
     const sorted = Array.from(allKeys);
     return sorted.sort((a, b) => {
-      if (a === 'timestamp' || a === 'createdAt') return -1;
-      if (b === 'timestamp' || b === 'createdAt') return 1;
+      const lastKeys = ['status', 'submodule', 'remarks', 'itemRemarks', 'generalRemarks', 'checkingDate', 'receivedDate', 'timestamp', 'createdAt', 'inspector', 'zone'];
+      const aIsLast = lastKeys.includes(a);
+      const bIsLast = lastKeys.includes(b);
+      if (aIsLast && !bIsLast) return 1;
+      if (!aIsLast && bIsLast) return -1;
       return a.localeCompare(b);
     });
   }, [filteredData, id, hiddenColumns]);
 
-  // Data to display
+  // Data to display in the table
   const displayData = filteredData;
 
   const formatHeaderLabel = (h: string) => {
@@ -675,6 +727,18 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       timestamp: 'TIMESTAMP',
       receivedDate: 'RECEIVED DATE',
       checkingDate: 'CHECKED DATE',
+      submodule: 'SUBMODULE',
+      fabricType: 'FABRIC TYPE',
+      relaxingTime: 'RELAX TIME',
+      relaxTime: 'RELAX TIME',
+      cuttableWidth: 'CUTTABLE WIDTH',
+      layLength: 'LAYLENGTH',
+      shade: 'SHADE',
+      layLengthCheck: 'LAY LENGTH CHK',
+      alignmentCheck: 'ALIGNMENT CHK',
+      plyCountCheck: 'PLY COUNT CHK',
+      markerCheck: 'MARKER CHK',
+      ratioCheck: 'RATIO CHK',
       grn: 'GRN',
       billNo: 'BILL NO',
       supplierName: 'SUPPLIER NAME',
@@ -683,24 +747,31 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       receivedQuantity: 'TOTAL QUANTITY RECEIVED',
       checkedQuantity: 'CHECKED QTY',
       passQuantity: 'PASS QTY',
-      rejectedQuantity: 'REJECTED QTY',
-      itemRemarks: 'ITEM REMARKS',
-      generalRemarks: 'GENERAL REMARKS',
+      rejectedQuantity: 'REJECTION QTY',
+      itemRemarks: 'ITEM REMARK',
+      generalRemarks: 'GENERAL REMARK',
       zone: 'ZONE',
       inspector: 'INSPECTOR',
+      materialType: 'MATERIAL TYPE',
+      materialCategory: 'MATERIAL TYPE',
       id: 'ID',
-      wo: 'WORKORDER #',
-      workorderNumber: 'WORKORDER #',
-      color: 'COLOR',
+      wo: 'WORKORDER',
+      workorderNumber: 'WORKORDER',
+      color: 'COLOUR',
+      colour: 'COLOUR',
       size: 'SIZE',
       cupsize: 'CUP SIZE',
+      cup: 'CUP SIZE',
       line: 'LINE',
       unit: 'UNIT',
       checkedQty: 'CHECKED QTY',
       passQty: 'PASS QTY',
       reworkQty: 'REWORK QTY',
-      failQty: 'FAIL QTY',
-      totalQty: 'TOTAL QTY',
+      reworkPercent: 'REWORK %',
+      rejectionPercent: 'REJECTION %',
+      failQty: 'REJECTION QTY',
+      totalQty: id === 'B1' ? 'TOTAL QTY' : 'ORDER QTY',
+      orderQty: 'ORDER QTY',
       openQty: 'OPEN QTY',
       sampleSize: 'SAMPLE SIZE',
       allowedDefects: 'ALLOWED DEFECTS',
@@ -713,7 +784,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       pcsChecked: 'PCS CHECKED',
       complaintPcs: 'COMPLAINT PCS',
       passedQty: 'PASSED QTY',
-      rejectedQty: 'REJECTED QTY',
+      rejectedQty: 'REJECTION QTY',
       cartonsChecked: 'CARTONS CHECKED',
       operation: 'OPERATION',
       defect: 'DEFECT',
@@ -724,7 +795,57 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     return (result.charAt(0).toUpperCase() + result.slice(1)).toUpperCase();
   };
 
-  const renderCellContent = (h: string, val: any) => {
+  const renderCellContent = (h: string, val: any, row?: any) => {
+    if (h === 'reworkPercent') {
+      let valStr = '';
+      if (val !== undefined && val !== null && val !== '') {
+        valStr = String(val);
+        if (!valStr.endsWith('%') && !isNaN(Number(valStr))) {
+          valStr = Number(valStr).toFixed(1) + '%';
+        }
+      } else if (row) {
+        const chk = Number(row.checkedQty || row.checkedQuantity || row.pcsChecked || row.totalQty || row.sampleSize || 0);
+        const rw = Number(row.reworkQty || row.foundDefects || row.failQty || 0);
+        if (chk > 0) {
+          valStr = ((rw / chk) * 100).toFixed(1) + '%';
+        } else {
+          valStr = '0.0%';
+        }
+      } else {
+        valStr = '0.0%';
+      }
+      return (
+        <span className="font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px]">
+          {valStr}
+        </span>
+      );
+    }
+
+    if (h === 'rejectionPercent') {
+      let valStr = '';
+      if (val !== undefined && val !== null && val !== '') {
+        valStr = String(val);
+        if (!valStr.endsWith('%') && !isNaN(Number(valStr))) {
+          valStr = Number(valStr).toFixed(1) + '%';
+        }
+      } else if (row) {
+        const chk = Number(row.checkedQty || row.checkedQuantity || row.pcsChecked || row.totalQty || row.sampleSize || 0);
+        const rej = Number(row.rejectedQty || row.failQty || 0);
+        if (chk > 0) {
+          valStr = ((rej / chk) * 100).toFixed(1) + '%';
+        } else {
+          valStr = '0.0%';
+        }
+      } else {
+        valStr = '0.0%';
+      }
+      return (
+        <span className="font-mono font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[10px]">
+          {valStr}
+        </span>
+      );
+    }
+
     if (val === null || val === undefined) return '-';
 
     if (h === 'timestamp' || h === 'createdAt') {
@@ -813,6 +934,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     // Default formatting
     return valStr;
   };
+
+
 
   return (
     <div className="space-y-6">
@@ -1106,7 +1229,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                 <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                   {headers.map(h => (
                     <td key={h} className="p-3 text-xs text-slate-650 font-medium">
-                      {renderCellContent(h, row[h])}
+                      {renderCellContent(h, row[h], row)}
                     </td>
                   ))}
                   {user.role === 'ADMIN' && (

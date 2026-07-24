@@ -812,11 +812,20 @@ export const api = {
       }
 
       case 'api_saveCUTTINGQUALITY': {
-        const report = args[0];
+        const report = args[0] || {};
+        if (!report.id || report.id === report.wo || report.id === report.workorderNumber) {
+          report.id = 'cut-' + Math.random().toString(36).substring(2) + '-' + Date.now();
+        }
         const res = await sheetsService.saveData('CUTTING QUALITY', report);
-        if (res.success && report.wo) {
-          const nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
-          await updateWorkorderStatus(report.wo, nextStatus);
+        if (res.success && (report.wo || report.workorderNumber)) {
+          const woTarget = report.wo || report.workorderNumber;
+          let nextStatus = 'INLINE_AND_ENDLINE';
+          if (report.submodule === 'PRECUTTING') {
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
+          } else {
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTINGPASSANDHOLD' : 'INLINE_AND_ENDLINE';
+          }
+          await updateWorkorderStatus(woTarget, nextStatus);
         }
         return res;
       }
@@ -840,8 +849,12 @@ export const api = {
       case 'api_saveAQLREPORT': {
         const report = args[0];
         const res = await sheetsService.saveData('AQL REPORT', report);
-        if (res.success && (report.moveToFinal || report.auditStatus === 'PASS') && report.wo) {
-          await updateWorkorderStatus(report.wo, 'FINAL');
+        if (res.success && report.wo) {
+          let nextStatus = 'AQL';
+          if (report.moveToFinal || report.auditStatus === 'PASS') {
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQLPASSANDHOLD' : 'FINAL';
+          }
+          await updateWorkorderStatus(report.wo, nextStatus);
         }
         return res;
       }
@@ -850,7 +863,8 @@ export const api = {
         const report = args[0];
         const res = await sheetsService.saveData('FINAL AUDIT', report);
         if (res.success && report.wo) {
-          await updateWorkorderStatus(report.wo, 'COMPLETED');
+          const nextStatus = (report.moveToComplete === true || report.moveToComplete === 'true') ? 'COMPLETED' : 'FINALPASSANDHOLD';
+          await updateWorkorderStatus(report.wo, nextStatus);
         }
         return res;
       }
@@ -939,74 +953,177 @@ export const api = {
       case 'api_saveReworkReport': return await sheetsService.saveData('REWORK', args[0]);
 
       // Quality Reports Gets
+      case 'aggregateZonedData': {
+        const moduleName = args[0] || 'CUTTING';
+        const zoneArg = args[1] || (typeof args[0] === 'object' ? args[0]?.zone : undefined);
+        let sheetName = 'CUTTING QUALITY';
+        const mUpper = String(moduleName).toUpperCase();
+        if (mUpper.includes('MATERIAL')) sheetName = 'MATERIAL REPORT';
+        else if (mUpper.includes('INLINE') || mUpper.includes('8ROUND')) sheetName = 'INLINE';
+        else if (mUpper.includes('ENDLINE')) sheetName = 'ENDLINE QUALITY';
+        else if (mUpper.includes('AQL')) sheetName = 'AQL REPORT';
+        else if (mUpper.includes('FINAL')) sheetName = 'FINAL AUDIT';
+        
+        let data = await sheetsService.getData(sheetName);
+        if (zoneArg && zoneArg !== 'ALL') {
+          const matchZ = (r: any) => {
+            const zTarget = String(zoneArg).trim().toUpperCase();
+            if (!zTarget || zTarget === 'ALL') return true;
+            const rZone = String(r.zone || r.location || r.ZONE || r.LOCATION || '').trim().toUpperCase();
+            const rUnit = String(r.unit || r.UNIT || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            if (rZone && (rZone.includes(zTarget) || zTarget.includes(rZone))) return true;
+            if (rUnit && (rUnit.includes(zTarget) || zTarget.includes(rUnit))) return true;
+            return false;
+          };
+          data = data.filter(matchZ);
+        }
+        return data;
+      }
+
       case 'api_getMaterialData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('MATERIAL REPORT');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getCuttingData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('CUTTING QUALITY');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getInlineData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('INLINE');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_get8ROUNDSYSTEMData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('INLINE');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getEndlineData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('ENDLINE QUALITY');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getAQLData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('AQL REPORT');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getFinalAuditData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('FINAL AUDIT');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
 
       case 'api_getREPORTS_SOPData': {
-        const zone = args[0]?.zone;
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('REPORTS_SOP');
-        if (zone && zone !== 'ALL') {
-          data = data.filter(r => String(r.zone || r.location || '').toUpperCase() === String(zone).toUpperCase());
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            const rUnit = String(r.unit || '').trim().toUpperCase();
+            if (rZone === zTarget || rUnit === zTarget) return true;
+            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cTarget = clean(zTarget);
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zTarget) || zTarget.includes(rZone);
+          });
         }
         return data;
       }
@@ -1172,7 +1289,7 @@ export const api = {
 
       case 'api_saveMaterialReportBulk': {
         const data = args[0];
-        const { zone, billNo, supplierName, grn, checkingDate, receivedDate, remarks, inspector, timestamp, items } = data;
+        const { zone, billNo, supplierName, grn, materialType, materialCategory, checkingDate, receivedDate, remarks, inspector, timestamp, items } = data;
         if (!items || !Array.isArray(items)) return { success: true, count: 0 };
 
         const mappedItems = items.map(item => ({
@@ -1192,6 +1309,7 @@ export const api = {
           generalRemarks: remarks || "",
           zone: zone || "",
           inspector: inspector || "",
+          materialType: materialType || materialCategory || item.materialType || item.materialCategory || "Packing Material",
           id: generateUuid()
         }));
 

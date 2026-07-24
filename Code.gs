@@ -328,111 +328,13 @@ function findExistingSheetBySynonym(targetName) {
   let sheet = ss.getSheetByName(targetName);
   if (sheet) return sheet;
   
-  // Case-insensitive lookup
+  // Strict case-insensitive exact match
   const sheets = ss.getSheets();
   for (let i = 0; i < sheets.length; i++) {
     if (sheets[i].getName().trim().toUpperCase() === targetNorm) {
       return sheets[i];
     }
   }
-  
-  const synonymsMap = {
-    'USERS': ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'],
-    'MATERIAL': ['MATERIAL', 'MATERIAL REPORT', 'MATERIAL QUALITY', 'MATERIAL INSPECTION', 'STORE MATERIAL INSPECTION DATA'],
-    'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT'],
-    'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS', '8ROUND SYSTEM', '8ROUND', '8 ROUND SYSTEM', '8ROUND_SYSTEM', '8 ROUNDS'],
-    'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
-    'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
-    'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'WORKORDERS DATA', 'WORKORDER DATA'],
-    'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT'],
-    'ZONE': ['ZONE', 'ZONES', 'ZONE_MAPPINGS']
-  };
-  
-  // Split base and zone suffix if matching " - ZONE" or space-separated zone suffix
-  let basePart = targetNorm;
-  let zonePart = '';
-  const hyphenIdx = targetNorm.indexOf(' - ');
-  if (hyphenIdx !== -1) {
-    basePart = targetNorm.slice(0, hyphenIdx).trim();
-    zonePart = targetNorm.slice(hyphenIdx).trim();
-  } else {
-    let zones = [];
-    try {
-      const zoneSheet = getSS().getSheetByName('ZONE');
-      if (zoneSheet && zoneSheet.getLastRow() >= 2) {
-        const rangeVals = zoneSheet.getDataRange().getValues();
-        const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
-        const zoneColIdx = headers.indexOf('ZONE');
-        if (zoneColIdx !== -1) {
-          for (let r = 1; r < rangeVals.length; r++) {
-            const zVal = rangeVals[r][zoneColIdx];
-            if (zVal) zones.push(String(zVal).trim().toUpperCase());
-          }
-        }
-      }
-    } catch (e) {}
-    if (zones.length === 0) {
-      zones = ['KERALA', 'TIRUPUR', 'BANGLORE', 'TAMILNADU'];
-    }
-    for (let k = 0; k < zones.length; k++) {
-      if (targetNorm.endsWith(' ' + zones[k])) {
-        basePart = targetNorm.slice(0, targetNorm.length - zones[k].length - 1).trim();
-        zonePart = ' - ' + zones[k];
-        break;
-      }
-    }
-  }
-  
-  const canonicalMapping = {
-    'USERS': 'USERS',
-    'USER': 'USERS',
-    'MATERIAL': 'MATERIAL',
-    'MATERIAL REPORT': 'MATERIAL',
-    'MATERIAL QUALITY': 'MATERIAL',
-    'MATERIAL INSPECTION': 'MATERIAL',
-    'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
-    'CUTTING': 'CUTTING',
-    'CUTTING QUALITY': 'CUTTING',
-    'CUTTING REPORT': 'CUTTING',
-    'INLINE': 'INLINE',
-    'INLINE QUALITY': 'INLINE',
-    'INLINE REPORT': 'INLINE',
-    'SEWING DEFECT': 'INLINE',
-    'SEWING DEFECTS': 'INLINE',
-    '8ROUND SYSTEM': 'INLINE',
-    '8ROUND': 'INLINE',
-    '8 ROUND SYSTEM': 'INLINE',
-    '8ROUND_SYSTEM': 'INLINE',
-    '8 ROUNDS': 'INLINE',
-    'ENDLINE': 'ENDLINE',
-    'ENDLINE QUALITY': 'ENDLINE',
-    'ENDLINE REPORT': 'ENDLINE',
-    'AQL': 'AQL',
-    'AQL REPORT': 'AQL',
-    'AQL INSPECTION': 'AQL',
-    'WORKORDER': 'WORKORDER',
-    'WORKORDERS': 'WORKORDER',
-    'WORK ORDER': 'WORKORDER',
-    'FINAL AUDIT': 'FINAL AUDIT',
-    'FINAL AUDIT REPORT': 'FINAL AUDIT',
-    'FINAL REPORT': 'FINAL AUDIT'
-  };
-  
-  const canonicalBase = canonicalMapping[basePart];
-  if (canonicalBase) {
-    const synonyms = synonymsMap[canonicalBase];
-    if (synonyms) {
-      for (let i = 0; i < synonyms.length; i++) {
-        const potentialName = synonyms[i] + zonePart;
-        for (let j = 0; j < sheets.length; j++) {
-          if (sheets[j].getName().trim().toUpperCase() === potentialName.toUpperCase()) {
-            return sheets[j];
-          }
-        }
-      }
-    }
-  }
-  
   return null;
 }
 
@@ -446,92 +348,65 @@ function getOrCreateSheet(sheetName) {
   return sheet;
 }
 
-function getReportSheetName(baseName, data) {
-  const normBase = String(baseName || '').trim().toUpperCase();
+function getCanonicalBase(baseName) {
+  if (!baseName) return '';
+  const norm = baseName.toUpperCase().trim();
   
-  let canonicalBase = baseName;
-  const hyphenIdx = baseName.indexOf(' - ');
+  let cleanBase = norm;
+  const hyphenIdx = norm.indexOf(' - ');
   if (hyphenIdx !== -1) {
-    canonicalBase = baseName.slice(0, hyphenIdx).trim();
+    cleanBase = norm.slice(0, hyphenIdx).trim();
   }
   
-  const canonicalKeys = {
-    'MATERIAL REPORT': 'MATERIAL',
-    'MATERIAL QUALITY': 'MATERIAL',
-    'MATERIAL INSPECTION': 'MATERIAL',
-    'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
-    'CUTTING QUALITY': 'CUTTING',
-    'CUTTING REPORT': 'CUTTING',
-    'SEWING DEFECT': 'INLINE',
-    'SEWING DEFECTS': 'INLINE',
-    'INLINE REPORT': 'INLINE',
-    'INLINE QUALITY': 'INLINE',
-    '8ROUND SYSTEM': 'INLINE',
-    '8 ROUND SYSTEM': 'INLINE',
-    '8ROUND_SYSTEM': 'INLINE',
-    '8ROUND': 'INLINE',
-    '8 ROUNDS': 'INLINE',
-    'ENDLINE QUALITY': 'ENDLINE',
-    'ENDLINE REPORT': 'ENDLINE',
-    'AQL REPORT': 'AQL',
-    'AQL INSPECTION': 'AQL',
-    'WORKORDER': 'WORKORDER',
-    'WORKORDERS': 'WORKORDER',
-    'WORK ORDER': 'WORKORDER',
-    'FINAL AUDIT': 'FINAL AUDIT',
-    'FINAL AUDIT REPORT': 'FINAL AUDIT',
-    'FINAL REPORT': 'FINAL AUDIT',
-    'REWORK': 'REWORK',
-    'REWORK REPORT': 'REWORK',
-    'REWORK QUALITY': 'REWORK'
+  const mapping = {
+    'USERS': 'USERS', 'USER': 'USERS', 'SERVER USERS': 'USERS', 'USERLOGIN DETAILS': 'USERS', 'USERLOGIN': 'USERS', 'USER LOGIN': 'USERS', 'USER_LOGIN': 'USERS', 'USER_LOGIN_DETAILS': 'USERS', 'USERLOGIN_DETAILS': 'USERS', 'SERVER_USERS': 'USERS',
+    'MATERIAL': 'MATERIAL', 'MATERIAL REPORT': 'MATERIAL', 'MATERIAL QUALITY': 'MATERIAL', 'MATERIAL INSPECTION': 'MATERIAL', 'STORE MATERIAL INSPECTION DATA': 'MATERIAL',
+    'CUTTING': 'CUTTING', 'CUTTING QUALITY': 'CUTTING', 'CUTTING REPORT': 'CUTTING',
+    'INLINE': 'INLINE', 'INLINE REPORT': 'INLINE', 'INLINE QUALITY': 'INLINE', 'SEWING DEFECT': 'INLINE', 'SEWING DEFECTS': 'INLINE', '8ROUND SYSTEM': 'INLINE', '8ROUND': 'INLINE', '8 ROUND SYSTEM': 'INLINE', '8ROUND_SYSTEM': 'INLINE', '8 ROUNDS': 'INLINE',
+    'ENDLINE': 'ENDLINE', 'ENDLINE QUALITY': 'ENDLINE', 'ENDLINE REPORT': 'ENDLINE',
+    'AQL': 'AQL', 'AQL REPORT': 'AQL', 'AQL INSPECTION': 'AQL',
+    'WORKORDER': 'WORKORDER', 'WORKORDERS': 'WORKORDER', 'WORK ORDER': 'WORKORDER',
+    'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT',
+    'REWORK': 'REWORK', 'REWORK REPORT': 'REWORK', 'REWORK QUALITY': 'REWORK',
+    'REPORTS_SOP': 'REPORTS_SOP', 'REPORTS_SOPDATA': 'REPORTS_SOP', 'SOP': 'REPORTS_SOP', 'REPORTS - SOP': 'REPORTS_SOP', 'SOP REPORTS': 'REPORTS_SOP', 'SOP_REPORTS': 'REPORTS_SOP', 'REPORTS & SOPS': 'REPORTS_SOP', 'REPORTS': 'REPORTS_SOP', 'SOPS': 'REPORTS_SOP',
+    'ZONE': 'ZONE', 'ZONES': 'ZONE', 'ZONE_MAPPINGS': 'ZONE',
+    'UNIT': 'UNIT', 'UNITS': 'UNIT',
+    'SETTINGS': 'SETTINGS', 'GLOBAL': 'SETTINGS',
+    'ADMIN': 'ADMIN'
   };
   
-  const lookupKey = canonicalKeys[canonicalBase.toUpperCase()] || canonicalBase;
-  const modulePrefixes = {
-    'MATERIAL': 'MATERIAL',
-    'CUTTING': 'CUTTING',
-    'INLINE': 'INLINE',
-    'ENDLINE': 'ENDLINE',
-    'AQL': 'AQL',
-    'WORKORDER': 'WORKORDER',
-    'FINAL AUDIT': 'FINAL AUDIT',
-    'REWORK': 'REWORK'
-  };
-  
-  const prefix = modulePrefixes[lookupKey.toUpperCase()] || lookupKey;
-  
-  // Prevent split zoned sheets for system/configuration sheets
-  const normPrefix = prefix.trim().toUpperCase();
-  const userSynonyms = ['USERS', 'USER', 'SERVER USERS', 'USERLOGIN DETAILS', 'USERLOGIN', 'USER LOGIN', 'USER_LOGIN', 'USER_LOGIN_DETAILS', 'USERLOGIN_DETAILS', 'SERVER_USERS'];
-  const isUserSheet = userSynonyms.indexOf(normPrefix) !== -1;
-  const isSystemSheet = isUserSheet || ['ZONE', 'ZONES', 'UNIT', 'UNITS', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'REPORTS_SOPDATA'].indexOf(normPrefix) !== -1;
-  if (isSystemSheet) {
-    if (isUserSheet) return 'USERS';
-    if (normPrefix === 'ZONES') return 'ZONE';
-    if (normPrefix === 'UNITS') return 'UNIT';
-    return normPrefix;
+  return mapping[cleanBase] || cleanBase;
+}
+
+function getReportSheetName(baseName, data) {
+  const canonical = getCanonicalBase(baseName);
+  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP'];
+  if (systemSheets.indexOf(canonical) !== -1) {
+    return canonical;
   }
   
-  const zone = (data?.zone || data?.location || '').toString().trim().toUpperCase();
-  
-  if (zone && zone !== 'ALL' && zone !== 'SYSTEM' && zone !== 'WORKORDER') {
-    var zonedPrefix = prefix + " - " + zone;
-    var matchedZoned = findExistingSheetBySynonym(zonedPrefix);
-    if (matchedZoned) {
-      return matchedZoned.getName();
-    }
-    // If a zone is specified, do NOT fall back to an unzoned sheet.
-    // Instead return the zonedPrefix directly so that a zoned sheet is used/created.
-    return zonedPrefix;
+  const rawZone = data?.zone || data?.location;
+  const zone = String(rawZone || '').trim().toUpperCase();
+  if (zone && zone !== 'ALL' && zone !== 'SYSTEM' && zone !== 'WORKORDER' && zone !== 'COMMON') {
+    return canonical + " - " + zone;
   }
-  
-  // Retrieve existing sheet by synonym or fallback
-  const matchedSheet = findExistingSheetBySynonym(prefix);
-  if (matchedSheet) {
-    return matchedSheet.getName();
+
+  // Dynamic fallback sheet synonym alignment
+  const ss = getSS();
+  if (canonical === 'CUTTING' && (ss.getSheetByName('CUTTING QUALITY') || ss.getSheetByName('Cutting Quality'))) {
+    return 'CUTTING QUALITY';
   }
-  
-  return prefix;
+  if (canonical === 'MATERIAL' && (ss.getSheetByName('MATERIAL REPORT') || ss.getSheetByName('Material Report'))) {
+    return 'MATERIAL REPORT';
+  }
+  if (canonical === 'ENDLINE' && (ss.getSheetByName('ENDLINE QUALITY') || ss.getSheetByName('Endline Quality'))) {
+    return 'ENDLINE QUALITY';
+  }
+  if (canonical === 'AQL' && (ss.getSheetByName('AQL REPORT') || ss.getSheetByName('AQL Report'))) {
+    return 'AQL REPORT';
+  }
+
+  return canonical;
 }
 
 function areSynonyms(h1, h2) {
@@ -1760,10 +1635,20 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
 }
 
 function api_saveCUTTINGQUALITY(report) { 
+  report = report || {};
+  if (!report.id || report.id === report.wo || report.id === report.workorderNumber) {
+    report.id = 'cut-' + Utilities.getUuid();
+  }
   const res = saveDataToSheet('CUTTING QUALITY', report);
-  if (res.success && report.wo) {
-    var nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
-    internal_updateWorkorderStatus(report.wo, report.zone || report.location, nextStatus);
+  if (res.success && (report.wo || report.workorderNumber)) {
+    var woTarget = report.wo || report.workorderNumber;
+    var nextStatus = 'INLINE_AND_ENDLINE';
+    if (report.submodule === 'PRECUTTING') {
+      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
+    } else {
+      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTINGPASSANDHOLD' : 'INLINE_AND_ENDLINE';
+    }
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
   }
   return res;
 }

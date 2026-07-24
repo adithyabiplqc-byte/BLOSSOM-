@@ -95,10 +95,13 @@ const App: React.FC = () => {
       const zoneToFetch = customZone || ((user.role === 'ADMIN' || user.zone === 'COMMON') ? globalZone : (user.zone || user.location));
       const data = await api.run('api_getInitialData', { zone: zoneToFetch, userCode: user?.userCode }) as any;
       if (data) {
-        setUsers(Array.isArray(data.users) ? data.users : []);
-        setWorkorders(Array.isArray(data.workorders) ? data.workorders : []);
+        const freshUsers = Array.isArray(data.users) ? data.users : [];
+        const freshWOs = Array.isArray(data.workorders) ? data.workorders : [];
+        
+        setUsers(prev => (JSON.stringify(prev) === JSON.stringify(freshUsers) ? prev : freshUsers));
+        setWorkorders(prev => (JSON.stringify(prev) === JSON.stringify(freshWOs) ? prev : freshWOs));
         if (data.settings) {
-          setSettings(data.settings);
+          setSettings(prev => (JSON.stringify(prev) === JSON.stringify(data.settings) ? prev : data.settings));
         }
         if (!silent) {
           setConnectionError(null);
@@ -118,13 +121,13 @@ const App: React.FC = () => {
     return null;
   }, [user?.userCode, user?.role, user?.location, user?.zone, globalZone]);
 
-  // Background polling every 10 seconds to keep all modules in sync across all devices/tabs simultaneously without manual device syncs
+  // Background polling every 30 seconds to keep all modules in sync across all devices/tabs simultaneously
   useEffect(() => {
     if (!user || user.role === 'LOGIN') return;
     
     const pollInterval = setInterval(() => {
       fetchData(undefined, true);
-    }, 10000);
+    }, 30000);
     
     return () => clearInterval(pollInterval);
   }, [fetchData, user]);

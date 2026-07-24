@@ -6,11 +6,25 @@ interface WorkorderDetailCardProps {
 }
 
 const normalizeStatus = (statusStr: string): string => {
-  return String(statusStr || "")
+  const s = String(statusStr || "")
     .toUpperCase()
     .trim()
     .replace(/&/g, "AND")
     .replace(/[^A-Z0-9]/g, "");
+  
+  if (s === 'PRECUTTINGPASSANDHOLD' || s === 'PRECUTTINGPASSED' || s === 'CUTTINGPASSANDHOLD') {
+    return 'CUTTING';
+  }
+  if (s === 'ENDLINEPASSANDHOLD') {
+    return 'INLINEANDENDLINE';
+  }
+  if (s === 'AQLPASSANDHOLD') {
+    return 'AQL';
+  }
+  if (s === 'FINALPASSANDHOLD') {
+    return 'FINAL';
+  }
+  return s;
 };
 
 const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings }) => {
