@@ -556,6 +556,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'supplierName',
         'billNo',
         'grn',
+        'materialType',
         'itemName',
         'totalQty',
         'checkedQty',
@@ -564,8 +565,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'itemRemarks',
         'generalRemarks',
         'inspector',
-        'zone',
-        'materialType'
+        'zone'
       ],
       'B2': [
         'timestamp',

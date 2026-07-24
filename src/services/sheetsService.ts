@@ -11,6 +11,7 @@ export function areSynonyms(h1: string, h2: string): boolean {
     ['checkedquantity', 'checkedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty'],
     ['passedquantity', 'passquantity', 'passqty', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity'],
     ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty'],
+    ['materialtype', 'material_type', 'materialcategory', 'material_category', 'type', 'mat_type'],
     ['remarks', 'remark', 'notes', 'note', 'itemremarks', 'generalremarks', 'comments', 'comment'],
     ['style', 'stylename', 'style_name', 'styles', 'stylenames'],
     ['color', 'colour', 'colors', 'colours'],
@@ -49,6 +50,10 @@ export function resolveSynonymValue(header: string, record: any): any {
     {
       canonical: 'rejectedquantity',
       synonyms: ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty']
+    },
+    {
+      canonical: 'materialtype',
+      synonyms: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'type', 'mat_type']
     },
     {
       canonical: 'location',

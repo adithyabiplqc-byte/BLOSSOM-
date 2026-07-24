@@ -420,6 +420,7 @@ function areSynonyms(h1, h2) {
     ['checkedquantity', 'checkedqty', 'totalaudited', 'totalchecked', 'auditedqty', 'totalcheckedqty'],
     ['passedquantity', 'passquantity', 'passqty', 'passedqty', 'pass', 'passed', 'approvedqty', 'okqty', 'okquantity'],
     ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty'],
+    ['materialtype', 'material_type', 'materialcategory', 'material_category', 'type', 'mat_type'],
     ['receiveddate', 'received_date', 'datereceived'],
     ['checkingdate', 'checkeddate', 'checkdate', 'checking_date', 'checked_date'],
     ['itemremarks', 'itemremark', 'item_remarks', 'item_remark'],
@@ -463,6 +464,10 @@ function resolveSynonymValue(header, record) {
     {
       canonical: 'rejectedquantity',
       synonyms: ['rejectedquantity', 'rejectquantity', 'failquantity', 'failqty', 'failedpieces', 'rejected', 'reject', 'failedqty']
+    },
+    {
+      canonical: 'materialtype',
+      synonyms: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'type', 'mat_type']
     },
     {
       canonical: 'receiveddate',
@@ -557,7 +562,7 @@ function saveDataToSheet(sheetName, data, adminActivity = false, admin = 'SYSTEM
 
     if (headers.length === 0) {
       if (normSheet.indexOf('MATERIAL') !== -1 || normResolved.indexOf('MATERIAL') !== -1) {
-        headers = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
+        headers = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'materialType', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
       } else if (isUserSheet) {
         headers = ['userCode', 'username', 'password', 'role', 'location', 'zone', 'restrictions', 'canDownload', 'userSettings'];
       } else {
@@ -709,6 +714,10 @@ function getDataFromSheet(sheetName) {
         }
         if (normKey === 'cup' || normKey === 'cupsize' || normKey === 'cups') {
           obj['cup'] = cellVal;
+        }
+        if (normKey === 'materialtype' || normKey === 'materialcategory' || normKey === 'material_type' || normKey === 'material_category' || normKey === 'type') {
+          obj['materialType'] = cellVal;
+          obj['materialCategory'] = cellVal;
         }
         if (normKey === 'item') obj['item'] = cellVal;
         if (normKey === 'color' || normKey === 'colour') obj['color'] = cellVal;
@@ -987,7 +996,7 @@ function api_createSheets() {
     }
 
     // Explicit headers for MATERIAL zoned sheets
-    const materialHeaders = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
+    const materialHeaders = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'materialType', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
     zones.forEach(function(zone) {
       const name = 'MATERIAL - ' + zone;
       const sh = findExistingSheetBySynonym(name) || getSS().getSheetByName(name);
@@ -1560,7 +1569,7 @@ function api_bulkSave(sheetName, records) {
 
 // Data Entry Saving
 function api_saveMaterialReportBulk(data) {
-  const { zone, billNo, supplierName, grn, checkingDate, receivedDate, remarks, inspector, timestamp, items } = data;
+  const { zone, billNo, supplierName, grn, materialType, materialCategory, checkingDate, receivedDate, remarks, inspector, timestamp, items } = data;
   let successCount = 0;
   let errors = [];
   
@@ -1573,6 +1582,7 @@ function api_saveMaterialReportBulk(data) {
         grn: grn || "",
         billNo: billNo || "",
         supplierName: supplierName || "",
+        materialType: materialType || materialCategory || item.materialType || item.materialCategory || "Packing Material",
         itemName: item.itemName || "",
         receivedQuantity: item.receivedQuantity || 0,
         checkedQuantity: item.checkedQuantity || 0,
