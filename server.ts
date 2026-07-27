@@ -156,43 +156,6 @@ function readLocalDb(): any {
           parsed.final_reports = parsed.final_reports || [];
           parsed.rework_reports = parsed.rework_reports || [];
           parsed.reports_sop = parsed.reports_sop || [];
-          if (parsed.reports_sop.length === 0) {
-            parsed.reports_sop = [
-              {
-                id: "pre-1",
-                title: "SOP for Wearing Test",
-                category: "SOP",
-                description: "The objective of this Standard Operating Procedure (SOP) is to establish a safe, ethical, hygienic, and professional framework for voluntary product fit and wear-testing by employees.",
-                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-                attachmentName: "SOP - Wearing Test_2026 (1).pdf",
-                creator: "QUALITY DIRECTOR",
-                zone: "ALL",
-                timestamp: "2026-06-02T10:00:00.000Z"
-              },
-              {
-                id: "pre-2",
-                title: "Store Supplier Integrity Audit Guideline",
-                category: "SUPPLIER AUDIT",
-                description: "Standard Operating Procedure for measuring supplier quality, factory roll auditing, and logging material quality.",
-                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-                attachmentName: "Supplier_Integrity_Audit_Guideline.pdf",
-                creator: "FABRIC MANAGER",
-                zone: "ALL",
-                timestamp: "2026-05-18T10:15:00.000Z"
-              },
-              {
-                id: "pre-3",
-                title: "Channel Partner Retail Safety Audit",
-                category: "CHANNEL PARTNER AUDIT",
-                description: "Multi-point inspection guidelines for authorized distributors and regional third-party channel showrooms.",
-                attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-                attachmentName: "Channel_Safety_Protocol.pdf",
-                creator: "AUDIT MANAGER",
-                zone: "ALL",
-                timestamp: "2026-05-25T14:30:00.000Z"
-              }
-            ];
-          }
           parsed.zone = parsed.zone || [];
           parsed.settings = parsed.settings || {};
           parsed.admin_logs = parsed.admin_logs || [];
@@ -743,41 +706,7 @@ function readLocalDb(): any {
       }
     ] as any[],
     rework_reports: [] as any[],
-    reports_sop: [
-      {
-        id: "pre-1",
-        title: "SOP for Wearing Test",
-        category: "SOP",
-        description: "The objective of this Standard Operating Procedure (SOP) is to establish a safe, ethical, hygienic, and professional framework for voluntary product fit and wear-testing by employees.",
-        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-        attachmentName: "SOP - Wearing Test_2026 (1).pdf",
-        creator: "QUALITY DIRECTOR",
-        zone: "ALL",
-        timestamp: "2026-06-02T10:00:00.000Z"
-      },
-      {
-        id: "pre-2",
-        title: "Store Supplier Integrity Audit Guideline",
-        category: "SUPPLIER AUDIT",
-        description: "Standard Operating Procedure for measuring supplier quality, factory roll auditing, and logging material quality.",
-        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-        attachmentName: "Supplier_Integrity_Audit_Guideline.pdf",
-        creator: "FABRIC MANAGER",
-        zone: "ALL",
-        timestamp: "2026-05-18T10:15:00.000Z"
-      },
-      {
-        id: "pre-3",
-        title: "Channel Partner Retail Safety Audit",
-        category: "CHANNEL PARTNER AUDIT",
-        description: "Multi-point inspection guidelines for authorized distributors and regional third-party channel showrooms.",
-        attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-        attachmentName: "Channel_Safety_Protocol.pdf",
-        creator: "AUDIT MANAGER",
-        zone: "ALL",
-        timestamp: "2026-05-25T14:30:00.000Z"
-      }
-    ] as any[],
+    reports_sop: [] as any[],
     zone: [
       { id: "zmap-1", zone: "KERALA", unit: "UNIT A", worker: "JOHN DOE", timestamp: new Date().toISOString() },
       { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() },

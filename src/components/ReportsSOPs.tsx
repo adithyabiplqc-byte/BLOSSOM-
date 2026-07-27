@@ -137,41 +137,7 @@ const saveToLocalIndexedDB = (fileName: string, mimeType: string, base64Data: st
 };
 
 // Highly polished preset list
-const PRELOADED_SOPS: SOPReport[] = [
-  {
-    id: "pre-1",
-    title: "SOP for Wearing Test",
-    category: "SOP",
-    description: "The objective of this Standard Operating Procedure (SOP) is to establish a safe, ethical, hygienic, and professional framework for voluntary product fit and wear-testing by employees.",
-    attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-    attachmentName: "SOP - Wearing Test_2026 (1).pdf",
-    creator: "QUALITY DIRECTOR",
-    zone: "ALL",
-    timestamp: "2026-06-02T10:00:00.000Z"
-  },
-  {
-    id: "pre-2",
-    title: "Store Supplier Integrity Audit Guideline",
-    category: "SUPPLIER AUDIT",
-    description: "Standard Operating Procedure for measuring supplier quality, factory roll auditing, and logging material quality.",
-    attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-    attachmentName: "Supplier_Integrity_Audit_Guideline.pdf",
-    creator: "FABRIC MANAGER",
-    zone: "ALL",
-    timestamp: "2026-05-18T10:15:00.000Z"
-  },
-  {
-    id: "pre-3",
-    title: "Channel Partner Retail Safety Audit",
-    category: "CHANNEL PARTNER AUDIT",
-    description: "Multi-point inspection guidelines for authorized distributors and regional third-party channel showrooms.",
-    attachmentUrl: "https://pdfobject.com/pdf/sample.pdf",
-    attachmentName: "Channel_Safety_Protocol.pdf",
-    creator: "AUDIT MANAGER",
-    zone: "ALL",
-    timestamp: "2026-05-25T14:30:00.000Z"
-  }
-];
+const PRELOADED_SOPS: SOPReport[] = [];
 
 const getValCaseInsensitive = (obj: any, key: string, fallback: any = "") => {
   if (!obj || typeof obj !== 'object') return fallback;

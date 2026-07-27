@@ -54,7 +54,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onLogout,
   settings
 }) => {
-  const [tab, setTab] = useState(configOnlyMode ? 'server' : 'list');
+  const [tab, setTab] = useState('list');
   const [editingUserCode, setEditingUserCode] = useState('');
   const [restrictingUserCode, setRestrictingUserCode] = useState('');
   const [deletingUserCode, setDeletingUserCode] = useState('');
@@ -736,10 +736,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'edit', label: 'Edit User', icon: 'edit' },
           { id: 'restrictions', label: 'Restrictions', icon: 'shield-off' },
           { id: 'settings', label: 'User Data', icon: 'database' },
-          { id: 'server', label: 'Server', icon: 'server' },
           { id: 'delete', label: 'Delete User', icon: 'user-minus' },
           { id: 'delete_data', label: 'Delete Data', icon: 'trash-2' }
-        ].filter(t => !configOnlyMode || t.id === 'server').map(t => (
+        ].map(t => (
           <button 
             key={t.id} 
             onClick={() => setTab(t.id)} 
@@ -1491,156 +1490,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {tab === 'server' && (
-          <div className="space-y-6 max-w-2xl animate-fade-in">
-            <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <Icon name="server" size={24} className="text-indigo-600" />
-              Backend Configuration
-            </h2>
-            <p className="text-sm text-slate-500 font-medium">Use this section to connect your application to your Google Sheets backend using the Google Apps Script Web App URL.</p>
-            
-            <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 space-y-6">
-              <div className="space-y-6">
-                {/* GOOGLE SHEETS & DRIVE CONNECTION */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">✓</span>
-                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Google Sheets & Drive Connection (Data Sync & Uploads)</h3>
-                    </div>
-                    {connectionStatus === 'success' && (
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 animate-fade-in">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Live Connected</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Sheets Web App URL (Exec URL)</label>
-                      <input 
-                        type="text" 
-                        value={serverUrl}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setServerUrl(val);
-                          localStorage.setItem('VITE_GAS_URL', val.trim());
-                          setConnectionStatus('idle');
-                        }}
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                        className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Drive Web App URL (For PDF Uploads - Exec URL)</label>
-                      <input 
-                        type="text" 
-                        value={driveServerUrl}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setDriveServerUrl(val);
-                          localStorage.setItem('VITE_GAS_DRIVE_URL', val.trim());
-                          setConnectionStatus('idle');
-                        }}
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                        className="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                  <button 
-                    onClick={async () => {
-                      if (!serverUrl.trim()) return alert("Please enter the server 1 URL first");
-                      setIsSubmitting(true);
-                      setConnectionStatus('idle');
-                      try {
-                        localStorage.setItem('VITE_GAS_URL', serverUrl.trim());
-                        
-                        // Sync to Firestore/Server permanently
-                        const spreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID') || "";
-                        await api.saveServerConfig(serverUrl.trim(), spreadsheetId, driveServerUrl.trim());
-                        
-                        const res = await api.run('api_getInitialData');
-                        if (res && res.success) {
-                          setConnectionStatus('success');
-                          if (configOnlyMode && onLogout) {
-                            triggerSuccess && triggerSuccess("SERVER CONNECTION ESTABLISHED! SYNCHRONIZING...");
-                            setTimeout(() => onLogout(), 1500);
-                          } else {
-                            alert("✅ Server Connection Saved & Synchronized!");
-                          }
-                        } else {
-                          setConnectionStatus('error');
-                          alert("❌ Server Error: " + (res?.error || "Unknown"));
-                        }
-                      } catch (e: any) {
-                        setConnectionStatus('error');
-                        alert("❌ Failed: " + (e.message || "Connection Error"));
-                      } finally {
-                        setIsSubmitting(false);
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 shadow-lg shadow-indigo-200"
-                  >
-                    <Icon name={isSubmitting ? "refresh-cw" : "zap"} size={16} className={isSubmitting ? "animate-spin" : ""} />
-                    {isSubmitting ? "Connecting Server..." : "Save & Sync Server"}
-                  </button>
-                  
-                  {!configOnlyMode && (
-                    <button 
-                      onClick={() => window.confirm("Reload app to sync?") && window.location.reload()}
-                      className="btn-secondary flex-1 py-3"
-                    >
-                      Manual Reload
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
-                   <Icon name="info" className="text-indigo-600 mt-0.5 shrink-0" size={18} />
-                   <div className="space-y-2">
-                     <p className="text-[11px] font-bold text-indigo-900 leading-relaxed uppercase tracking-tight">Deployment & Permanent Connection:</p>
-                     <ol className="text-[10px] text-indigo-700 list-decimal pl-4 space-y-1 font-medium">
-                       <li>Open your Google Sheet and go to Extensions &gt; Apps Script</li>
-                       <li>Paste the Backend Code (Code.gs)</li>
-                       <li>Click Deploy &gt; New Deployment</li>
-                       <li>Select "Web App" &gt; Execute as: "Me" &gt; Who has access: "Anyone"</li>
-                       <li>Copy the Web App URL and paste it above</li>
-                       <li className="text-indigo-900 font-bold">For a permanent connection, set the VITE_GAS_URL environment variable in your server settings.</li>
-                     </ol>
-                   </div>
-                </div>
-
-                {/* FACTORY RESET DANGER ZONE */}
-                <div className="bg-rose-50 p-6 rounded-xl border border-rose-200 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <Icon name="alert-triangle" className="text-rose-600 mt-0.5 shrink-0" size={20} />
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest">DANGER ZONE: FACTORY RESET</h4>
-                      <p className="text-[10px] text-rose-700 leading-relaxed font-semibold">
-                        This action will permanently delete ALL recorded data, inspections, zones, units, workers, and custom sheets across the connected spreadsheet.
-                        Your spreadsheet will be reset to a brand-new pristine state so you can start clean from scratch.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleFactoryReset}
-                    disabled={isResettingDb}
-                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-xs tracking-wider py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <Icon name={isResettingDb ? "refresh-cw" : "trash-2"} size={14} className={isResettingDb ? "animate-spin" : ""} />
-                    {isResettingDb ? "Resetting Database..." : "WIPE ALL DATA & RESET APP"}
-                  </button>
-                </div>
-              </div>
-            </div>
-        )}
-
         {tab === 'delete' && (
           <div className="space-y-4 max-w-md animate-fade-in">
             <h2 className="text-xl font-black text-rose-600 flex items-center gap-2">
@@ -1972,6 +1821,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 Select a category from the dropdown above to view and manage recorded data.
               </div>
             )}
+
+            {/* FACTORY RESET DANGER ZONE */}
+            <div className="mt-8 bg-rose-50 p-6 rounded-xl border border-rose-200 space-y-4">
+              <div className="flex items-start gap-3">
+                <Icon name="alert-triangle" className="text-rose-600 mt-0.5 shrink-0" size={20} />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest">DANGER ZONE: FACTORY RESET</h4>
+                  <p className="text-[10px] text-rose-700 leading-relaxed font-semibold">
+                    This action will permanently delete ALL recorded data, inspections, zones, units, workers, and custom sheets across the connected spreadsheet.
+                    Your spreadsheet will be reset to a brand-new pristine state so you can start clean from scratch.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleFactoryReset}
+                disabled={isResettingDb}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-xs tracking-wider py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Icon name={isResettingDb ? "refresh-cw" : "trash-2"} size={14} className={isResettingDb ? "animate-spin" : ""} />
+                {isResettingDb ? "Resetting Database..." : "WIPE ALL DATA & RESET APP"}
+              </button>
+            </div>
           </div>
         )}
       </div>

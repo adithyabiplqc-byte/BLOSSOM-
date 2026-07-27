@@ -21,8 +21,8 @@ const App: React.FC = () => {
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
-  const [isOnline, setIsOnline] = useState<boolean | null>(null);
-  const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(false);
+  const [isOnline, setIsOnline] = useState<boolean | null>(true);
+  const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
@@ -66,15 +66,11 @@ const App: React.FC = () => {
   };
 
   const checkConnectivity = useCallback(async () => {
-    // Only run if the server configuration has been loaded to avoid early startup pings on empty configs
-    const hasUrl = localStorage.getItem('VITE_GAS_URL') || localStorage.getItem('VITE_SPREADSHEET_ID');
-    if (!hasUrl) return;
     try {
       const res = await api.run('api_ping') as any;
-      setIsOnline(!!res?.success);
+      setIsOnline(res?.success !== false);
     } catch (e) {
       console.warn("Ping failed:", e);
-      // Only set to offline if it's not a temporary configuration requirement
       setIsOnline(false);
     }
   }, []);
@@ -106,6 +102,7 @@ const App: React.FC = () => {
         if (!silent) {
           setConnectionError(null);
         }
+        setIsOnline(true);
         return data;
       }
     } catch (e: any) {
@@ -176,6 +173,9 @@ const App: React.FC = () => {
         const srvConfigVal = await api.getServerConfig();
         const hasUrl = !!srvConfigVal?.hasGasUrl;
         setIsPermanentlyConnected(hasUrl);
+        if (hasUrl) {
+          setIsOnline(true);
+        }
         
         if (hasUrl && srvConfigVal.source !== 'hardcoded') {
           console.log("[SYSTEM] Connecting through custom GAS server proxy...");
@@ -204,6 +204,7 @@ const App: React.FC = () => {
         let initialData: any = null;
         if (initResult.status === 'fulfilled') {
           initialData = initResult.value;
+          setIsOnline(true);
         }
         
         let allUsers = initialData?.users || [];
