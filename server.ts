@@ -6,11 +6,31 @@ import { GoogleGenAI } from "@google/genai";
 const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
-const HARDCODED_GAS_URLS = [
-  "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
-  "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
-];
-const HARDCODED_GAS_URL = HARDCODED_GAS_URLS[0];
+
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbzk959kjgArJekcpnnzoTTLtMTyxe6SawZBfXlcS0rPGDYeHCw9VJP77F0I4fcfOBpgpQ/exec";
+const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
+
+const HARDCODED_GAS_URLS = [USER_SHEET_URL, USER_DRIVE_URL];
+const HARDCODED_GAS_URL = USER_SHEET_URL;
+const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
+
+// Auto-initialize connection configuration files on container boot so every device works out of the box
+try {
+  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr")) {
+    fs.writeFileSync(CONFIG_FILE, USER_SHEET_URL);
+    console.log("[BOOT CONFIG] Auto-initialized permanent Google Sheets URL:", USER_SHEET_URL);
+  }
+  if (!fs.existsSync(CONFIG_DRIVE_FILE) || fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').includes("AKfycbzr")) {
+    fs.writeFileSync(CONFIG_DRIVE_FILE, USER_DRIVE_URL);
+    console.log("[BOOT CONFIG] Auto-initialized permanent Google Drive URL:", USER_DRIVE_URL);
+  }
+  if (!fs.existsSync(SPREADSHEET_FILE) || fs.readFileSync(SPREADSHEET_FILE, 'utf8').trim() === "") {
+    fs.writeFileSync(SPREADSHEET_FILE, "BOUND_TO_SCRIPT");
+    console.log("[BOOT CONFIG] Auto-initialized spreadsheet ID to BOUND_TO_SCRIPT");
+  }
+} catch (e) {
+  console.warn("Could not auto-initialize .gas files:", e);
+}
 
 let FIREBASE_API_KEY = "";
 let FIREBASE_PROJECT_ID = "gen-lang-client-0333084315";
@@ -1849,8 +1869,8 @@ async function startServer() {
       isPermanent: !!fileUrl || hasEnv || !!fsUrl || !!HARDCODED_GAS_URL,
       source: fileUrl ? 'file' : (fsUrl ? 'firestore' : (hasEnv ? 'env' : 'hardcoded')),
       gasUrl: fileUrl || fsUrl || (hasEnv ? envUrl : HARDCODED_GAS_URL),
-      spreadsheetId: fileSpreadsheetId || fsSpreadsheetId || process.env.VITE_SPREADSHEET_ID || "",
-      gasDriveUrl: fileDriveUrl || fsDriveUrl || ""
+      spreadsheetId: fileSpreadsheetId || fsSpreadsheetId || process.env.VITE_SPREADSHEET_ID || "BOUND_TO_SCRIPT",
+      gasDriveUrl: fileDriveUrl || fsDriveUrl || HARDCODED_DRIVE_URL || ""
     });
   });
 
@@ -2029,6 +2049,9 @@ async function startServer() {
           } catch (e) {}
           if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
             driveUrl = fsConfig.gasDriveUrl;
+          }
+          if (!driveUrl) {
+            driveUrl = HARDCODED_DRIVE_URL;
           }
           
           if (driveUrl) {

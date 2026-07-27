@@ -2,6 +2,9 @@ import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzk959kjgArJekcpnnzoTTLtMTyxe6SawZBfXlcS0rPGDYeHCw9VJP77F0I4fcfOBpgpQ/exec";
+export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
+
 // Helper to generate UUIDs client-side
 function generateUuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -94,14 +97,22 @@ export const api = {
       const localSpreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID');
       const localDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
 
-      const serverUrl = data.gasUrl || "";
-      const serverSpreadsheetId = data.spreadsheetId || "";
-      const serverDriveUrl = data.gasDriveUrl || "";
+      // Clean up old demo URLs if stored in client localStorage
+      if (localUrl && (localUrl.includes("AKfycbwK") || localUrl.includes("AKfycbzr"))) {
+        localStorage.removeItem('VITE_GAS_URL');
+      }
+      if (localDriveUrl && (localDriveUrl.includes("AKfycbwK") || localDriveUrl.includes("AKfycbzr"))) {
+        localStorage.removeItem('VITE_GAS_DRIVE_URL');
+      }
+
+      const serverUrl = data.gasUrl || DEFAULT_SHEETS_URL;
+      const serverSpreadsheetId = data.spreadsheetId || "BOUND_TO_SCRIPT";
+      const serverDriveUrl = data.gasDriveUrl || DEFAULT_DRIVE_URL;
 
       // Final resolved values
-      const finalUrl = serverUrl || localUrl || "";
-      const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "";
-      const finalDriveUrl = serverDriveUrl || localDriveUrl || "";
+      const finalUrl = serverUrl || (localUrl && !localUrl.includes("AKfycbwK") && !localUrl.includes("AKfycbzr") ? localUrl : "") || DEFAULT_SHEETS_URL;
+      const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "BOUND_TO_SCRIPT";
+      const finalDriveUrl = serverDriveUrl || (localDriveUrl && !localDriveUrl.includes("AKfycbwK") && !localDriveUrl.includes("AKfycbzr") ? localDriveUrl : "") || DEFAULT_DRIVE_URL;
 
       // Update client localStorage to match the resolved server/firestore/local values
       if (finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/")) {
@@ -122,7 +133,7 @@ export const api = {
 
       // Safe Auto-Heal: Only write custom config to the server if both are valid AND different from server's current state
       const isServerMissingConfig = !serverUrl || !serverSpreadsheetId || !serverDriveUrl || data.source === 'hardcoded';
-      const isClientConfigValid = !!(finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/") && finalSpreadsheetId);
+      const isClientConfigValid = !!(finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/"));
       
       if (isServerMissingConfig && isClientConfigValid) {
         const urlChanged = serverUrl !== finalUrl;
@@ -147,9 +158,14 @@ export const api = {
 
       // Always treat server as configured because we have a fully-functional local fallback Express database
       this.isServerConfigured = true;
+      data.hasGasUrl = true;
+      data.isPermanent = true;
+      data.gasUrl = finalUrl;
+      data.gasDriveUrl = finalDriveUrl;
+      data.spreadsheetId = finalSpreadsheetId;
       return data;
     } catch (e) {
-      return { hasGasUrl: false };
+      return { hasGasUrl: true, isPermanent: true, gasUrl: DEFAULT_SHEETS_URL, gasDriveUrl: DEFAULT_DRIVE_URL, spreadsheetId: "BOUND_TO_SCRIPT" };
     }
   },
 
@@ -1170,8 +1186,8 @@ export const api = {
         if (envSheetsUrl && !envSheetsUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envSheetsUrl)) candidateUrls.push(envSheetsUrl);
 
         const hardcodedUrls = [
-          "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
-          "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
+          DEFAULT_DRIVE_URL,
+          DEFAULT_SHEETS_URL
         ];
         hardcodedUrls.forEach(url => {
           if (!candidateUrls.includes(url)) {
@@ -1353,10 +1369,9 @@ export const api = {
     const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
     const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
 
-    const hardcodedUrls = [
-      "https://script.google.com/macros/s/AKfycbwKzzjUDaMsIKCOX9Drbf2Fob6PMIjALyv3WkLtZEZl542eI1bCGFVb75J7uXYJlfLT8g/exec",
-      "https://script.google.com/macros/s/AKfycbzrSntR0NNT-tAifyZ5K5Jh4y3St8jMm2PqZJTGTgyYEDKVvhUHEEUKyjJNRNNI9UHb7A/exec"
-    ];
+    const hardcodedUrls = method === 'api_uploadSOPFile'
+      ? [DEFAULT_DRIVE_URL, DEFAULT_SHEETS_URL]
+      : [DEFAULT_SHEETS_URL, DEFAULT_DRIVE_URL];
 
     const candidateUrls: string[] = [];
     

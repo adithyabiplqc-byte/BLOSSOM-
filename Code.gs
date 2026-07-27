@@ -267,7 +267,7 @@ function getSS() {
   try {
     if (_ssInstance) {
       const currentId = _ssInstance.getId();
-      const targetId = typeof _dynamicSpreadsheetId === "string" ? _dynamicSpreadsheetId.trim() : "";
+      const targetId = typeof _dynamicSpreadsheetId === "string" && _dynamicSpreadsheetId.trim() !== "BOUND_TO_SCRIPT" && !_dynamicSpreadsheetId.trim().includes("DEMO_") ? _dynamicSpreadsheetId.trim() : "";
       
       if (targetId !== "" && currentId === targetId) {
         cacheValid = true;
@@ -286,7 +286,7 @@ function getSS() {
 
   if (!_ssInstance) {
     // 0. Try to open via dynamically passed spreadsheet ID from the client request
-    if (typeof _dynamicSpreadsheetId === 'string' && _dynamicSpreadsheetId.trim() !== "") {
+    if (typeof _dynamicSpreadsheetId === 'string' && _dynamicSpreadsheetId.trim() !== "" && _dynamicSpreadsheetId.trim() !== "BOUND_TO_SCRIPT" && !_dynamicSpreadsheetId.trim().includes("DEMO_")) {
       try {
         _ssInstance = SpreadsheetApp.openById(_dynamicSpreadsheetId.trim());
       } catch (e) {
