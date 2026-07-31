@@ -317,6 +317,15 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     return workorders.find(w => String(w.workorderNumber) === String(form.wo));
   }, [workorders, form.wo]);
 
+  const woCupOptions = useMemo(() => {
+    const raw = selectedWO?.cup || selectedWO?.cupsize || selectedWO?.CUPSIZE;
+    if (raw) {
+      const parsed = String(raw).split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      if (parsed.length > 0) return parsed;
+    }
+    return currentCupSizes;
+  }, [selectedWO, currentCupSizes]);
+
   // Track previous workorder to only pre-fill on actual switch
   const prevWoRef = useRef<string>('');
 
@@ -329,7 +338,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           ...prev,
           color: selectedWO.colour || selectedWO.color || (currentColors[0] || 'BLACK'),
           size: selectedWO.size || selectedWO.SIZE || (currentSizes[0] || '42'),
-          cupsize: selectedWO.cupsize || selectedWO.CUPSIZE || (currentCupSizes[0] || 'E'),
+          cupsize: woCupOptions[0] || currentCupSizes[0] || 'E',
           line: selectedWO.line || selectedWO.LINE || prev.line || '3',
           unit: selectedWO.unit || selectedWO.UNIT || selectedWO.location || prev.unit || 'MUVATTUPUZHA'
         }));
@@ -337,7 +346,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     } else if (!form.wo) {
       prevWoRef.current = '';
     }
-  }, [form.wo, selectedWO, currentCupSizes, currentSizes, currentColors]);
+  }, [form.wo, selectedWO, currentCupSizes, currentSizes, currentColors, woCupOptions]);
 
   // Computed metrics
   const totalQuantity = Number(selectedWO?.quantity || 0);
@@ -934,7 +943,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
               align="right"
               className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
             >
-              {currentCupSizes.map((c: string) => (
+              {woCupOptions.map((c: string) => (
                 <option key={c} value={c}>
                   Cup {c}
                 </option>

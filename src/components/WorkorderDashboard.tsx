@@ -122,13 +122,37 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     return list;
   }, [currentColors, form.colour]);
 
+  const getArrayFromCupString = (cupStr: string): string[] => {
+    if (!cupStr) return [];
+    return String(cupStr)
+      .split(/[\s,]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  };
+
   const displayCups = React.useMemo(() => {
-    const list = [...currentCups];
-    if (form.cup && !list.includes(form.cup)) {
-      list.push(form.cup);
-    }
-    return list;
+    const set = new Set(currentCups);
+    const fromForm = getArrayFromCupString(form.cup);
+    fromForm.forEach(c => set.add(c));
+    return Array.from(set);
   }, [currentCups, form.cup]);
+
+  const toggleCup = (c: string) => {
+    const currentSelected = getArrayFromCupString(form.cup);
+    let next: string[];
+    if (currentSelected.includes(c)) {
+      next = currentSelected.filter(x => x !== c);
+    } else {
+      next = [...currentSelected, c];
+      next.sort((a, b) => {
+        const idxA = displayCups.indexOf(a);
+        const idxB = displayCups.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        return a.localeCompare(b);
+      });
+    }
+    setForm(prev => ({ ...prev, cup: next.join(', ') }));
+  };
 
   const displaySizesFrom = React.useMemo(() => {
     const list = [...currentSizes];
@@ -154,7 +178,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       colour: prev.colour || currentColors[0] || '',
       sizeFrom: prev.sizeFrom || currentSizes[0] || '',
       sizeTo: prev.sizeTo || currentSizes[0] || '',
-      cup: prev.cup || currentCups[0] || ''
+      cup: prev.cup !== undefined ? prev.cup : (currentCups[0] || '')
     }));
   }, [currentStyles, currentColors, currentSizes, currentCups, isEditing]);
 
@@ -356,26 +380,65 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     </SearchableSelect>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label>Cup (Optional)</label>
-                    <SearchableSelect 
-                      className="w-full" 
-                      value={form.cup} 
-                      onChange={e => setForm({...form, cup: e.target.value})} 
-                    >
-                      <option value="">Select Cup (Optional)</option>
-                      {displayCups.map((s: string) => <option key={s} value={s}>{s}</option>)}
-                    </SearchableSelect>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-black tracking-widest text-slate-500">
+                      Cup Sizes <span className="text-[9px] font-normal text-slate-400 lowercase">(select multiple)</span>
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        type="button" 
+                        onClick={() => setForm(prev => ({ ...prev, cup: displayCups.join(', ') }))}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors"
+                      >
+                        Select All
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setForm(prev => ({ ...prev, cup: '' }))}
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
+                  <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                    {displayCups.map((c: string) => {
+                      const isSelected = getArrayFromCupString(form.cup).includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleCup(c)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all transform active:scale-95 cursor-pointer ${
+                            isSelected 
+                              ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-200' 
+                              : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                          }`}
+                        >
+                          {isSelected && <span className="mr-1">✓</span>}
+                          Cup {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Selected cups e.g. B, C, D" 
+                    className="w-full text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-2" 
+                    value={form.cup} 
+                    onChange={e => setForm({ ...form, cup: e.target.value })} 
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label>Quantity</label>
                     <input type="number" placeholder="Enter Quantity" className="w-full" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} required />
                   </div>
-                </div>
-                <div>
-                  <label>Workflow Status</label>
-                  <SearchableSelect className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
+                  <div>
+                    <label>Workflow Status</label>
+                    <SearchableSelect className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
                     <option value="CUTTING">CUTTING</option>
                     <option value="INLINE">INLINE</option>
                     <option value="ENDLINE">ENDLINE</option>
@@ -386,6 +449,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     <option value="COMPLETED">COMPLETED</option>
                   </SearchableSelect>
                 </div>
+              </div>
                 <div className="flex gap-2">
                   <button 
                     type="submit" 
@@ -443,8 +507,15 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <span className="font-bold text-slate-800 text-2xl">{selectedWO.quantity}</span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size Range</span>
-                  <span className="font-bold text-slate-800 text-2xl">{selectedWO.size} {selectedWO.cup}</span>
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Size & Cup Range</span>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span className="font-bold text-slate-800 text-xl">{selectedWO.size}</span>
+                    {selectedWO.cup && String(selectedWO.cup).split(/[\s,]+/).filter(Boolean).map((c: string, idx: number) => (
+                      <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-xs font-black">
+                        Cup {c}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Workflow Status</span>
@@ -569,7 +640,18 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                             {wo.status || 'CUTTING'}
                           </span>
                         </td>
-                        <td className="p-4 text-xs">{wo.size} {wo.cup}</td>
+                        <td className="p-4 text-xs">
+                          <span className="font-semibold">{wo.size}</span>
+                          {wo.cup && (
+                            <span className="ml-1.5 inline-flex flex-wrap gap-1">
+                              {String(wo.cup).split(/[\s,]+/).filter(Boolean).map((c: string, idx: number) => (
+                                <span key={idx} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold border border-indigo-100">
+                                  {c}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-4">{wo.colour}</td>
                         <td className="p-4 text-right font-bold">{wo.quantity}</td>
                       </tr>

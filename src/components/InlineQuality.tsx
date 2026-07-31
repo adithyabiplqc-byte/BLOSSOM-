@@ -699,6 +699,15 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
 
+  const woCupOptions = useMemo(() => {
+    const raw = selectedWO?.cup || selectedWO?.cupSize || selectedWO?.cupsize;
+    if (raw) {
+      const parsed = String(raw).split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      if (parsed.length > 0) return parsed;
+    }
+    return currentCups;
+  }, [selectedWO, currentCups]);
+
   // Track previous workorder to only pre-fill on actual switch
   const prevWoRef = useRef<string>('');
 
@@ -711,7 +720,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           ...prev,
           color: selectedWO.colour || selectedWO.color || (currentColors[0] || ''),
           size: selectedWO.size || selectedWO.sizeRange || (currentSizes[0] || ''),
-          cupsize: selectedWO.cup || selectedWO.cupSize || (currentCups[0] || '')
+          cupsize: woCupOptions[0] || currentCups[0] || ''
         }));
       }
     } else if (!form.wo) {
@@ -723,7 +732,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         cupsize: ''
       }));
     }
-  }, [form.wo, selectedWO, currentColors, currentSizes, currentCups]);
+  }, [form.wo, selectedWO, currentColors, currentSizes, currentCups, woCupOptions]);
 
   // Synchronize selected worker when currentWorkers list changes (e.g., when switching units/zones)
   useEffect(() => {
@@ -1209,7 +1218,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
             <option value="">Select Cup...</option>
-            {currentCups.map((c: string) => <option key={c} value={c}>{c}</option>)}
+            {woCupOptions.map((c: string) => <option key={c} value={c}>Cup {c}</option>)}
           </SearchableSelect>
         </div>
       </div>

@@ -61,7 +61,20 @@ const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings 
     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 md:grid-cols-5 gap-4 animate-fade-in animate-zoom-in">
       <div><label className="text-[10px] uppercase font-bold text-slate-400">{styleLabel}</label><p className="font-bold text-sm text-slate-800">{wo.style || wo.styleName}</p></div>
       <div><label className="text-[10px] uppercase font-bold text-slate-400">Size Range</label><p className="font-bold text-sm text-slate-800">{wo.size}</p></div>
-      <div><label className="text-[10px] uppercase font-bold text-slate-400">Cup</label><p className="font-bold text-sm text-slate-800">{wo.cup || '-'}</p></div>
+      <div>
+        <label className="text-[10px] uppercase font-bold text-slate-400">Cup Sizes</label>
+        <div className="flex flex-wrap gap-1 mt-0.5">
+          {wo.cup ? (
+            String(wo.cup).split(/[\s,]+/).filter(Boolean).map((c: string, idx: number) => (
+              <span key={idx} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-xs font-bold">
+                {c}
+              </span>
+            ))
+          ) : (
+            <p className="font-bold text-sm text-slate-800">-</p>
+          )}
+        </div>
+      </div>
       <div><label className="text-[10px] uppercase font-bold text-slate-400">{colorLabel}</label><p className="font-bold text-sm text-slate-800">{wo.colour || wo.color}</p></div>
       <div><label className="text-[10px] uppercase font-bold text-slate-400">Qty</label><p className="font-bold text-sm text-slate-800">{wo.quantity}</p></div>
       
