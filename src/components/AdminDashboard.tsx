@@ -320,29 +320,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     fetchZoneMappings();
   }, []);
 
-  const handleSaveZone = async () => {
-    if (isSavingZone) return;
-    if (!newZoneName.trim()) return alert("Please enter a zone name.");
-    const isDup = zoneMappings.some(z => String(z.zone || '').toUpperCase() === newZoneName.trim().toUpperCase());
-    if (isDup) return alert("Zone already exists.");
-    
-    setIsSavingZone(true);
+  const handleDeleteZoneMapping = async (item: any) => {
+    if (!window.confirm("Are you sure you want to delete this mapping?")) return;
     try {
-      const res = await api.run('api_saveZoneMapping', {
-        zone: newZoneName.trim().toUpperCase(),
-        unit: '',
-        worker: ''
-      });
-      if (res) {
-        setNewZoneName('');
-        await fetchZoneMappings();
-        await refreshData?.().catch(() => {});
-        triggerSuccess?.("Zone added successfully!");
-      }
+      await api.run('api_deleteZoneMapping', item);
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.("Mapping deleted successfully.");
     } catch (e) {
-      alert("Failed to save zone: " + String(e));
-    } finally {
-      setIsSavingZone(false);
+      alert("Failed to delete mapping: " + String(e));
     }
   };
 
@@ -412,27 +398,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleDeleteZoneMapping = async (item: any) => {
-    if (!window.confirm("Are you sure you want to delete this mapping?")) return;
+  const handleSaveZone = async () => {
+    if (isSavingZone) return;
+    const cleanZone = newZoneName.trim().toUpperCase();
+    if (!cleanZone) return alert("Please enter a zone name.");
+    const isDup = currentZones.some(z => String(z).toUpperCase() === cleanZone);
+    if (isDup) return alert("Zone already exists.");
+    
+    setIsSavingZone(true);
     try {
-      await api.run('api_deleteZoneMapping', item);
-      await fetchZoneMappings();
-      await refreshData?.().catch(() => {});
-      triggerSuccess?.("Mapping deleted successfully.");
-    } catch (e) {
-      alert("Failed to delete mapping: " + String(e));
-    }
-  };
+      const res = await api.run('api_saveZoneMapping', {
+        zone: cleanZone,
+        unit: '',
+        worker: ''
+      });
 
-  const handleDeleteZone = async (zone: string) => {
-    if (!window.confirm(`Are you sure you want to delete the zone "${zone}"? This will delete all units and workers in this zone, and delete their sheets.`)) return;
-    try {
-      await api.run('api_deleteZoneMapping', { zone });
-      await fetchZoneMappings();
-      await refreshData?.().catch(() => {});
-      triggerSuccess?.(`Zone "${zone}" deleted successfully.`);
+      // Update settings as well so new zone is saved in settings.ZONE
+      let updatedZoneSetting = userSettings.ZONE;
+      if (typeof updatedZoneSetting === 'string') {
+        const lines = updatedZoneSetting.split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.includes(cleanZone)) lines.push(cleanZone);
+        updatedZoneSetting = lines.join('\n');
+      } else if (Array.isArray(updatedZoneSetting)) {
+        if (!updatedZoneSetting.includes(cleanZone)) updatedZoneSetting = [...updatedZoneSetting, cleanZone];
+      } else {
+        updatedZoneSetting = [cleanZone];
+      }
+
+      const updatedSettings = {
+        ...userSettings,
+        ZONE: updatedZoneSetting,
+        ZONES: updatedZoneSetting
+      };
+
+      setUserSettings(updatedSettings);
+      await api.run('api_saveSettings', { sheetName: 'SETTINGS', settings: updatedSettings }).catch(() => {});
+      await api.run('api_saveSettings', { sheetName: 'GLOBAL', settings: updatedSettings }).catch(() => {});
+
+      if (res) {
+        setNewZoneName('');
+        await fetchZoneMappings();
+        await refreshData?.().catch(() => {});
+        triggerSuccess?.("Zone added successfully!");
+      }
     } catch (e) {
-      alert("Failed to delete zone: " + String(e));
+      alert("Failed to save zone: " + String(e));
+    } finally {
+      setIsSavingZone(false);
     }
   };
 
@@ -465,17 +477,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleDeleteZone = async (zone: string) => {
+    if (!window.confirm(`Are you sure you want to delete the zone "${zone}"? This will delete all units and workers in this zone, and delete their sheets.`)) return;
+    try {
+      await api.run('api_deleteZoneMapping', { zone });
+
+      // Clean zone from userSettings and settings as well
+      const targetUpper = zone.trim().toUpperCase();
+      let updatedZoneSetting = userSettings.ZONE;
+      if (typeof updatedZoneSetting === 'string') {
+        updatedZoneSetting = updatedZoneSetting
+          .split('\n')
+          .filter(z => z.trim().toUpperCase() !== targetUpper)
+          .join('\n');
+      } else if (Array.isArray(updatedZoneSetting)) {
+        updatedZoneSetting = updatedZoneSetting.filter((z: string) => z.trim().toUpperCase() !== targetUpper);
+      }
+
+      const updatedSettings = {
+        ...userSettings,
+        ZONE: updatedZoneSetting,
+        ZONES: updatedZoneSetting
+      };
+
+      setUserSettings(updatedSettings);
+      await api.run('api_saveSettings', { sheetName: 'SETTINGS', settings: updatedSettings }).catch(() => {});
+      await api.run('api_saveSettings', { sheetName: 'GLOBAL', settings: updatedSettings }).catch(() => {});
+
+      await fetchZoneMappings();
+      await refreshData?.().catch(() => {});
+      triggerSuccess?.(`Zone "${zone}" deleted successfully.`);
+    } catch (e) {
+      alert("Failed to delete zone: " + String(e));
+    }
+  };
+
   const uniqueZones = React.useMemo(() => {
     const fromMap = zoneMappings
       .filter(z => String(z.zone || '').trim())
       .map(z => z.zone);
-    const combined = Array.from(new Set(fromMap));
-    return combined
-      .map(z => String(z).toUpperCase())
-      .filter(z => !z.startsWith('ZMAP-'));
+    return Array.from(new Set(fromMap))
+      .map(z => String(z).toUpperCase().trim())
+      .filter(z => z && !z.startsWith('ZMAP-'));
   }, [zoneMappings]);
 
   const currentZones = React.useMemo(() => {
+    if (uniqueZones.length > 0) {
+      return uniqueZones;
+    }
     let zonesList: string[] = [];
     if (settings?.ZONE) {
       if (Array.isArray(settings.ZONE)) {
@@ -484,13 +533,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         zonesList = settings.ZONE.split(/[\n,]/).map((s: string) => s.trim()).filter(Boolean);
       }
     }
-    const combined = [...zonesList, ...uniqueZones];
-    const filtered = combined
-      .map(z => String(z).toUpperCase())
+    const filtered = zonesList
+      .map(z => String(z).toUpperCase().trim())
       .filter(z => z && !z.startsWith('ZMAP-'));
-    if (filtered.length === 0) {
-      return Array.from(new Set(ZONES.map(z => String(z).toUpperCase()).filter(z => !z.startsWith('ZMAP-'))));
-    }
     return Array.from(new Set(filtered));
   }, [settings, uniqueZones]);
 
@@ -1135,9 +1180,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </button>
 
                         <div className="pt-3 border-t border-slate-200">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Existing Zones ({uniqueZones.length})</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Existing Zones ({currentZones.length})</span>
                           <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                            {uniqueZones.map(zone => (
+                            {currentZones.map(zone => (
                               <div key={zone} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
                                 <span className="text-[11px] font-bold text-slate-700">{zone}</span>
                                 <button 
@@ -1166,7 +1211,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             className="bg-white border-slate-200"
                           >
                             <option value="">Select Zone...</option>
-                            {uniqueZones.map(z => (
+                            {currentZones.map(z => (
                               <option key={z} value={z}>{z}</option>
                             ))}
                           </SearchableSelect>
@@ -1232,7 +1277,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             className="bg-white border-slate-200"
                           >
                             <option value="">Select Zone...</option>
-                            {uniqueZones.map(z => (
+                            {currentZones.map(z => (
                               <option key={z} value={z}>{z}</option>
                             ))}
                           </SearchableSelect>

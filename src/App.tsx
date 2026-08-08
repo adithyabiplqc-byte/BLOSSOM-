@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [globalZone, setGlobalZone] = useState<string>('ALL');
+  const [zoneMappings, setZoneMappings] = useState<any[]>([]);
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     localStorage.removeItem('bqos_theme');
@@ -48,14 +49,25 @@ const App: React.FC = () => {
   }, [settings]);
 
   const currentZones = React.useMemo(() => {
+    if (zoneMappings && zoneMappings.length > 0) {
+      const fromMap = zoneMappings
+        .filter((z: any) => String(z.zone || '').trim())
+        .map((z: any) => z.zone);
+      const unique = Array.from(new Set(fromMap))
+        .map((z: any) => String(z).toUpperCase().trim())
+        .filter((z: string) => z && !z.startsWith('ZMAP-'));
+      if (unique.length > 0) return unique;
+    }
     const list = getParsedSettingList(['ZONE', 'ZONES'], ZONES);
     return list.filter((z: string) => z && !z.toUpperCase().startsWith('ZMAP-'));
-  }, [getParsedSettingList]);
+  }, [zoneMappings, getParsedSettingList]);
 
-  // Auto-select zone if exactly one zone exists in the settings
+  // Auto-select zone if exactly one zone exists, or reset if active globalZone was deleted
   useEffect(() => {
     if (currentZones.length === 1 && globalZone !== currentZones[0]) {
       setGlobalZone(currentZones[0]);
+    } else if (globalZone !== 'ALL' && currentZones.length > 0 && !currentZones.includes(globalZone)) {
+      setGlobalZone('ALL');
     }
   }, [currentZones, globalZone]);
 
@@ -197,14 +209,19 @@ const App: React.FC = () => {
         }
 
         // 3. Run initialization queries in a single direct backend operation! Let's pass userCode and zone to fetch everything parallelly!
-        const [initResult] = await Promise.allSettled([
-          api.run('api_getInitialData', { zone: activeZone, userCode: sessionUserCode })
+        const [initResult, zmResult] = await Promise.allSettled([
+          api.run('api_getInitialData', { zone: activeZone, userCode: sessionUserCode }),
+          api.run('api_getZoneMappings')
         ]);
 
         let initialData: any = null;
         if (initResult.status === 'fulfilled') {
           initialData = initResult.value;
           setIsOnline(true);
+        }
+
+        if (zmResult.status === 'fulfilled' && Array.isArray(zmResult.value)) {
+          setZoneMappings(zmResult.value);
         }
         
         let allUsers = initialData?.users || [];

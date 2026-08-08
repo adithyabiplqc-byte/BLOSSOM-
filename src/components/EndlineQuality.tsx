@@ -314,7 +314,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   // Derive chosen workorder record
   const selectedWO = useMemo(() => {
-    return workorders.find(w => String(w.workorderNumber) === String(form.wo));
+    return workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
   }, [workorders, form.wo]);
 
   const woCupOptions = useMemo(() => {
@@ -619,8 +619,8 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
         const passPayload = {
           id: 'endline_bpass_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
           zone: form.zone,
-          wo: form.wo,
-          workorderNumber: form.wo,
+          wo: selectedWO?.workorderNumber || form.wo,
+          workorderNumber: selectedWO?.workorderNumber || form.wo,
           style: selectedWO?.style || selectedWO?.STYLE_NAME || '',
           color: form.color,
           size: form.size,
@@ -655,8 +655,8 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
         const defectPayload = {
           id: 'endline_bdefect_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
           zone: form.zone,
-          wo: form.wo,
-          workorderNumber: form.wo,
+          wo: selectedWO?.workorderNumber || form.wo,
+          workorderNumber: selectedWO?.workorderNumber || form.wo,
           style: selectedWO?.style || selectedWO?.STYLE_NAME || '',
           color: form.color,
           size: form.size,
@@ -739,8 +739,8 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
       const payload = {
         id: 'endline_rework_resolution_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
         zone: form.zone,
-        wo: form.wo,
-        workorderNumber: form.wo,
+        wo: selectedWO?.workorderNumber || form.wo,
+        workorderNumber: selectedWO?.workorderNumber || form.wo,
         style: selectedWO?.style || selectedWO?.STYLE_NAME || '',
         color: form.color,
         size: targetItem.size,
@@ -887,7 +887,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   return true;
                 })
                 .map(w => (
-                  <option key={w.id || w.workorderNumber} value={w.workorderNumber}>
+                  <option key={w.id || w.workorderNumber} value={w.id || w.workorderNumber}>
                     {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                   </option>
                 ))}

@@ -697,7 +697,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     fetchInlineData();
   }, [form.zone, form.unit, form.wo, form.checkingDate, form.worker]);
 
-  const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
+  const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
   const woCupOptions = useMemo(() => {
     const raw = selectedWO?.cup || selectedWO?.cupSize || selectedWO?.cupsize;
@@ -949,8 +949,8 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       const report = {
         id: 'inline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
         zone: form.zone,
-        wo: form.wo,
-        workorderNumber: form.wo,
+        wo: selectedWO?.workorderNumber || form.wo,
+        workorderNumber: selectedWO?.workorderNumber || form.wo,
         checkingDate: form.checkingDate,
         date: form.checkingDate,
         worker: form.worker,
@@ -1136,7 +1136,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                 
                 return matchesZone && matchesUnit && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
+              .map(w => <option key={w.id} value={w.id || w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

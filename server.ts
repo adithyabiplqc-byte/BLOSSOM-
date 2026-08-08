@@ -709,15 +709,14 @@ function readLocalDb(): any {
     reports_sop: [] as any[],
     zone: [
       { id: "zmap-1", zone: "KERALA", unit: "UNIT A", worker: "JOHN DOE", timestamp: new Date().toISOString() },
-      { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() },
-      { id: "zmap-3", zone: "TIRUPUR", unit: "UNIT B", worker: "SAM WILSON", timestamp: new Date().toISOString() }
+      { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() }
     ] as any[],
     admin_logs: [
       { timestamp: new Date().toISOString(), module: "SYSTEM", action: "BOOT", details: "Local fallback database initialized successfully", admin: "SYSTEM" }
     ],
     settings: {
       "GLOBAL": {
-        "ZONE": ["KERALA", "TIRUPUR", "BANGLORE"],
+        "ZONE": ["KERALA"],
         "SUPPLIER": ["Fabric Corp", "Yarn Trade Ltd", "Button & Co"],
         "ITEMS": ["100% Cotton Single Jersey", "TC Fleece", "Rib 1x1"],
         "COLOR": ["BLACK", "WHITE", "NAVY BLUE", "MELANGE GREY"],
@@ -875,10 +874,10 @@ function getDynamicSettingsForServer(settings: any, db: any): any {
         .filter(Boolean)
     )
   );
-  finalSettings.ZONE = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONE && finalSettings.ZONE.length > 0 ? finalSettings.ZONE : ["KERALA", "TIRUPUR", "BANGLORE"]);
-  finalSettings.ZONES = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONES && finalSettings.ZONES.length > 0 ? finalSettings.ZONES : ["KERALA", "TIRUPUR", "BANGLORE"]);
-  finalSettings.UNIT = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNIT && finalSettings.UNIT.length > 0 ? finalSettings.UNIT : ["UNIT A", "UNIT B", "UNIT C"]);
-  finalSettings.UNITS = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNITS && finalSettings.UNITS.length > 0 ? finalSettings.UNITS : ["UNIT A", "UNIT B", "UNIT C"]);
+  finalSettings.ZONE = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONE && finalSettings.ZONE.length > 0 ? finalSettings.ZONE : []);
+  finalSettings.ZONES = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONES && finalSettings.ZONES.length > 0 ? finalSettings.ZONES : []);
+  finalSettings.UNIT = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNIT && finalSettings.UNIT.length > 0 ? finalSettings.UNIT : []);
+  finalSettings.UNITS = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNITS && finalSettings.UNITS.length > 0 ? finalSettings.UNITS : []);
   return finalSettings;
 }
 
@@ -1004,7 +1003,10 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_updateWorkorder': {
       const wo = params[0];
       db.workorders = db.workorders || [];
-      const idx = db.workorders.findIndex((w: any) => String(w.id) === String(wo.id) || String(w.workorderNumber) === String(wo.workorderNumber));
+      const idx = db.workorders.findIndex((w: any) => 
+        (wo.id && String(w.id) === String(wo.id)) || 
+        (!wo.id && String(w.workorderNumber) === String(wo.workorderNumber) && String(w.style || '') === String(wo.style || ''))
+      );
       if (idx !== -1) {
         db.workorders[idx] = { ...db.workorders[idx], ...wo };
         writeLocalDb(db);
@@ -1015,7 +1017,7 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_deleteWorkorder': {
       const id = params[0];
       db.workorders = db.workorders || [];
-      db.workorders = db.workorders.filter((w: any) => String(w.id) !== String(id) && String(w.workorderNumber) !== String(id));
+      db.workorders = db.workorders.filter((w: any) => String(w.id) !== String(id));
       writeLocalDb(db);
       return { success: true };
     }
@@ -1049,6 +1051,29 @@ function executeLocalAction(action: string, params: any[]): any {
       record.id = record.id || 'zmap-' + Math.random().toString(36).substr(2, 9);
       record.timestamp = record.timestamp || new Date().toISOString();
       db.zone.push(record);
+
+      const cleanNewZone = String(record.zone || '').trim().toUpperCase();
+      if (cleanNewZone && db.settings) {
+        Object.keys(db.settings).forEach((userKey: string) => {
+          const uSet = db.settings[userKey];
+          if (uSet) {
+            ['ZONE', 'ZONES'].forEach((zKey: string) => {
+              if (Array.isArray(uSet[zKey])) {
+                if (!uSet[zKey].includes(cleanNewZone)) {
+                  uSet[zKey].push(cleanNewZone);
+                }
+              } else if (typeof uSet[zKey] === 'string') {
+                const parts = uSet[zKey].split('\n').map((s: string) => s.trim()).filter(Boolean);
+                if (!parts.includes(cleanNewZone)) {
+                  parts.push(cleanNewZone);
+                  uSet[zKey] = parts.join('\n');
+                }
+              }
+            });
+          }
+        });
+      }
+
       writeLocalDb(db);
       return { success: true, record };
     }
@@ -1107,6 +1132,20 @@ function executeLocalAction(action: string, params: any[]): any {
           }
           return true;
         });
+        if (db.settings) {
+          Object.keys(db.settings).forEach((userKey: string) => {
+            const uSet = db.settings[userKey];
+            if (uSet) {
+              ['ZONE', 'ZONES'].forEach((zKey: string) => {
+                if (Array.isArray(uSet[zKey])) {
+                  uSet[zKey] = uSet[zKey].filter((z: string) => String(z).trim().toUpperCase() !== targetZone);
+                } else if (typeof uSet[zKey] === 'string') {
+                  uSet[zKey] = uSet[zKey].split('\n').filter((z: string) => String(z).trim().toUpperCase() !== targetZone).join('\n');
+                }
+              });
+            }
+          });
+        }
       } else if (targetIdStr) {
         db.zone = db.zone.filter((z: any) => String(z.id || '').trim() !== targetIdStr);
       }

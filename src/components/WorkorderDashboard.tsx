@@ -217,7 +217,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         cup: form.cup,
         quantity: form.quantity,
         colour: form.colour,
-        id: isEditing ? selectedWO.id : Date.now(), 
+        id: isEditing ? selectedWO.id : ('wo-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)), 
         status: form.status,
         createdAt: isEditing ? selectedWO.createdAt : new Date().toISOString() 
       };
@@ -226,9 +226,13 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         await api.run('api_updateWorkorder', woData);
         triggerSuccess(`WORKORDER ${woNum} UPDATED`);
       } else {
-        const exists = workorders.some(w => String(w.workorderNumber) === woNum);
+        const exists = workorders.some(w => 
+          String(w.workorderNumber).trim().toLowerCase() === woNum.toLowerCase() &&
+          String(w.style || '').trim().toLowerCase() === String(form.style || '').trim().toLowerCase() &&
+          String(w.colour || '').trim().toLowerCase() === String(form.colour || '').trim().toLowerCase()
+        );
         if (exists) {
-          alert(`Workorder ${woNum} already exists!`);
+          alert(`Workorder ${woNum} with Style "${form.style}" and Colour "${form.colour}" already exists!`);
           setIsSubmitting(false);
           return;
         }

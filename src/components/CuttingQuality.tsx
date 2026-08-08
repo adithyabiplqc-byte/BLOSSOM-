@@ -83,8 +83,8 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Selected workorders for each submodule
-  const selectedWOPre = workorders.find(w => String(w.workorderNumber) === String(formPre.wo));
-  const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
+  const selectedWOPre = workorders.find(w => String(w.id) === String(formPre.wo) || String(w.workorderNumber) === String(formPre.wo));
+  const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
   const [cuttingRecords, setCuttingRecords] = useState<any[]>([]);
   const [zoneMappings, setZoneMappings] = React.useState<any[]>([]);
@@ -413,7 +413,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                     return matchesZone && matchesStatus;
                   })
                   .map(w => (
-                    <option key={w.id} value={w.workorderNumber}>
+                    <option key={w.id} value={w.id || w.workorderNumber}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
                   ))
@@ -637,7 +637,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                     return matchesZone && matchesStatus;
                   })
                   .map(w => (
-                    <option key={w.id} value={w.workorderNumber}>
+                    <option key={w.id} value={w.id || w.workorderNumber}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
                   ))

@@ -65,7 +65,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
   }, [currentUnits, form.unit]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
+  const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
   const handleSubmit = async (moveToComplete: boolean = false) => {
     if (isSubmitting) return;
@@ -101,6 +101,8 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
       await api.run('api_saveFINALAUDIT', { 
         ...selectedWO, 
         ...form, 
+        wo: selectedWO?.workorderNumber || form.wo,
+        workorderNumber: selectedWO?.workorderNumber || form.wo,
         moveToComplete,
         inspector: user.username, 
         timestamp: new Date().toISOString() 
@@ -135,7 +137,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
                 const matchesStatus = (status === 'FINAL' || status === 'FINALPASSANDHOLD');
                 return wZone === fZone && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
+              .map(w => <option key={w.id} value={w.id || w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

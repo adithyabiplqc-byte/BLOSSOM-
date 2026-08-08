@@ -1464,7 +1464,7 @@ function aggregateZonedData(baseName) {
     const seenIds = new Set();
     const uniqueData = allData.filter(row => {
       const id = (canonicalPrefix === 'WORKORDER')
-        ? (row.id || row.workorderNumber || row.ID)
+        ? (row.id || (row.workorderNumber ? (row.workorderNumber + '_' + (row.style || row.styleName || '') + '_' + (row.colour || row.color || '')) : row.ID))
         : (row.id || row.ID || row.userCode);
       if (!id) return true; 
       if (seenIds.has(id)) return false;
@@ -2096,6 +2096,11 @@ function api_getUserSettings(userCode) {
       }
     });
 
+    if (globalSettings.ZONE && Array.isArray(globalSettings.ZONE) && globalSettings.ZONE.length > 0) {
+      settings.ZONE = globalSettings.ZONE;
+      settings.ZONES = globalSettings.ZONE;
+    }
+
     return settings;
   } catch (e) {
     console.error("Error getting settings for " + userCode + ":", e);
@@ -2270,6 +2275,46 @@ function api_getGlobalSettings() {
           }
           if (rawUnits.length > 0) {
             finalSettings['UNIT'] = Array.from(new Set(rawUnits));
+          }
+        }
+      }
+    }
+
+    // Force ZONE and ZONES to strictly match active rows in 'ZONE' sheet if present
+    if (sheetNames.includes('ZONE')) {
+      const zoneSheet = ss.getSheetByName('ZONE');
+      if (zoneSheet && zoneSheet.getLastRow() >= 2) {
+        const rangeVals = zoneSheet.getDataRange().getValues();
+        const headers = rangeVals[0].map(function(h) { return String(h || '').trim().toUpperCase(); });
+        const zoneColIdx = headers.indexOf('ZONE');
+        const idColIdx = headers.indexOf('ID');
+        if (zoneColIdx !== -1) {
+          const zoneIdToNameMap = {};
+          if (idColIdx !== -1) {
+            for (let r = 1; r < rangeVals.length; r++) {
+              const z = String(rangeVals[r][zoneColIdx] || '').trim().toUpperCase();
+              const id = String(rangeVals[r][idColIdx] || '').trim().toUpperCase();
+              if (z.indexOf('ZMAP-') === 0 && id && id.indexOf('ZMAP-') !== 0) {
+                zoneIdToNameMap[z] = String(rangeVals[r][idColIdx]).trim();
+              } else if (id.indexOf('ZMAP-') === 0 && z && z.indexOf('ZMAP-') !== 0) {
+                zoneIdToNameMap[id] = String(rangeVals[r][zoneColIdx]).trim();
+              }
+            }
+          }
+          const rawZones = [];
+          for (let r = 1; r < rangeVals.length; r++) {
+            let zVal = String(rangeVals[r][zoneColIdx] || '').trim();
+            if (zVal.toUpperCase().indexOf('ZMAP-') === 0) {
+              zVal = zoneIdToNameMap[zVal.toUpperCase()] || zVal;
+            }
+            if (zVal && zVal.toUpperCase().indexOf('ZMAP-') !== 0) {
+              rawZones.push(zVal.toUpperCase());
+            }
+          }
+          const cleanZones = Array.from(new Set(rawZones));
+          if (cleanZones.length > 0) {
+            finalSettings['ZONE'] = cleanZones;
+            finalSettings['ZONES'] = cleanZones;
           }
         }
       }
@@ -2931,9 +2976,27 @@ function api_deleteZoneMapping(param) {
         }
         try { clearSheetCache(zoneSheetName); } catch(e) {}
       });
-      
+
+      // 3. Remove targetZone from SETTINGS sheet if present
+      try {
+        const settingsSheet = findExistingSheetBySynonym('SETTINGS');
+        if (settingsSheet && settingsSheet.getLastRow() >= 2) {
+          const sData = settingsSheet.getDataRange().getValues();
+          const sHeaders = sData[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
+          const zIdx = sHeaders.indexOf('zone');
+          if (zIdx !== -1) {
+            for (let i = sData.length - 1; i >= 1; i--) {
+              if (String(sData[i][zIdx]).trim().toUpperCase() === targetZone) {
+                settingsSheet.deleteRow(i + 1);
+              }
+            }
+          }
+        }
+      } catch (setErr) {}
+
       SpreadsheetApp.flush();
       clearSheetCache('ZONE');
+      clearSheetCache('SETTINGS');
       return { success: true, details: "Deleted zone " + targetZone + " and all its units/workers/quality data sheets." };
     }
 

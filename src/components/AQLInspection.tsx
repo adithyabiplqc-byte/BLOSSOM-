@@ -125,7 +125,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
     setMajorCount('');
   }, [form.wo]);
 
-  const selectedWO = workorders.find(w => String(w.workorderNumber) === String(form.wo));
+  const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
   // Lot Size from Workorder Quantity
   const lotSize = Number(selectedWO?.quantity || selectedWO?.orderQty || 0);
@@ -208,7 +208,8 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
     try {
       const payload = {
         zone: form.zone,
-        wo: form.wo,
+        wo: selectedWO?.workorderNumber || form.wo,
+        workorderNumber: selectedWO?.workorderNumber || form.wo,
         unit: form.unit,
         remarks: form.remarks || '',
         lotSize: lotSize,
@@ -302,7 +303,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
                 return matchesZone;
               })
               .map(w => (
-                <option key={w.id} value={w.workorderNumber}>
+                <option key={w.id} value={w.id || w.workorderNumber}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>
               ))

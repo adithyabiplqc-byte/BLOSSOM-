@@ -455,11 +455,14 @@ export const sheetsService = {
     const current = this.getOfflineData(sheetName);
     
     const idx = current.findIndex(item => {
-      if (record.userCode && item.userCode) {
+      if (record.userCode && item.userCode && sheetName === 'USERS') {
         return String(item.userCode) === String(record.userCode);
       }
       if (record.id && item.id) {
         return String(item.id) === String(record.id);
+      }
+      if (record.workorderNumber && item.workorderNumber && (record.style || item.style)) {
+        return String(item.workorderNumber) === String(record.workorderNumber) && String(item.style || '') === String(record.style || '');
       }
       if (record.workorderNumber && item.workorderNumber) {
         return String(item.workorderNumber) === String(record.workorderNumber);
@@ -856,7 +859,7 @@ export const sheetsService = {
               uniqueId = record.id || record.userCode;
               shouldDeduplicate = true;
             } else if (sheetName === 'WORKORDER') {
-              uniqueId = record.id || record.workorderNumber;
+              uniqueId = record.id || `${record.workorderNumber || ''}_${record.style || record.styleName || ''}_${record.colour || record.color || ''}`;
               shouldDeduplicate = true;
             } else {
               uniqueId = record.id || `${record.workorderNumber || record.wo || ''}_${record.checkingDate || record.timestamp || ''}_${record.submodule || ''}_${record.bundleNo || ''}_${record.reworkQty || ''}_${record.checkedQty || ''}`;
