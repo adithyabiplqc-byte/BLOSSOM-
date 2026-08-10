@@ -10,7 +10,7 @@ const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbzk959kjgArJekcpnnzoTTLtMTyxe6SawZBfXlcS0rPGDYeHCw9VJP77F0I4fcfOBpgpQ/exec";
 const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
 
-const HARDCODED_GAS_URLS = [USER_SHEET_URL, USER_DRIVE_URL];
+const HARDCODED_GAS_URLS = [USER_SHEET_URL];
 const HARDCODED_GAS_URL = USER_SHEET_URL;
 const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
 
@@ -48,34 +48,60 @@ try {
 
 let cachedFsConfig: any = null;
 let lastFsFetchTime = 0;
-const CACHE_TTL = 3 * 60 * 1000; // Cache Firestore config for 3 minutes to keep requests extremely fast
+const CACHE_TTL = 3 * 60 * 1000; // Cache Firestore config for 3 minutes
+
+// High-performance response cache for read queries
+const apiReadCache = new Map<string, { timestamp: number; data: any }>();
+const READ_CACHE_TTL = 10000; // 10s TTL
+
+function clearApiReadCache() {
+  apiReadCache.clear();
+}
 
 async function getFirestoreConfig() {
   const now = Date.now();
   if (cachedFsConfig && (now - lastFsFetchTime < CACHE_TTL)) {
     return cachedFsConfig;
   }
+
+  // Fast-path: Check local initialized files synchronously so HTTP requests start in 0ms
   try {
-    const queryParam = FIREBASE_API_KEY ? `?key=${FIREBASE_API_KEY}` : "";
-    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/system_config/global${queryParam}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000); // Fast 2 second timeout so we never hang the app if Firestore is slow
-    const res = await fetch(url, { signal: controller.signal as any });
-    clearTimeout(timeout);
-    if (res.ok) {
-      const data: any = await res.json();
-      const fields = data.fields || {};
-      const gasUrl = fields.gasUrl?.stringValue || "";
-      const spreadsheetId = fields.spreadsheetId?.stringValue || "";
-      const gasDriveUrl = fields.gasDriveUrl?.stringValue || "";
-      cachedFsConfig = { gasUrl, spreadsheetId, gasDriveUrl };
-      lastFsFetchTime = now;
-      return cachedFsConfig;
+    let localGasUrl = "";
+    let localSpreadsheetId = "";
+    let localGasDriveUrl = "";
+    if (fs.existsSync(CONFIG_FILE)) localGasUrl = fs.readFileSync(CONFIG_FILE, 'utf8').trim();
+    if (fs.existsSync(SPREADSHEET_FILE)) localSpreadsheetId = fs.readFileSync(SPREADSHEET_FILE, 'utf8').trim();
+    if (fs.existsSync(CONFIG_DRIVE_FILE)) localGasDriveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+
+    if (localGasUrl && !localGasUrl.includes("AKfycbwK") && !localGasUrl.includes("AKfycbzr")) {
+      cachedFsConfig = { gasUrl: localGasUrl, spreadsheetId: localSpreadsheetId || "BOUND_TO_SCRIPT", gasDriveUrl: localGasDriveUrl };
     }
-  } catch (e) {
-    console.warn("[SERVER FIRESTORE] Error loading config from Firestore:", e);
-  }
-  return cachedFsConfig; // Return previous cached values or null if none
+  } catch (e) {}
+
+  // Asynchronously trigger Firestore fetch in background without holding up request
+  (async () => {
+    try {
+      const queryParam = FIREBASE_API_KEY ? `?key=${FIREBASE_API_KEY}` : "";
+      const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/system_config/global${queryParam}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(url, { signal: controller.signal as any });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data: any = await res.json();
+        const fields = data.fields || {};
+        const gasUrl = fields.gasUrl?.stringValue || "";
+        const spreadsheetId = fields.spreadsheetId?.stringValue || "";
+        const gasDriveUrl = fields.gasDriveUrl?.stringValue || "";
+        if (gasUrl) {
+          cachedFsConfig = { gasUrl, spreadsheetId, gasDriveUrl };
+          lastFsFetchTime = Date.now();
+        }
+      }
+    } catch (e) {}
+  })();
+
+  return cachedFsConfig;
 }
 
 async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, gasDriveUrl = "", forceClear = false) {
@@ -827,6 +853,7 @@ async function maybePullFromFirestore() {
 
 function writeLocalDb(data: any) {
   try {
+    clearApiReadCache();
     fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(data, null, 2), 'utf8');
     for (const table of TABLES) {
       if (data[table] !== undefined) {
@@ -896,7 +923,7 @@ function executeLocalAction(action: string, params: any[]): any {
       let workorders = db.workorders || [];
       if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
         try {
-          const zoneRows = db.zones || [];
+          const zoneRows = db.zone || db.zones || [];
           const uppercaseZone = String(zone).toUpperCase().trim();
           const allowedZones = new Set<string>([uppercaseZone]);
           
@@ -1998,6 +2025,37 @@ async function startServer() {
       const action = bodyPayload.action || 'unknown';
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
+
+      const READ_ACTIONS = new Set([
+        'api_ping',
+        'api_getInitialData',
+        'api_getWorkorders',
+        'api_getUsers',
+        'api_getUserSettings',
+        'api_getZoneMappings',
+        'api_getMaterialData',
+        'api_getCuttingData',
+        'api_getInlineData',
+        'api_getEndlineData',
+        'api_getAQLData',
+        'api_getFinalAuditData',
+        'api_get8ROUNDSYSTEMData',
+        'api_getREPORTS_SOPData',
+        'api_getAdminLogs',
+        'aggregateZonedData'
+      ]);
+
+      const isReadAction = READ_ACTIONS.has(action);
+      const cacheKey = isReadAction ? `${action}_${JSON.stringify(bodyPayload.params || [])}_${bodyPayload.spreadsheetId || ''}` : '';
+
+      if (isReadAction) {
+        const cached = apiReadCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < READ_CACHE_TTL)) {
+          return res.json(cached.data);
+        }
+      } else {
+        clearApiReadCache();
+      }
       
       // Direct routing of SOP and PDF actions to Google Sheets/Drive with self-healing local database & file system fallback
       if (['api_uploadSOPFile', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData'].includes(action)) {
@@ -2157,7 +2215,7 @@ async function startServer() {
       for (const targetUrl of candidateUrls) {
         try {
           const controller = new AbortController();
-          const timeoutDuration = 45000;
+          const timeoutDuration = 15000; // 15 second timeout for Google Apps Script execution
           const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
           
           const response = await fetch(targetUrl, {
@@ -2199,6 +2257,9 @@ async function startServer() {
       }
 
       if (success && responseData) {
+        if (isReadAction && cacheKey) {
+          apiReadCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+        }
         return res.json(responseData);
       }
 

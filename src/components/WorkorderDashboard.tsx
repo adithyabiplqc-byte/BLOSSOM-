@@ -217,6 +217,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
         cup: form.cup,
         quantity: form.quantity,
         colour: form.colour,
+        createdBy: isEditing ? selectedWO.createdBy : (user?.username || user?.userCode || 'System'),
         id: isEditing ? selectedWO.id : ('wo-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)), 
         status: form.status,
         createdAt: isEditing ? selectedWO.createdAt : new Date().toISOString() 
@@ -522,6 +523,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   </div>
                 </div>
                 <div className="space-y-1">
+                  <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Created By</span>
+                  <span className="font-bold text-slate-800 text-xl">{selectedWO.createdBy || selectedWO.creator || selectedWO.userCode || 'System'}</span>
+                </div>
+                <div className="space-y-1">
                   <span className="text-indigo-400 block uppercase text-[10px] font-black tracking-widest">Workflow Status</span>
                   <span className={`block font-black text-xl uppercase tracking-tighter ${
                     selectedWO.status === 'COMPLETED' ? 'text-emerald-500' :
@@ -615,12 +620,13 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Status</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">Size</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500">{getColorLabel()}</th>
+                    <th className="p-4 text-xs font-bold uppercase text-slate-500">Created By</th>
                     <th className="p-4 text-xs font-bold uppercase text-slate-500 text-right">Qty</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredWorkorders.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">No workorders found.</td></tr>
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-400 italic">No workorders found.</td></tr>
                   ) : (
                     filteredWorkorders.map((wo, i) => (
                       <tr 
@@ -657,6 +663,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                           )}
                         </td>
                         <td className="p-4">{wo.colour}</td>
+                        <td className="p-4 text-xs font-semibold text-slate-700">{wo.createdBy || wo.creator || wo.userCode || 'System'}</td>
                         <td className="p-4 text-right font-bold">{wo.quantity}</td>
                       </tr>
                     ))
