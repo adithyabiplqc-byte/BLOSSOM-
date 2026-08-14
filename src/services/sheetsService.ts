@@ -19,7 +19,8 @@ export function areSynonyms(h1: string, h2: string): boolean {
     ['unit', 'units'],
     ['line', 'lines'],
     ['size', 'sizes'],
-    ['cupsize', 'cup', 'cups']
+    ['cupsize', 'cup', 'cups'],
+    ['images', 'image', 'attachedimages', 'attachedimage', 'photos', 'photo', 'evidence', 'complaintimages', 'complaintphotos']
   ];
 
   for (const group of groups) {
@@ -106,6 +107,10 @@ export function resolveSynonymValue(header: string, record: any): any {
     {
       canonical: 'cupsize',
       synonyms: ['cupsize', 'cup', 'cups']
+    },
+    {
+      canonical: 'images',
+      synonyms: ['images', 'image', 'attachedimages', 'attachedimage', 'photos', 'photo', 'evidence', 'complaintimages', 'complaintphotos']
     }
   ];
 
@@ -632,6 +637,7 @@ export const sheetsService = {
       'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT',
       'REWORK': 'REWORK', 'REWORK REPORT': 'REWORK', 'REWORK QUALITY': 'REWORK',
       'REPORTS_SOP': 'REPORTS_SOP', 'REPORTS_SOPDATA': 'REPORTS_SOP', 'SOP': 'REPORTS_SOP', 'REPORTS - SOP': 'REPORTS_SOP', 'SOP REPORTS': 'REPORTS_SOP', 'SOP_REPORTS': 'REPORTS_SOP', 'REPORTS & SOPS': 'REPORTS_SOP', 'REPORTS': 'REPORTS_SOP', 'SOPS': 'REPORTS_SOP',
+      'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS', 'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
       'ZONE': 'ZONE', 'ZONES': 'ZONE', 'ZONE_MAPPINGS': 'ZONE',
       'UNIT': 'UNIT', 'UNITS': 'UNIT',
       'SETTINGS': 'SETTINGS', 'GLOBAL': 'SETTINGS',
@@ -643,7 +649,7 @@ export const sheetsService = {
 
   resolveSynonymSheetNameClient(sheetName: string, sheets: any[], record?: any): string {
     const canonical = this.getCanonicalBase(sheetName);
-    const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP'];
+    const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS'];
     if (systemSheets.includes(canonical)) {
       return canonical;
     }
@@ -708,6 +714,10 @@ export const sheetsService = {
         'WORKORDERS': 'WORKORDER',
         'WORK ORDER': 'WORKORDER',
         'REPORTS_SOP': 'REPORTS_SOP',
+        'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS',
+        'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS',
+        'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS',
+        'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
         'ZONE': 'ZONE',
         'REWORK': 'REWORK',
         'REWORK REPORT': 'REWORK',
@@ -719,6 +729,12 @@ export const sheetsService = {
 
       const synonymsMap: { [key: string]: string[] } = {
         'USERS': ['USERS'],
+        'CUSTOMER_COMPLAINTS': [
+          'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'CUSTOMER COMPLAINT', 'CUSTOMER_COMPLAINT',
+          'CUSTOMER_COMPLAINTS - KERALA', 'CUSTOMER COMPLAINTS - KERALA',
+          'CUSTOMER_COMPLAINTS - TIRUPUR', 'CUSTOMER COMPLAINTS - TIRUPUR',
+          'CUSTOMER_COMPLAINTS - BANGLORE', 'CUSTOMER COMPLAINTS - BANGLORE'
+        ],
         'MATERIAL': [
           'MATERIAL', 'MATERIAL - KERALA', 'MATERIAL - TIRUPUR', 'MATERIAL - BANGLORE',
           'MATERIAL REPORT', 'MATERIAL QUALITY', 'MATERIAL INSPECTION', 'STORE MATERIAL INSPECTION DATA',
@@ -849,6 +865,19 @@ export const sheetsService = {
               if (normKey === 'complaintpcs' || normKey === 'failqty' || normKey === 'failedpieces') {
                 record['complaintPcs'] = parseInt(val, 10) || 0;
                 record['failQty'] = parseInt(val, 10) || 0;
+              }
+              if (
+                normKey === 'images' ||
+                normKey === 'image' ||
+                normKey === 'attachedimages' ||
+                normKey === 'attachedimage' ||
+                normKey === 'photos' ||
+                normKey === 'photo' ||
+                normKey === 'evidence' ||
+                normKey === 'complaintimages' ||
+                normKey === 'complaintphotos'
+              ) {
+                record['images'] = val;
               }
             }
 
@@ -1160,6 +1189,52 @@ export const sheetsService = {
       method: 'PUT',
       body: JSON.stringify({ values: filteredValues })
     });
+
+    return { success: true };
+  },
+
+  async clearAllCustomerComplaints(): Promise<{ success: boolean }> {
+    const keys = [
+      'bqos_local_sheet_CUSTOMER_COMPLAINTS',
+      'bqos_local_sheet_CUSTOMER COMPLAINTS',
+      'bqos_local_sheet_CUSTOMER_COMPLAINT',
+      'bqos_local_sheet_CUSTOMER COMPLAINT'
+    ];
+    keys.forEach(k => localStorage.removeItem(k));
+
+    if (localStorage.getItem('BQOS_DEMO_MODE') === 'true') {
+      return { success: true };
+    }
+
+    const spreadsheetId = this.getSpreadsheetId();
+    if (!spreadsheetId) return { success: true };
+
+    try {
+      const metadata = await this.request(spreadsheetId);
+      const defaultHeaders = ['id', 'dateTime', 'customerName', 'style', 'size', 'complaintDetails', 'pcsCount', 'immediateAction', 'rootCause', 'correctiveAction', 'pendingAction', 'effectiveAfterThreeMonths', 'closedOn', 'images', 'status', 'createdBy', 'zone', 'timestamp'];
+
+      for (const sheetObj of (metadata.sheets || [])) {
+        const title = sheetObj.properties?.title || '';
+        const normTitle = title.toUpperCase().trim();
+        if (
+          normTitle === 'CUSTOMER_COMPLAINTS' ||
+          normTitle === 'CUSTOMER COMPLAINTS' ||
+          normTitle === 'CUSTOMER COMPLAINT' ||
+          normTitle.startsWith('CUSTOMER_COMPLAINTS - ') ||
+          normTitle.startsWith('CUSTOMER COMPLAINTS - ')
+        ) {
+          await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z5000:clear`, {
+            method: 'POST'
+          });
+          await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            body: JSON.stringify({ values: [defaultHeaders] })
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Error clearing customer complaints sheets:", err);
+    }
 
     return { success: true };
   },

@@ -173,6 +173,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         res = await api.run('api_getMaterialData');
       } else if (type === 'WORKORDER') {
         res = await api.run('api_getWorkorders');
+      } else if (type === 'COMPLAINT') {
+        res = await api.run('api_getCustomerComplaints');
       }
       
       if (Array.isArray(res)) {
@@ -211,6 +213,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         await api.run('api_deleteMaterialData', record.id);
       } else if (selectedDataType === 'WORKORDER') {
         await api.run('api_deleteWorkorder', record.id, record.zone || record.location);
+      } else if (selectedDataType === 'COMPLAINT') {
+        await api.run('api_deleteCustomerComplaint', record.id);
       }
       
       triggerSuccess?.("Record deleted successfully.");

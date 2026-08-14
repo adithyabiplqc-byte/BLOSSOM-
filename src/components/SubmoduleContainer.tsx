@@ -8,6 +8,7 @@ import EndlineQuality from './EndlineQuality';
 import AQLInspection from './AQLInspection';
 import FinalAudit from './FinalAudit';
 import ReportsSOPs from './ReportsSOPs';
+import CustomerComplaintRegister from './CustomerComplaintRegister';
 import DataView from './DataView';
 import MISView from './MISView';
 import BlossomAIView from './BlossomAIView';
@@ -66,6 +67,7 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
     if (id === 'A5') return <AQLInspection {...commonProps} />;
     if (id === 'A6') return <FinalAudit {...commonProps} />;
     if (id === 'A7') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="entry" />;
+    if (id === 'A8') return <CustomerComplaintRegister user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} refreshData={refreshData} mode="entry" />;
     if (id === 'B9') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="view" readOnly={true} />;
     if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} settings={settings} setGlobalZone={setGlobalZone} />;
     if (id === 'C7') return <BlossomAIView globalZone={globalZone} user={user} />;

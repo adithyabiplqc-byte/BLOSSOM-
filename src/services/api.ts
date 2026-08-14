@@ -2,7 +2,7 @@ import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzk959kjgArJekcpnnzoTTLtMTyxe6SawZBfXlcS0rPGDYeHCw9VJP77F0I4fcfOBpgpQ/exec";
+export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbys-OIP2ID4a25uNOEkhhb3nbvj3_T1Err0JXy8GGcP6eNcwz0Op9TkNeaQQRxQHxca6Q/exec";
 export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
 
 // Helper to generate UUIDs client-side
@@ -97,8 +97,8 @@ export const api = {
       const localSpreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID');
       const localDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
 
-      // Clean up old demo URLs if stored in client localStorage
-      if (localUrl && (localUrl.includes("AKfycbwK") || localUrl.includes("AKfycbzr"))) {
+      // Clean up old URLs if stored in client localStorage
+      if (localUrl && (localUrl.includes("AKfycbwK") || localUrl.includes("AKfycbzr") || localUrl.includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs"))) {
         localStorage.removeItem('VITE_GAS_URL');
       }
       if (localDriveUrl && (localDriveUrl.includes("AKfycbwK") || localDriveUrl.includes("AKfycbzr"))) {
@@ -110,7 +110,7 @@ export const api = {
       const serverDriveUrl = data.gasDriveUrl || DEFAULT_DRIVE_URL;
 
       // Final resolved values
-      const finalUrl = serverUrl || (localUrl && !localUrl.includes("AKfycbwK") && !localUrl.includes("AKfycbzr") ? localUrl : "") || DEFAULT_SHEETS_URL;
+      const finalUrl = serverUrl || (localUrl && !localUrl.includes("AKfycbwK") && !localUrl.includes("AKfycbzr") && !localUrl.includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs") ? localUrl : "") || DEFAULT_SHEETS_URL;
       const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "BOUND_TO_SCRIPT";
       const finalDriveUrl = serverDriveUrl || (localDriveUrl && !localDriveUrl.includes("AKfycbwK") && !localDriveUrl.includes("AKfycbzr") ? localDriveUrl : "") || DEFAULT_DRIVE_URL;
 
@@ -1142,6 +1142,38 @@ export const api = {
           });
         }
         return data;
+      }
+
+      case 'api_getCustomerComplaints': {
+        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
+        let data = await sheetsService.getData('CUSTOMER_COMPLAINTS');
+        if (zoneArg && zoneArg !== 'ALL') {
+          const zTarget = String(zoneArg).trim().toUpperCase();
+          data = data.filter(r => {
+            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            return !rZone || rZone === 'ALL' || rZone === zTarget;
+          });
+        }
+        return data;
+      }
+
+      case 'api_saveCustomerComplaint': {
+        const complaint = args[0] || {};
+        complaint.id = complaint.id || ('cc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 7));
+        await sheetsService.saveData('CUSTOMER_COMPLAINTS', complaint);
+        return { success: true, id: complaint.id };
+      }
+
+      case 'api_deleteCustomerComplaint': {
+        const id = args[0];
+        await sheetsService.deleteData('CUSTOMER_COMPLAINTS', id);
+        return { success: true };
+      }
+
+      case 'api_clearAllCustomerComplaints':
+      case 'api_clearCustomerComplaints': {
+        await sheetsService.clearAllCustomerComplaints();
+        return { success: true };
       }
 
       case 'api_uploadSOPFile': {

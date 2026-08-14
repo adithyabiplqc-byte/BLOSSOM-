@@ -225,6 +225,9 @@ function doPost(e) {
       'api_saveREPORTS_SOP': api_saveREPORTS_SOP,
       'api_getREPORTS_SOPData': api_getREPORTS_SOPData,
       'api_deleteREPORTS_SOP': api_deleteREPORTS_SOP,
+      'api_getCustomerComplaints': api_getCustomerComplaints,
+      'api_saveCustomerComplaint': api_saveCustomerComplaint,
+      'api_deleteCustomerComplaint': api_deleteCustomerComplaint,
       'api_getZoneMappings': api_getZoneMappings,
       'api_saveZoneMapping': api_saveZoneMapping,
       'api_deleteZoneMapping': api_deleteZoneMapping,
@@ -369,6 +372,7 @@ function getCanonicalBase(baseName) {
     'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT',
     'REWORK': 'REWORK', 'REWORK REPORT': 'REWORK', 'REWORK QUALITY': 'REWORK',
     'REPORTS_SOP': 'REPORTS_SOP', 'REPORTS_SOPDATA': 'REPORTS_SOP', 'SOP': 'REPORTS_SOP', 'REPORTS - SOP': 'REPORTS_SOP', 'SOP REPORTS': 'REPORTS_SOP', 'SOP_REPORTS': 'REPORTS_SOP', 'REPORTS & SOPS': 'REPORTS_SOP', 'REPORTS': 'REPORTS_SOP', 'SOPS': 'REPORTS_SOP',
+    'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS', 'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
     'ZONE': 'ZONE', 'ZONES': 'ZONE', 'ZONE_MAPPINGS': 'ZONE',
     'UNIT': 'UNIT', 'UNITS': 'UNIT',
     'SETTINGS': 'SETTINGS', 'GLOBAL': 'SETTINGS',
@@ -380,7 +384,7 @@ function getCanonicalBase(baseName) {
 
 function getReportSheetName(baseName, data) {
   const canonical = getCanonicalBase(baseName);
-  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP'];
+  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS'];
   if (systemSheets.indexOf(canonical) !== -1) {
     return canonical;
   }
@@ -982,8 +986,15 @@ function api_createSheets() {
     
     required.push('INLINE');
     required.push('FINAL AUDIT');
+    required.push('CUSTOMER_COMPLAINTS');
     
     required.forEach(s => getOrCreateSheet(s));
+    
+    // Explicit headers for CUSTOMER_COMPLAINTS sheet
+    const ccSheet = findExistingSheetBySynonym('CUSTOMER_COMPLAINTS') || getSS().getSheetByName('CUSTOMER_COMPLAINTS');
+    if (ccSheet && ccSheet.getLastColumn() === 0) {
+      ccSheet.appendRow(['id', 'dateTime', 'customerName', 'style', 'size', 'complaintDetails', 'pcsCount', 'immediateAction', 'rootCause', 'correctiveAction', 'pendingAction', 'effectiveAfterThreeMonths', 'closedOn', 'images', 'status', 'createdBy', 'zone', 'timestamp']);
+    }
     
     // Explicit headers for unified ZONE sheet showing units
     if (zoneSheet && zoneSheet.getLastColumn() === 0) {
@@ -2445,6 +2456,11 @@ function api_uploadSOPFile(fileName, base64Data, mimeType, category) {
       "WORK INSTRUCTIONS": "Work Instructions",
       "DRAWINGS": "Drawings",
       "QUALITY MANUALS": "Quality Manuals",
+      "COMPLAINT_IMAGE": "Customer Complaint Images",
+      "COMPLAINT IMAGE": "Customer Complaint Images",
+      "CUSTOMER COMPLAINT": "Customer Complaint Images",
+      "CUSTOMER_COMPLAINT": "Customer Complaint Images",
+      "CUSTOMER COMPLAINTS": "Customer Complaint Images",
       "OTHERS": "Others",
       "OTHER": "Others"
     };
@@ -2627,6 +2643,108 @@ function api_deleteREPORTS_SOP(id) {
       }
     }
     return { success: false, error: "Record not found with ID " + id };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Retrieves all registered Customer Complaint records in Google Sheets.
+ */
+function api_getCustomerComplaints(params) {
+  try {
+    const zoneArg = typeof params === 'string' ? params : (params && params[0] ? (typeof params[0] === 'string' ? params[0] : params[0].zone) : null);
+    let data = getDataFromSheet('CUSTOMER_COMPLAINTS') || [];
+    let altData = getDataFromSheet('CUSTOMER COMPLAINTS') || [];
+
+    const map = {};
+    data.concat(altData).forEach(function(r) {
+      if (r && r.id) {
+        map[r.id] = r;
+      }
+    });
+
+    try {
+      const ss = getSS();
+      const sheets = ss.getSheets();
+      for (var i = 0; i < sheets.length; i++) {
+        var sName = sheets[i].getName().toUpperCase().trim();
+        if (sName.indexOf('CUSTOMER_COMPLAINTS - ') === 0 || sName.indexOf('CUSTOMER COMPLAINTS - ') === 0) {
+          var zRows = getDataFromSheet(sheets[i].getName()) || [];
+          zRows.forEach(function(r) {
+            if (r && r.id) {
+              map[r.id] = r;
+            }
+          });
+        }
+      }
+    } catch (err) {}
+
+    let result = [];
+    for (var k in map) {
+      result.push(map[k]);
+    }
+
+    if (zoneArg && zoneArg !== 'ALL') {
+      const zTarget = String(zoneArg).trim().toUpperCase();
+      result = result.filter(function(r) {
+        const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+        return !rZone || rZone === 'ALL' || rZone === zTarget;
+      });
+    }
+
+    // Parse images if stringified JSON
+    result.forEach(function(r) {
+      if (typeof r.images === 'string') {
+        try { r.images = JSON.parse(r.images); } catch(e) {}
+      }
+    });
+    return result;
+  } catch (e) {
+    console.error("Error in api_getCustomerComplaints:", e);
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a Customer Complaint record in Google Sheets.
+ */
+function api_saveCustomerComplaint(complaint) {
+  try {
+    complaint = complaint || {};
+    if (!complaint.id) {
+      complaint.id = 'cc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 7);
+    }
+    if (!complaint.timestamp) {
+      complaint.timestamp = new Date().toISOString();
+    }
+    if (Array.isArray(complaint.images)) {
+      var imgLinks = complaint.images.map(function(img, idx) {
+        var url = typeof img === 'string' ? img : (img.url || img.downloadUrl || '');
+        var name = typeof img === 'object' ? (img.name || ('Photo ' + (idx + 1))) : ('Photo ' + (idx + 1));
+        if (url && (url.indexOf('http') === 0 || url.indexOf('data:image') === 0)) {
+          return '=HYPERLINK("' + url + '", "' + name + '")';
+        }
+        return name || url;
+      }).filter(Boolean);
+      complaint.images = imgLinks.length > 0 ? imgLinks.join(' | ') : JSON.stringify(complaint.images);
+    }
+    const res = saveDataToSheet('CUSTOMER_COMPLAINTS', complaint);
+    if (res.success) {
+      res.id = complaint.id;
+    }
+    return res;
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Deletes a Customer Complaint record by ID from Google Sheets.
+ */
+function api_deleteCustomerComplaint(id) {
+  try {
+    return api_deleteDataBySheet('CUSTOMER_COMPLAINTS', id);
   } catch (e) {
     return { success: false, error: e.toString() };
   }

@@ -395,6 +395,21 @@ const parseFactoryAnalytics = (logs: any, activeZone: string, zoneMappings: any[
     }
   });
 
+  // 7. Process Customer Complaints
+  const ccList = logs.customerComplaintData || logs.customerComplaints || [];
+  ccList.forEach((r: any) => {
+    const qty = Number(r.pcsCount || r.pcs || 1);
+    const def = qty;
+    const zone = r.zone || r.location || (activeZone !== 'ALL' ? activeZone : 'Client Feedback');
+    addUnitData(zone, qty, def);
+    if (r.complaintDetails || r.rootCause || r.style) {
+      const label = `Customer Issue: ${r.complaintDetails || r.style || 'Field Defect'}`;
+      addDefect(label, qty);
+    }
+    const worker = r.createdBy || r.customerName;
+    if (worker) addWorkerData(worker, qty, def, zone);
+  });
+
   // Blend with sophisticated real seeds to always provide full graphics capability
   const finalDefects: DefectMetric[] = [
     { name: 'Broken Stitching', count: realDefects['Broken Stitching'] || realDefects['BROKEN STITCHING'] || 34, severity: 'CRITICAL' },
@@ -523,7 +538,8 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     inline: [],
     endline: [],
     aql: [],
-    finalAudit: []
+    finalAudit: [],
+    customerComplaints: []
   });
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [metrics, setMetrics] = useState<FactoryAnalysisMetrics | null>(null);
@@ -541,6 +557,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         endline, 
         aql, 
         finalAudit,
+        customerComplaints,
         zoneMappings
       ] = await Promise.all([
         api.run('api_getMaterialData').catch(() => []),
@@ -549,6 +566,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         api.run('api_getEndlineData').catch(() => []),
         api.run('api_getAQLData').catch(() => []),
         api.run('api_getFinalAuditData').catch(() => []),
+        api.run('api_getCustomerComplaints').catch(() => []),
         api.run('api_getZoneMappings').catch(() => [])
       ]);
 
@@ -558,7 +576,8 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         inline: Array.isArray(inline) ? inline : [],
         endline: Array.isArray(endline) ? endline : [],
         aql: Array.isArray(aql) ? aql : [],
-        finalAudit: Array.isArray(finalAudit) ? finalAudit : []
+        finalAudit: Array.isArray(finalAudit) ? finalAudit : [],
+        customerComplaints: Array.isArray(customerComplaints) ? customerComplaints : []
       };
 
       setDataLogs(logStore);
@@ -576,7 +595,8 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         inlineData: zoneFilter(logStore.inline),
         endlineData: zoneFilter(logStore.endline),
         aqlData: zoneFilter(logStore.aql),
-        finalAuditData: zoneFilter(logStore.finalAudit)
+        finalAuditData: zoneFilter(logStore.finalAudit),
+        customerComplaintData: zoneFilter(logStore.customerComplaints)
       };
 
       // Generate analytics metrics (defects, units, workers)

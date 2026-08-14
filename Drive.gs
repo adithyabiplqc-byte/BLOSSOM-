@@ -36,11 +36,11 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    if (action === 'api_uploadSOPFile') {
+    if (action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage') {
       var fileName = params[0];
       var base64Data = params[1];
       var mimeType = params[2];
-      var category = params[3] || "SOP";
+      var category = params[3] || (action === 'api_uploadComplaintImage' ? "COMPLAINT_IMAGE" : "SOP");
       
       var result = uploadFileToDrive(fileName, base64Data, mimeType, category);
       return ContentService.createTextOutput(JSON.stringify(result))
@@ -98,6 +98,11 @@ function uploadFileToDrive(fileName, base64Data, mimeType, category) {
       "WORK INSTRUCTIONS": "Work Instructions",
       "DRAWINGS": "Drawings",
       "QUALITY MANUALS": "Quality Manuals",
+      "COMPLAINT_IMAGE": "Customer Complaint Images",
+      "COMPLAINT IMAGE": "Customer Complaint Images",
+      "CUSTOMER COMPLAINT": "Customer Complaint Images",
+      "CUSTOMER_COMPLAINT": "Customer Complaint Images",
+      "CUSTOMER COMPLAINTS": "Customer Complaint Images",
       "OTHERS": "Others",
       "OTHER": "Others"
     };

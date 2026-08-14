@@ -7,7 +7,7 @@ const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 
-const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbzk959kjgArJekcpnnzoTTLtMTyxe6SawZBfXlcS0rPGDYeHCw9VJP77F0I4fcfOBpgpQ/exec";
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbys-OIP2ID4a25uNOEkhhb3nbvj3_T1Err0JXy8GGcP6eNcwz0Op9TkNeaQQRxQHxca6Q/exec";
 const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
 
 const HARDCODED_GAS_URLS = [USER_SHEET_URL];
@@ -16,7 +16,7 @@ const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
 
 // Auto-initialize connection configuration files on container boot so every device works out of the box
 try {
-  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr")) {
+  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
     fs.writeFileSync(CONFIG_FILE, USER_SHEET_URL);
     console.log("[BOOT CONFIG] Auto-initialized permanent Google Sheets URL:", USER_SHEET_URL);
   }
@@ -772,6 +772,7 @@ const TABLES = [
   'final_reports',
   'rework_reports',
   'reports_sop',
+  'customer_complaints',
   'settings',
   'zone'
 ];
@@ -1729,6 +1730,44 @@ function executeLocalAction(action: string, params: any[]): any {
       return { success: true, count: records.length };
     }
     
+    case 'api_getCustomerComplaints': {
+      let data = db.customer_complaints || [];
+      const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
+      if (zoneArg && zoneArg !== 'ALL') {
+        const zTarget = String(zoneArg).trim().toUpperCase();
+        data = data.filter((r: any) => {
+          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+          return !rZone || rZone === 'ALL' || rZone === zTarget;
+        });
+      }
+      return data;
+    }
+
+    case 'api_saveCustomerComplaint': {
+      db.customer_complaints = db.customer_complaints || [];
+      const complaint = params[0] || {};
+      const id = complaint.id || ('cc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 7));
+      complaint.id = id;
+      if (!complaint.timestamp) complaint.timestamp = new Date().toISOString();
+
+      const existingIndex = db.customer_complaints.findIndex((item: any) => String(item.id) === String(id));
+      if (existingIndex !== -1) {
+        db.customer_complaints[existingIndex] = { ...db.customer_complaints[existingIndex], ...complaint };
+      } else {
+        db.customer_complaints.unshift(complaint);
+      }
+      writeLocalDb(db);
+      return { success: true, id };
+    }
+
+    case 'api_deleteCustomerComplaint': {
+      const id = params[0];
+      db.customer_complaints = db.customer_complaints || [];
+      db.customer_complaints = db.customer_complaints.filter((item: any) => String(item.id) !== String(id));
+      writeLocalDb(db);
+      return { success: true };
+    }
+
     case 'api_saveMaterialReportBulk': {
       const data = params[0] || {};
       const { zone, billNo, supplierName, grn, checkingDate, receivedDate, remarks, inspector, timestamp, items } = data;
@@ -2041,6 +2080,7 @@ async function startServer() {
         'api_getFinalAuditData',
         'api_get8ROUNDSYSTEMData',
         'api_getREPORTS_SOPData',
+        'api_getCustomerComplaints',
         'api_getAdminLogs',
         'aggregateZonedData'
       ]);
@@ -2662,8 +2702,12 @@ async function startServer() {
         inlineData = [], 
         endlineData = [], 
         aqlData = [], 
-        finalAuditData = [] 
+        finalAuditData = [],
+        customerComplaintData = [],
+        customerComplaints = []
       } = req.body;
+
+      const ccData = customerComplaintData.length > 0 ? customerComplaintData : customerComplaints;
 
       // Summary string of the dataset
       const summaryStats = `
@@ -2673,6 +2717,7 @@ async function startServer() {
       - Endline Quality inspects: ${endlineData.length}
       - AQL Audit samplings: ${aqlData.length}
       - Final audits completed: ${finalAuditData.length}
+      - Customer Complaints registered: ${ccData.length}
       `;
 
       // Build safe fallback analysis data to ensure beautiful response even if API key is not supplied or fails!
@@ -2680,6 +2725,7 @@ async function startServer() {
         let totalLogs = 0;
         let totalDefects = 0;
         let aqlFails = 0;
+        let complaintPcsTotal = 0;
         
         (materialData || []).forEach((log: any) => {
           totalLogs++;
@@ -2715,6 +2761,12 @@ async function startServer() {
           totalLogs++;
           totalDefects += Number(log.rejected || log.rejectedQty || log.failQty || 0);
         });
+        (ccData || []).forEach((log: any) => {
+          totalLogs++;
+          const pcs = Number(log.pcsCount || log.pcs || 1);
+          complaintPcsTotal += pcs;
+          totalDefects += pcs;
+        });
         
         let calculatedScore = 92;
         if (totalLogs > 0) {
@@ -2724,16 +2776,44 @@ async function startServer() {
         if (aqlFails > 0) {
           calculatedScore -= Math.min(25, aqlFails * 8);
         }
+        if (ccData.length > 0) {
+          calculatedScore -= Math.min(20, ccData.length * 5);
+        }
         
         if (totalLogs === 0) {
           calculatedScore = 89; // Default to 89% quality stability on a fresh launch to keep it realistic
         } else {
-          calculatedScore = Math.max(55, Math.min(98, calculatedScore));
+          calculatedScore = Math.max(50, Math.min(98, calculatedScore));
+        }
+
+        const fallbackIdentified = [
+          {
+            Area: "Line B - Sewing Assembler",
+            issue: "Stitching skips and broken stitches on cup attachments",
+            impact: "Rework rate climb to 4.2%",
+            status: "Warning"
+          },
+          {
+            Area: "Fabric Receiving Dock",
+            issue: "Elastane stretch variance detected in elastic trim shipments",
+            impact: "Affecting sizing tolerances after steam boarding",
+            status: "Investigating"
+          }
+        ];
+
+        if (ccData.length > 0) {
+          const firstCC = ccData[0];
+          fallbackIdentified.unshift({
+            Area: `Customer Complaint (${firstCC.customerName || 'Client'})`,
+            issue: `${firstCC.complaintDetails || 'Customer quality issue registered'} (${firstCC.pcsCount || 1} pcs)`,
+            impact: `Root cause: ${firstCC.rootCause || 'Under investigation'}; Action: ${firstCC.immediateAction || 'Pending review'}`,
+            status: "Critical"
+          });
         }
 
         return {
           aiGenerated: false,
-          summary: `Blossom AI completed local statistical profiling. Processed ${totalLogs} quality logs with ${totalDefects} defect events. Statistical quality health index is scored at ${calculatedScore}/100.`,
+          summary: `Blossom AI completed statistical profiling. Processed ${totalLogs} quality logs including ${ccData.length} customer complaint reports with ${totalDefects} total defect events. Statistical quality health index is scored at ${calculatedScore}/100.`,
           recommendations: [
             {
               title: "Address Needle Thread Tension on Sewing Line B",
@@ -2741,30 +2821,17 @@ async function startServer() {
               description: "Slight rise in broken stitching defects noted during endline sewing. Calibrate active double needle machines to prevent structural slip."
             },
             {
+              title: "Customer Complaint CAPA Resolution & Follow-up",
+              priority: ccData.length > 0 ? "HIGH" : "MEDIUM",
+              description: ccData.length > 0 ? `Review active customer complaint for ${ccData[0].customerName || 'Client'}. Ensure root cause (${ccData[0].rootCause || 'Pending'}) is rectified.` : "Maintain customer feedback loop and track field defect rate."
+            },
+            {
               title: "Incoming Material Supplier Audit Revalidation",
               priority: "MEDIUM",
               description: "Supplier fabric shrinkage variances have bordered warning limits. Request certified thermal stability metrics prior to bulk lot roll release."
-            },
-            {
-              title: "Operator Stitch Spacing Retraining",
-              priority: "LOW",
-              description: "Identify minor measurement variances on premium bra wings. Re-verify tension regulators and stitch count density gauge."
             }
           ],
-          identifiedProblems: [
-            {
-              Area: "Line B - Sewing Assembler",
-              issue: "Stitching skips and broken stitches on cup attachments",
-              impact: "Rework rate climb to 4.2%",
-              status: "Warning"
-            },
-            {
-              Area: "Fabric Receiving Dock",
-              issue: "Elastane stretch variance detected in elastic trim shipments",
-              impact: "Affecting sizing tolerances after steam boarding",
-              status: "Investigating"
-            }
-          ],
+          identifiedProblems: fallbackIdentified,
           predictions: [
             {
               risk: "Measurement non-compliance in Size XL due to elastic relaxation",
@@ -2808,7 +2875,8 @@ async function startServer() {
         inline: sliceLog(inlineData),
         endline: sliceLog(endlineData),
         aql: sliceLog(aqlData),
-        finalAudit: sliceLog(finalAuditData)
+        finalAudit: sliceLog(finalAuditData),
+        customerComplaints: sliceLog(ccData)
       };
 
       const prompt = `

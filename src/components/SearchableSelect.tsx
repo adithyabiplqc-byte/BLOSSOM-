@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Icon from './Icon';
+import { flexibleSearchMatch } from '../utils/search';
 
 interface SearchableSelectProps {
   value: string | number;
@@ -83,9 +84,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     if (opt.value === '') {
       return searchTerm === '';
     }
-    const labelMatch = opt.label.toLowerCase().includes(searchTerm.toLowerCase());
-    const valMatch = opt.value.toLowerCase().includes(searchTerm.toLowerCase());
-    return labelMatch || valMatch;
+    return flexibleSearchMatch(opt.label, searchTerm) || flexibleSearchMatch(opt.value, searchTerm);
   });
 
   const handleSelect = (optValue: string) => {

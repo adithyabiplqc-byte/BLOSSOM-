@@ -5,6 +5,8 @@ import { api } from '../services/api';
 import { SUBMODULES, ZONES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
+import { flexibleSearchMatch } from '../utils/search';
+import { getDirectImageUrl, parseAndNormalizeImages } from '../utils/imageUtils';
 
 const HOURLY_ROUNDS = [
   { index: 1, label: '9 TO 10' },
@@ -74,6 +76,60 @@ const normalizeDateToYYYYMMDD = (val: any): string => {
   return s.substring(0, 10);
 };
 
+const DataViewImageItem: React.FC<{
+  img: any;
+  idx: number;
+  onPreview: (url: string) => void;
+}> = ({ img, idx, onPreview }) => {
+  const [failed, setFailed] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(img.previewUrl || img.url);
+
+  return (
+    <div className="relative group/img flex-shrink-0">
+      {!failed ? (
+        <button
+          type="button"
+          onClick={() => onPreview(img.downloadUrl || img.previewUrl || img.url)}
+          title={`Click to preview photo: ${img.name}`}
+          className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 transition-all duration-200 bg-slate-100 dark:bg-slate-800 block text-left"
+        >
+          <img
+            src={currentSrc}
+            alt={img.name || `Photo ${idx + 1}`}
+            referrerPolicy="no-referrer"
+            className="w-16 h-16 object-cover group-hover/img:scale-110 transition-transform duration-200"
+            loading="lazy"
+            decoding="async"
+            onError={() => {
+              if (img.fallbackUrl && currentSrc !== img.fallbackUrl) {
+                setCurrentSrc(img.fallbackUrl);
+              } else {
+                setFailed(true);
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+            <Icon name="maximize-2" size={16} className="text-white" />
+          </div>
+        </button>
+      ) : (
+        <a
+          href={img.downloadUrl || img.url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex flex-col items-center justify-center w-16 h-16 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors p-1 text-center group/badge shadow-sm"
+          title={`Click to view attached photo: ${img.name}`}
+        >
+          <Icon name="image" size={18} className="text-indigo-600 dark:text-indigo-400 group-hover/badge:scale-110 transition-transform" />
+          <span className="text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 truncate max-w-full mt-0.5">
+            {img.name || `Photo ${idx + 1}`}
+          </span>
+        </a>
+      )}
+    </div>
+  );
+};
+
 interface DataViewProps {
   id: string;
   user: any;
@@ -100,6 +156,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; row: any }>({ isOpen: false, row: null });
   const [deleting, setDeleting] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const exportMatrixToImage = async (mode: 'DOWNLOAD' | 'DRIVE') => {
     const element = document.getElementById('dataview-matrix-board-container');
@@ -202,6 +259,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       'B6': 'api_getFinalAuditData',
       'B7': 'api_getUsers',
       'B8': 'api_getWorkorders',
+      'B10': 'api_getCustomerComplaints',
     };
 
     if (!sheetMapping[id]) {
@@ -251,6 +309,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       'B5': 'api_deleteAQLData',
       'B6': 'api_deleteFinalAuditData',
       'B8': 'api_deleteWorkorder',
+      'B10': 'api_deleteCustomerComplaint',
     };
     
     if (!sheetMapping[id]) {
@@ -298,7 +357,47 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
   const exportToCSV = () => {
     if (!Array.isArray(displayData) || displayData.length === 0) return;
     const exportHeaders = headers.length > 0 ? headers : Object.keys(displayData[0]);
-    const rows = displayData.map(row => exportHeaders.map(h => JSON.stringify(row[h] || '')).join(','));
+    
+    const rows = displayData.map(row => exportHeaders.map(h => {
+      const val = row[h];
+      if (val === null || val === undefined) return '""';
+
+      // Format images column cleanly for Google Sheets / Excel download
+      if (h === 'images' || h === 'image' || h === 'photos' || h === 'photo' || (Array.isArray(val) && val.some((v: any) => v && (v.url || v.downloadUrl)))) {
+        let imgList: any[] = [];
+        if (Array.isArray(val)) {
+          imgList = val;
+        } else if (typeof val === 'string' && val.trim()) {
+          try {
+            imgList = JSON.parse(val);
+          } catch (e) {
+            if (val.startsWith('http') || val.startsWith('data:image')) {
+              imgList = [{ url: val, name: 'Image' }];
+            }
+          }
+        }
+
+        if (Array.isArray(imgList) && imgList.length > 0) {
+          const links = imgList.map((img: any, idx: number) => {
+            const url = typeof img === 'string' ? img : (img.url || img.downloadUrl || img.data || '');
+            const name = typeof img === 'object' ? (img.name || `Photo ${idx + 1}`) : `Photo ${idx + 1}`;
+            if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+              return `=HYPERLINK("${url}", "${name}")`;
+            }
+            return name || url;
+          }).filter(Boolean);
+          if (links.length > 0) {
+            return JSON.stringify(links.join(' | '));
+          }
+        }
+      }
+
+      if (typeof val === 'object') {
+        return JSON.stringify(JSON.stringify(val));
+      }
+      return JSON.stringify(String(val));
+    }).join(','));
+
     const csvContent = [exportHeaders.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -390,12 +489,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                         (row.items && row.items === selectedItem) ||
                         (row.itemName && row.itemName === selectedItem);
 
-      const rowStr = Object.values(row as object).map(v => {
-        if (v === null || v === undefined) return '';
-        if (typeof v === 'object') return JSON.stringify(v);
-        return String(v);
-      }).join(' ').toLowerCase();
-      const searchMatch = !activeSearch || rowStr.includes(activeSearch.toLowerCase());
+      const searchMatch = flexibleSearchMatch(row, searchTerm || activeSearch);
 
       return zoneMatch && itemMatch && searchMatch;
     });
@@ -677,6 +771,25 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'timestamp',
         'inspector',
         'zone'
+      ],
+      'B10': [
+        'dateTime',
+        'customerName',
+        'style',
+        'size',
+        'complaintDetails',
+        'pcsCount',
+        'immediateAction',
+        'rootCause',
+        'correctiveAction',
+        'pendingAction',
+        'effectiveAfterThreeMonths',
+        'closedOn',
+        'status',
+        'images',
+        'createdBy',
+        'zone',
+        'timestamp'
       ]
     };
 
@@ -696,7 +809,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         if (!hiddenColumns.includes(key)) allKeys.add(key);
       });
       // Virtual column for rework %
-      if (!hiddenColumns.includes('reworkPercent')) {
+      if (!hiddenColumns.includes('reworkPercent') && id !== 'B10' && id !== 'A8') {
         allKeys.add('reworkPercent');
       }
     });
@@ -783,6 +896,17 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       foundDefects: 'FOUND DEFECTS',
       status: 'STATUS',
       remarks: 'REMARKS',
+      dateTime: 'DATE & TIME',
+      customerName: 'CUSTOMER / SHOP / DISTRIBUTOR',
+      complaintDetails: 'DETAILS OF COMPLAINT',
+      pcsCount: 'NO. OF PCS',
+      immediateAction: 'IMMEDIATE ACTION TAKEN',
+      rootCause: 'ROOT CAUSE OF COMPLAINT',
+      correctiveAction: 'CORRECTIVE ACTION TAKEN',
+      pendingAction: 'PENDING ACTION IF ANY',
+      effectiveAfterThreeMonths: 'EFFECTIVE AFTER 3 MONTHS',
+      closedOn: 'CLOSED ON',
+      images: 'ATTACHED IMAGES',
       worker: 'WORKER / OPERATOR',
       machine: 'MACHINE #',
       round: 'ROUND',
@@ -933,6 +1057,37 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         <span className="font-mono font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-100 text-[10px]">
           #{valStr}
         </span>
+      );
+    }
+
+    // Images cell formatting
+    const isImageCol = 
+      h === 'images' || 
+      h.toLowerCase() === 'attached images' || 
+      h.toLowerCase() === 'attachedimages' || 
+      h.toLowerCase() === 'attached_images' ||
+      h.toLowerCase() === 'image' || 
+      h.toLowerCase() === 'photos' || 
+      h.toLowerCase() === 'photo' ||
+      h.toLowerCase().includes('image');
+
+    if (isImageCol) {
+      const valToParse = (val && val !== '-') 
+        ? val 
+        : (row.images || row['ATTACHED IMAGES'] || row['attachedImages'] || row['ATTACHED_IMAGES'] || row.image || row.photos);
+      const imgList = parseAndNormalizeImages(valToParse);
+      if (imgList.length === 0) return '-';
+      return (
+        <div className="flex flex-wrap items-center gap-2 max-w-md py-1">
+          {imgList.map((img, idx) => (
+            <DataViewImageItem
+              key={idx}
+              img={img}
+              idx={idx}
+              onPreview={(url) => setLightboxImage(url)}
+            />
+          ))}
+        </div>
       );
     }
 
@@ -1333,6 +1488,54 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                 </button>
               </div>
             </motion.div>
+          </div>
+        )}
+
+        {/* Lightbox Image Preview Modal */}
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setLightboxImage(null)}
+          >
+            <div
+              className="relative max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-950/80 border-b border-slate-800 text-white">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <Icon name="image" size={16} className="text-indigo-400" />
+                  Attached Image Evidence
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={lightboxImage}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                    title="Open original file in new tab"
+                  >
+                    <Icon name="external-link" size={14} />
+                    Open Original
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage(null)}
+                    className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition"
+                    title="Close preview"
+                  >
+                    <Icon name="x" size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-2 flex items-center justify-center overflow-auto max-h-[82vh] bg-slate-950">
+                <img
+                  src={lightboxImage}
+                  alt="Enlarged Evidence"
+                  referrerPolicy="no-referrer"
+                  className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-lg"
+                />
+              </div>
+            </div>
           </div>
         )}
       </AnimatePresence>
