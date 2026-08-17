@@ -80,11 +80,54 @@ async function updateWorkorderStatus(woNum: string, nextStatus: string) {
   }
 }
 
+// Client-side cache and in-flight request deduplication map
+const clientReadCache = new Map<string, { timestamp: number; data: any }>();
+const inFlightRequests = new Map<string, Promise<any>>();
+const CLIENT_READ_CACHE_TTL = 15000; // 15s TTL for ultra-fast instant UI rendering
+let cachedServerConfig: { data: any; timestamp: number } | null = null;
+
+const CACHEABLE_METHODS = new Set([
+  'api_ping',
+  'api_getInitialData',
+  'api_getWorkorders',
+  'api_getUsers',
+  'api_getUserSettings',
+  'api_getGlobalSettings',
+  'api_getZoneMappings',
+  'api_getMaterialData',
+  'api_getCuttingData',
+  'api_getInlineData',
+  'api_getEndlineData',
+  'api_getAQLData',
+  'api_getFinalAuditData',
+  'api_get8ROUNDSYSTEMData',
+  'api_getREPORTS_SOPData',
+  'api_getCustomerComplaints',
+  'api_getAdminLogs',
+  'aggregateZonedData'
+]);
+
 export const api = {
   isServerConfigured: false,
 
+  clearCache(method?: string) {
+    if (method) {
+      for (const key of clientReadCache.keys()) {
+        if (key.startsWith(method)) {
+          clientReadCache.delete(key);
+        }
+      }
+    } else {
+      clientReadCache.clear();
+      cachedServerConfig = null;
+    }
+  },
+
   async getServerConfig() {
     try {
+      if (cachedServerConfig && (Date.now() - cachedServerConfig.timestamp < 10000)) {
+        return cachedServerConfig.data;
+      }
       // 1. Fetch server config state (which includes firestore config automatically on the backend)
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 5000);
@@ -163,9 +206,12 @@ export const api = {
       data.gasUrl = finalUrl;
       data.gasDriveUrl = finalDriveUrl;
       data.spreadsheetId = finalSpreadsheetId;
+      cachedServerConfig = { data, timestamp: Date.now() };
       return data;
     } catch (e) {
-      return { hasGasUrl: true, isPermanent: true, gasUrl: DEFAULT_SHEETS_URL, gasDriveUrl: DEFAULT_DRIVE_URL, spreadsheetId: "BOUND_TO_SCRIPT" };
+      const fallbackConfig = { hasGasUrl: true, isPermanent: true, gasUrl: DEFAULT_SHEETS_URL, gasDriveUrl: DEFAULT_DRIVE_URL, spreadsheetId: "BOUND_TO_SCRIPT" };
+      cachedServerConfig = { data: fallbackConfig, timestamp: Date.now() };
+      return fallbackConfig;
     }
   },
 
@@ -1371,162 +1417,198 @@ export const api = {
     }
   },
 
-  async run(method: string, ...args: any[]) {
+  async run(method: string, ...args: any[]): Promise<any> {
     const sanitizedArgs = sanitizeArgs(args);
+    const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
+    const isCacheable = CACHEABLE_METHODS.has(method);
+    const cacheKey = isCacheable ? `${method}::${JSON.stringify(sanitizedArgs)}::${activeSheetId}` : '';
 
-    const isOfflineDemo = localStorage.getItem('BQOS_DEMO_MODE') === 'true';
-    if (isOfflineDemo && method === 'api_ping') {
-      return { success: true, status: "Connected (Sandbox Mode)", timestamp: new Date().toISOString() };
+    if (isCacheable && cacheKey) {
+      const cached = clientReadCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < CLIENT_READ_CACHE_TTL)) {
+        return cached.data;
+      }
+      if (inFlightRequests.has(cacheKey)) {
+        return inFlightRequests.get(cacheKey);
+      }
+    } else {
+      // Invalidate read cache on any write or mutation call
+      this.clearCache();
     }
-    // If authenticated via Google & spreadsheet ID chosen, proceed with direct sheet read/writes
-    if ((getAccessToken() || isOfflineDemo) && sheetsService.getSpreadsheetId()) {
-      try {
-        return await this.runDirect(method, sanitizedArgs);
-      } catch (directError: any) {
-        if (directError.message === 'AUTH_REQUIRED') {
-          // If auth expired mid-session, clear and let system handle it
-          localStorage.removeItem('GOOGLE_ACCESS_TOKEN');
-        } else {
-          console.error('[API] Direct sheets execution failed, attempting fallback...', directError);
+
+    const execPromise = (async () => {
+      const isOfflineDemo = localStorage.getItem('BQOS_DEMO_MODE') === 'true';
+      if (isOfflineDemo && method === 'api_ping') {
+        return { success: true, status: "Connected (Sandbox Mode)", timestamp: new Date().toISOString() };
+      }
+      // If authenticated via Google & spreadsheet ID chosen, proceed with direct sheet read/writes
+      if ((getAccessToken() || isOfflineDemo) && sheetsService.getSpreadsheetId()) {
+        try {
+          const directResult = await this.runDirect(method, sanitizedArgs);
+          if (isCacheable && cacheKey) {
+            clientReadCache.set(cacheKey, { timestamp: Date.now(), data: directResult });
+          }
+          return directResult;
+        } catch (directError: any) {
+          if (directError.message === 'AUTH_REQUIRED') {
+            // If auth expired mid-session, clear and let system handle it
+            localStorage.removeItem('GOOGLE_ACCESS_TOKEN');
+          } else {
+            console.error('[API] Direct sheets execution failed, attempting fallback...', directError);
+          }
         }
       }
-    }
 
-    // Default proxy routing: fallback to Apps Script (GAS)
-    let gasMethod = method;
-    let gasArgs = sanitizedArgs;
+      // Default proxy routing: fallback to Apps Script (GAS)
+      let gasMethod = method;
+      let gasArgs = sanitizedArgs;
 
-    const customUrl = localStorage.getItem('VITE_GAS_URL');
-    const envUrl = (import.meta as any).env?.VITE_GAS_URL;
-    const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
-    const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
+      const customUrl = localStorage.getItem('VITE_GAS_URL');
+      const envUrl = (import.meta as any).env?.VITE_GAS_URL;
+      const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
+      const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
 
-    const hardcodedUrls = method === 'api_uploadSOPFile'
-      ? [DEFAULT_DRIVE_URL, DEFAULT_SHEETS_URL]
-      : [DEFAULT_SHEETS_URL, DEFAULT_DRIVE_URL];
+      const hardcodedUrls = method === 'api_uploadSOPFile'
+        ? [DEFAULT_DRIVE_URL, DEFAULT_SHEETS_URL]
+        : [DEFAULT_SHEETS_URL, DEFAULT_DRIVE_URL];
 
-    const candidateUrls: string[] = [];
-    
-    // If uploading files, prioritize Google Drive Apps Script URL candidates
-    if (method === 'api_uploadSOPFile') {
-      if (customDriveUrl) candidateUrls.push(customDriveUrl);
-      if (envDriveUrl && !envDriveUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envDriveUrl)) {
-        candidateUrls.push(envDriveUrl);
-      }
-    }
-
-    if (customUrl && !candidateUrls.includes(customUrl)) candidateUrls.push(customUrl);
-    if (envUrl && !envUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envUrl)) candidateUrls.push(envUrl);
-    hardcodedUrls.forEach(url => {
-      if (!candidateUrls.includes(url)) {
-        candidateUrls.push(url);
-      }
-    });
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s for large ERP data
-
-    try {
-      try {
-        const proxyHeaders: any = { 'Content-Type': 'application/json' };
-        if (customUrl) proxyHeaders['x-gas-url'] = customUrl;
-
-        const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
-        const response = await fetch("/api/gas", {
-          method: 'POST',
-          headers: proxyHeaders,
-          body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.status === 404) throw new Error("Proxy Not Found");
-        
-        const result = await response.json();
-        if (!response.ok) {
-           if (result.error === "CONFIGURATION_REQUIRED") throw new Error("CONFIGURATION_REQUIRED");
-           throw new Error(result.error || `Proxy error ${response.status}`);
+      const candidateUrls: string[] = [];
+      
+      // If uploading files, prioritize Google Drive Apps Script URL candidates
+      if (method === 'api_uploadSOPFile') {
+        if (customDriveUrl) candidateUrls.push(customDriveUrl);
+        if (envDriveUrl && !envDriveUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envDriveUrl)) {
+          candidateUrls.push(envDriveUrl);
         }
-        return result;
+      }
 
-      } catch (proxyError: any) {
-        if (proxyError.message === "CONFIGURATION_REQUIRED") throw proxyError;
+      if (customUrl && !candidateUrls.includes(customUrl)) candidateUrls.push(customUrl);
+      if (envUrl && !envUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envUrl)) candidateUrls.push(envUrl);
+      hardcodedUrls.forEach(url => {
+        if (!candidateUrls.includes(url)) {
+          candidateUrls.push(url);
+        }
+      });
 
-        // If proxy failed, perform an auto-healing direct fallback to the Google Apps Script Web App candidates!
-        if (candidateUrls.length > 0) {
-          console.log("[API] Server proxy failed or unavailable. Initiating direct fallback to Google Apps Script Web App...", proxyError.message);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s for large ERP data
+
+      try {
+        try {
+          const proxyHeaders: any = { 'Content-Type': 'application/json' };
+          if (customUrl) proxyHeaders['x-gas-url'] = customUrl;
+
+          const response = await fetch("/api/gas", {
+            method: 'POST',
+            headers: proxyHeaders,
+            body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.status === 404) throw new Error("Proxy Not Found");
           
-          let lastDirectError: any = null;
-          for (const targetUrl of candidateUrls) {
-            try {
-              const directController = new AbortController();
-              const directTimeoutId = setTimeout(() => directController.abort(), 30000); // 30 seconds per attempt
+          const result = await response.json();
+          if (!response.ok) {
+             if (result.error === "CONFIGURATION_REQUIRED") throw new Error("CONFIGURATION_REQUIRED");
+             throw new Error(result.error || `Proxy error ${response.status}`);
+          }
 
-              const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
-              const response = await fetch(targetUrl, {
-                method: 'POST',
-                mode: 'cors',
-                body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
-                signal: directController.signal
-              });
+          if (isCacheable && cacheKey) {
+            clientReadCache.set(cacheKey, { timestamp: Date.now(), data: result });
+          }
+          return result;
 
-              clearTimeout(directTimeoutId);
+        } catch (proxyError: any) {
+          if (proxyError.message === "CONFIGURATION_REQUIRED") throw proxyError;
 
-              if (!response.ok) {
-                const text = await response.text();
-                throw new Error(`GAS ${response.status}: ${text.slice(0, 100)}`);
+          // If proxy failed, perform an auto-healing direct fallback to the Google Apps Script Web App candidates!
+          if (candidateUrls.length > 0) {
+            console.log("[API] Server proxy failed or unavailable. Initiating direct fallback to Google Apps Script Web App...", proxyError.message);
+            
+            let lastDirectError: any = null;
+            for (const targetUrl of candidateUrls) {
+              try {
+                const directController = new AbortController();
+                const directTimeoutId = setTimeout(() => directController.abort(), 30000); // 30 seconds per attempt
+
+                const response = await fetch(targetUrl, {
+                  method: 'POST',
+                  mode: 'cors',
+                  body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
+                  signal: directController.signal
+                });
+
+                clearTimeout(directTimeoutId);
+
+                if (!response.ok) {
+                  const text = await response.text();
+                  throw new Error(`GAS ${response.status}: ${text.slice(0, 100)}`);
+                }
+
+                const parsedData = await response.json();
+                if (parsedData && (parsedData.success === true || (parsedData.success !== false && !parsedData.error))) {
+                  if (isCacheable && cacheKey) {
+                    clientReadCache.set(cacheKey, { timestamp: Date.now(), data: parsedData });
+                  }
+                  return parsedData;
+                }
+                throw new Error(parsedData?.error || "Direct GAS returned success=false");
+
+              } catch (directError: any) {
+                console.log(`[API] Fallback attempt completed or diverted for URL ${targetUrl}:`, directError.message);
+                lastDirectError = directError;
               }
-
-              const parsedData = await response.json();
-              if (parsedData && (parsedData.success === true || (parsedData.success !== false && !parsedData.error))) {
-                return parsedData;
-              }
-              throw new Error(parsedData?.error || "Direct GAS returned success=false");
-
-            } catch (directError: any) {
-              console.log(`[API] Fallback attempt completed or diverted for URL ${targetUrl}:`, directError.message);
-              lastDirectError = directError;
             }
+
+            // If we exhaust all candidates, let's process the error
+            const isConnectionError = 
+              lastDirectError?.name === 'TypeError' || 
+              lastDirectError?.message?.includes('Failed to fetch') || 
+              lastDirectError?.message?.includes('NetworkError') || 
+              lastDirectError?.message?.includes('Failed to communicate') ||
+              lastDirectError?.message?.includes('Unable to connect');
+
+            if (isConnectionError && this.isServerConfigured) {
+              const detailMsg = proxyError.message ? ` Reason: ${proxyError.message}` : "";
+              throw new Error(`Unable to connect to Google Sheets server proxy or direct Web App.${detailMsg} Please check your connection or redeploy the Web App.`);
+            }
+            throw new Error(lastDirectError?.message || proxyError.message || "Failed to communicate with Google Sheets.");
           }
 
-          // If we exhaust all candidates, let's process the error
-          const isConnectionError = 
-            lastDirectError?.name === 'TypeError' || 
-            lastDirectError?.message?.includes('Failed to fetch') || 
-            lastDirectError?.message?.includes('NetworkError') || 
-            lastDirectError?.message?.includes('Failed to communicate') ||
-            lastDirectError?.message?.includes('Unable to connect');
-
-          if (isConnectionError && this.isServerConfigured) {
-            const detailMsg = proxyError.message ? ` Reason: ${proxyError.message}` : "";
-            throw new Error(`Unable to connect to Google Sheets server proxy or direct Web App.${detailMsg} Please check your connection or redeploy the Web App.`);
+          if (this.isServerConfigured) {
+            throw new Error(proxyError.message ? `Unable to connect to Google Sheets server proxy. Reason: ${proxyError.message}` : "Unable to connect to Google Sheets server proxy. Please check your internet connection and try again.");
           }
-          throw new Error(lastDirectError?.message || proxyError.message || "Failed to communicate with Google Sheets.");
+          
+          throw new Error("CONFIGURATION_REQUIRED");
         }
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        console.log(`[API] Execution diverted for ${method}: ${error.message}`);
+        if (method === 'api_getZoneMappings' || method === 'api_getREPORTS_SOPData') {
+          console.log(`[API Graceful Fallback] Returning empty array for ${method} to prevent UI crash.`);
+          return [];
+        }
+        if (method === 'api_saveZoneMapping' || method === 'api_saveREPORTS_SOP') {
+          console.log(`[API Graceful Fallback] Returning mock success for ${method} to prevent UI crash.`);
+          return { success: true, id: args[0]?.id || `mock-${Date.now()}` };
+        }
+        if (method === 'api_deleteZoneMapping' || method === 'api_deleteREPORTS_SOP') {
+          console.log(`[API Graceful Fallback] Returning mock success for ${method} to prevent UI crash.`);
+          return { success: true };
+        }
+        throw error;
+      }
+    })();
 
-        if (this.isServerConfigured) {
-          throw new Error(proxyError.message ? `Unable to connect to Google Sheets server proxy. Reason: ${proxyError.message}` : "Unable to connect to Google Sheets server proxy. Please check your internet connection and try again.");
-        }
-        
-        throw new Error("CONFIGURATION_REQUIRED");
-      }
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      console.log(`[API] Execution diverted for ${method}: ${error.message}`);
-      if (method === 'api_getZoneMappings' || method === 'api_getREPORTS_SOPData') {
-        console.log(`[API Graceful Fallback] Returning empty array for ${method} to prevent UI crash.`);
-        return [];
-      }
-      if (method === 'api_saveZoneMapping' || method === 'api_saveREPORTS_SOP') {
-        console.log(`[API Graceful Fallback] Returning mock success for ${method} to prevent UI crash.`);
-        return { success: true, id: args[0]?.id || `mock-${Date.now()}` };
-      }
-      if (method === 'api_deleteZoneMapping' || method === 'api_deleteREPORTS_SOP') {
-        console.log(`[API Graceful Fallback] Returning mock success for ${method} to prevent UI crash.`);
-        return { success: true };
-      }
-      throw error;
+    if (isCacheable && cacheKey) {
+      inFlightRequests.set(cacheKey, execPromise);
+      execPromise.finally(() => {
+        inFlightRequests.delete(cacheKey);
+      });
     }
+
+    return execPromise;
   }
 };

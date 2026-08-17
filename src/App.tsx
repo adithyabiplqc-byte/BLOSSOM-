@@ -12,21 +12,48 @@ import SubmoduleContainer from './components/SubmoduleContainer';
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
 
+const getSavedSession = () => {
+  try {
+    const s = localStorage.getItem('bqos_session');
+    if (s) return JSON.parse(s);
+  } catch (e) {}
+  return null;
+};
+
+const getSavedCache = (key: string, defaultVal: any) => {
+  try {
+    const s = localStorage.getItem(key);
+    if (s) return JSON.parse(s);
+  } catch (e) {}
+  return defaultVal;
+};
+
 const App: React.FC = () => {
-  const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>('splash');
-  const [user, setUser] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [workorders, setWorkorders] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+  const initialSession = React.useMemo(() => getSavedSession(), []);
+  const [user, setUser] = useState<any>(initialSession);
+  const [users, setUsers] = useState<any[]>(() => getSavedCache('bqos_cache_users', []));
+  const [workorders, setWorkorders] = useState<any[]>(() => getSavedCache('bqos_cache_wo', []));
+  const [settings, setSettings] = useState<any>(() => getSavedCache('bqos_cache_settings', null));
+  const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>(() => {
+    if (!initialSession) return 'login';
+    if (initialSession.role === 'ADMIN') return 'admin';
+    if (initialSession.role === 'WORKORDER') return 'workorder';
+    return 'user';
+  });
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(true);
   const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [globalZone, setGlobalZone] = useState<string>('ALL');
-  const [zoneMappings, setZoneMappings] = useState<any[]>([]);
+  const [globalZone, setGlobalZone] = useState<string>(() => {
+    if (initialSession) {
+      return initialSession.zone || (initialSession.location === 'SYSTEM' || !initialSession.location ? 'ALL' : initialSession.location);
+    }
+    return 'ALL';
+  });
+  const [zoneMappings, setZoneMappings] = useState<any[]>(() => getSavedCache('bqos_cache_zm', []));
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     localStorage.removeItem('bqos_theme');
@@ -222,6 +249,7 @@ const App: React.FC = () => {
 
         if (zmResult.status === 'fulfilled' && Array.isArray(zmResult.value)) {
           setZoneMappings(zmResult.value);
+          try { localStorage.setItem('bqos_cache_zm', JSON.stringify(zmResult.value)); } catch(e){}
         }
         
         let allUsers = initialData?.users || [];
@@ -233,15 +261,20 @@ const App: React.FC = () => {
           ];
         }
         setUsers(allUsers);
+        try { localStorage.setItem('bqos_cache_users', JSON.stringify(allUsers)); } catch(e){}
 
         // Set global settings or user settings if returned by initial data!
         if (initialData?.settings) {
           setSettings(initialData.settings);
+          try { localStorage.setItem('bqos_cache_settings', JSON.stringify(initialData.settings)); } catch(e){}
         } else {
           // Fallback settings query
           try {
             const s = await api.run('api_getUserSettings', sessionUserCode || 'GLOBAL');
-            if (s) setSettings(s);
+            if (s) {
+              setSettings(s);
+              try { localStorage.setItem('bqos_cache_settings', JSON.stringify(s)); } catch(e){}
+            }
           } catch (e) {}
         }
 
@@ -251,6 +284,7 @@ const App: React.FC = () => {
           
           if (initialData?.workorders) {
             setWorkorders(initialData.workorders);
+            try { localStorage.setItem('bqos_cache_wo', JSON.stringify(initialData.workorders)); } catch(e){}
           }
 
           if (session.role === 'ADMIN') setView('admin');

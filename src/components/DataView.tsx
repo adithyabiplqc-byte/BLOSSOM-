@@ -284,8 +284,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         setData([]);
       }
     } catch (error: any) {
-      console.error("Fetch Data Error:", error);
-      alert(`Error loading data: ${error.message || "Unknown error"}`);
+      console.warn(`[DataView] Fetch data notice for ${id}:`, error.message);
       setData([]);
     } finally {
       setLoading(false);
