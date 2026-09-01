@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import Icon from './Icon';
 import { extractGoogleDriveId, resolveIndexedDbImage, NormalizedImage } from '../utils/imageUtils';
 
 interface SmartImageProps {
-  image?: NormalizedImage | { url: string; previewUrl?: string; fallbackUrl?: string; fallbackUrl2?: string; embedUrl?: string; downloadUrl?: string; name?: string };
+  image?: NormalizedImage | { url: string; previewUrl?: string; fallbackUrl?: string; fallbackUrl2?: string; embedUrl?: string; downloadUrl?: string; name?: string; driveId?: string };
   src?: string;
   alt?: string;
   className?: string;
   imgClassName?: string;
   onClick?: (e: React.MouseEvent) => void;
   showDriveBadge?: boolean;
-  priority?: boolean;
   aspectRatio?: string;
 }
 
-export const SmartImage: React.FC<SmartImageProps> = ({
+const SmartImageComponent: React.FC<SmartImageProps> = ({
   image,
   src,
   alt = 'Inspection Photo',
@@ -24,27 +23,36 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   showDriveBadge = false,
   aspectRatio
 }) => {
-  const rawInitialSrc = image?.previewUrl || image?.url || src || '';
-  const [currentSrc, setCurrentSrc] = useState<string>(rawInitialSrc);
-  const [stage, setStage] = useState<'primary' | 'proxy' | 'fallback1' | 'fallback2' | 'iframe' | 'failed'>('primary');
+  const rawUrl = typeof image === 'string' ? image : (image?.previewUrl || image?.url || src || '');
+  const imageDriveId = (image && typeof image === 'object' && image.driveId) ? image.driveId : extractGoogleDriveId(rawUrl);
+
+  const [currentSrc, setCurrentSrc] = useState<string>(() => {
+    if (rawUrl.startsWith('indexeddb://') || rawUrl.startsWith('data:image') || rawUrl.startsWith('/uploads/')) {
+      return rawUrl;
+    }
+    if (imageDriveId) {
+      return `https://drive.google.com/thumbnail?id=${imageDriveId}&sz=w800`;
+    }
+    return rawUrl;
+  });
+
+  const [stage, setStage] = useState<'primary' | 'proxy' | 'fallback1' | 'fallback2' | 'failed'>('primary');
   const [loading, setLoading] = useState<boolean>(true);
-  const [driveId, setDriveId] = useState<string>('');
+
+  // Use primitive stable key to prevent re-triggering on object reference identity changes
+  const stableKey = `${rawUrl}__${imageDriveId || ''}`;
 
   useEffect(() => {
     let active = true;
-    const initial = image?.previewUrl || image?.url || src || '';
-    if (!initial) {
+    if (!rawUrl) {
       setLoading(false);
       setStage('failed');
       return;
     }
 
-    const dId = image?.driveId || extractGoogleDriveId(initial) || extractGoogleDriveId(image?.downloadUrl || '') || extractGoogleDriveId(image?.url || '');
-    setDriveId(dId);
-
-    if (initial.startsWith('indexeddb://')) {
+    if (rawUrl.startsWith('indexeddb://')) {
       setLoading(true);
-      resolveIndexedDbImage(initial).then(resolved => {
+      resolveIndexedDbImage(rawUrl).then(resolved => {
         if (active) {
           setCurrentSrc(resolved);
           setLoading(false);
@@ -56,13 +64,12 @@ export const SmartImage: React.FC<SmartImageProps> = ({
           setStage('failed');
         }
       });
-    } else if (dId && !initial.startsWith('data:image') && !initial.startsWith('/uploads/')) {
-      // Primary thumbnail CDN
-      setCurrentSrc(`https://drive.google.com/thumbnail?id=${dId}&sz=w1200`);
+    } else if (imageDriveId && !rawUrl.startsWith('data:image') && !rawUrl.startsWith('/uploads/')) {
+      setCurrentSrc(`https://drive.google.com/thumbnail?id=${imageDriveId}&sz=w800`);
       setStage('primary');
       setLoading(true);
     } else {
-      setCurrentSrc(initial);
+      setCurrentSrc(rawUrl);
       setStage('primary');
       setLoading(true);
     }
@@ -70,36 +77,39 @@ export const SmartImage: React.FC<SmartImageProps> = ({
     return () => {
       active = false;
     };
-  }, [image, src]);
+  }, [stableKey]);
 
   const handleError = () => {
-    if (driveId) {
+    if (imageDriveId) {
       if (stage === 'primary') {
         setStage('proxy');
-        setCurrentSrc(`/api/drive-proxy?id=${driveId}`);
+        setCurrentSrc(`/api/drive-proxy?id=${imageDriveId}`);
         return;
       }
       if (stage === 'proxy') {
         setStage('fallback1');
-        setCurrentSrc(`https://lh3.googleusercontent.com/d/${driveId}=s1000`);
+        setCurrentSrc(`https://lh3.googleusercontent.com/d/${imageDriveId}=s800`);
         return;
       }
       if (stage === 'fallback1') {
         setStage('fallback2');
-        setCurrentSrc(`https://drive.google.com/uc?export=view&id=${driveId}`);
+        setCurrentSrc(`https://drive.google.com/uc?export=view&id=${imageDriveId}`);
         return;
       }
     }
-    
-    if (image?.fallbackUrl && currentSrc !== image.fallbackUrl && stage !== 'fallback1' && stage !== 'fallback2') {
+
+    const fallback1 = typeof image === 'object' ? image?.fallbackUrl : undefined;
+    const fallback2 = typeof image === 'object' ? image?.fallbackUrl2 : undefined;
+
+    if (fallback1 && currentSrc !== fallback1 && stage !== 'fallback1' && stage !== 'fallback2') {
       setStage('fallback1');
-      setCurrentSrc(image.fallbackUrl);
+      setCurrentSrc(fallback1);
       return;
     }
 
-    if (image?.fallbackUrl2 && currentSrc !== image.fallbackUrl2 && stage !== 'fallback2') {
+    if (fallback2 && currentSrc !== fallback2 && stage !== 'fallback2') {
       setStage('fallback2');
-      setCurrentSrc(image.fallbackUrl2);
+      setCurrentSrc(fallback2);
       return;
     }
 
@@ -111,20 +121,20 @@ export const SmartImage: React.FC<SmartImageProps> = ({
     setLoading(false);
   };
 
-  const openUrl = image?.downloadUrl || image?.url || src || (driveId ? `https://drive.google.com/file/d/${driveId}/view` : '');
+  const openUrl = (typeof image === 'object' ? (image?.downloadUrl || image?.url) : '') || src || (imageDriveId ? `https://drive.google.com/file/d/${imageDriveId}/view` : '');
 
-  if (!rawInitialSrc || stage === 'failed') {
+  if (!rawUrl || stage === 'failed') {
     return (
       <div
         onClick={onClick}
-        className={`relative flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-2 text-center text-slate-500 transition hover:bg-slate-200 dark:hover:bg-slate-750 ${onClick ? 'cursor-pointer hover:border-indigo-400' : ''} ${className}`}
+        className={`relative flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800/80 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-2 text-center text-slate-500 transition hover:bg-slate-200 dark:hover:bg-slate-750 select-none ${onClick ? 'cursor-pointer hover:border-indigo-400' : ''} ${className}`}
         style={aspectRatio ? { aspectRatio } : undefined}
       >
         <div className="p-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-1">
           <Icon name="image" size={16} />
         </div>
         <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-full px-1">
-          {image?.name || alt || 'Photo Evidence'}
+          {(typeof image === 'object' ? image?.name : null) || alt || 'Photo Evidence'}
         </span>
         {openUrl && (
           <a
@@ -145,11 +155,11 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`relative overflow-hidden bg-slate-100 dark:bg-slate-900 rounded-xl group ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`relative overflow-hidden bg-slate-100 dark:bg-slate-900 rounded-xl group select-none ${onClick ? 'cursor-pointer' : ''} ${className}`}
       style={aspectRatio ? { aspectRatio } : undefined}
     >
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-[1px] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-[1px] z-10">
           <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
@@ -157,6 +167,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
       <img
         src={currentSrc}
         alt={alt}
+        loading="lazy"
         referrerPolicy="no-referrer"
         onLoad={handleLoad}
         onError={handleError}
@@ -164,8 +175,8 @@ export const SmartImage: React.FC<SmartImageProps> = ({
       />
 
       {/* Drive Badge */}
-      {showDriveBadge && driveId && (
-        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[9px] font-bold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {showDriveBadge && imageDriveId && (
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[9px] font-bold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
           <Icon name="cloud" size={10} className="text-blue-400" />
           <span>Drive</span>
         </div>
@@ -173,7 +184,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
 
       {/* Hover preview indicator */}
       {onClick && (
-        <div className="absolute inset-0 bg-indigo-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 bg-indigo-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
           <div className="p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-lg">
             <Icon name="zoom-in" size={14} />
           </div>
@@ -183,4 +194,5 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   );
 };
 
+export const SmartImage = memo(SmartImageComponent);
 export default SmartImage;

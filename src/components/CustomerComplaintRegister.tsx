@@ -1178,25 +1178,36 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
       )}
 
       {/* RICH CAROUSEL LIGHTBOX MODAL */}
-      {lightboxData && lightboxData.images.length > 0 && (() => {
-        const total = lightboxData.images.length;
-        const currentIdx = Math.min(Math.max(0, lightboxData.activeIndex), total - 1);
-        const currentImg = lightboxData.images[currentIdx];
+      {lightboxData && (() => {
+        const rawList = Array.isArray(lightboxData.images) ? lightboxData.images : [lightboxData.images];
+        const validImages = rawList.filter(Boolean);
+        if (validImages.length === 0) return null;
 
-        const goNext = (e: React.MouseEvent) => {
-          e.stopPropagation();
-          setLightboxData(prev => prev ? { ...prev, activeIndex: (prev.activeIndex + 1) % total } : null);
+        const total = validImages.length;
+        const currentIdx = Math.min(Math.max(0, lightboxData.activeIndex || 0), total - 1);
+        const rawCurrent = validImages[currentIdx];
+        const currentImg = typeof rawCurrent === 'object' ? rawCurrent : { url: String(rawCurrent), previewUrl: String(rawCurrent), name: `Photo ${currentIdx + 1}` };
+
+        const goNext = (e?: React.MouseEvent) => {
+          if (e) e.stopPropagation();
+          setLightboxData(prev => prev ? { ...prev, activeIndex: (currentIdx + 1) % total } : null);
         };
 
-        const goPrev = (e: React.MouseEvent) => {
-          e.stopPropagation();
-          setLightboxData(prev => prev ? { ...prev, activeIndex: (prev.activeIndex - 1 + total) % total } : null);
+        const goPrev = (e?: React.MouseEvent) => {
+          if (e) e.stopPropagation();
+          setLightboxData(prev => prev ? { ...prev, activeIndex: (currentIdx - 1 + total) % total } : null);
         };
 
         return (
           <div
             className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-6 select-none animate-fadeIn"
             onClick={() => setLightboxData(null)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setLightboxData(null);
+              if (e.key === 'ArrowRight') goNext();
+              if (e.key === 'ArrowLeft') goPrev();
+            }}
+            tabIndex={0}
           >
             {/* Header */}
             <div
@@ -1204,16 +1215,16 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3">
-                <span className="font-black text-sm tracking-wider uppercase bg-indigo-600/80 px-3 py-1 rounded-full text-white shadow">
+                <span className="font-black text-sm tracking-wider uppercase bg-indigo-600 px-3 py-1 rounded-full text-white shadow">
                   Photo {currentIdx + 1} / {total}
                 </span>
                 <span className="text-xs text-slate-300 font-bold max-w-[200px] sm:max-w-md truncate">
-                  {currentImg?.name || lightboxData.title || 'Attached Evidence Photo'}
+                  {currentImg.name || lightboxData.title || 'Attached Evidence Photo'}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                {currentImg?.embedUrl && (
+                {currentImg.embedUrl && (
                   <button
                     type="button"
                     onClick={() => setLightboxData(prev => prev ? { ...prev, useEmbed: !prev.useEmbed } : null)}
@@ -1224,7 +1235,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                     <span className="hidden sm:inline">{lightboxData.useEmbed ? 'Direct Image' : 'Drive Viewer'}</span>
                   </button>
                 )}
-                {currentImg && (
+                {(currentImg.downloadUrl || currentImg.url) && (
                   <a
                     href={currentImg.downloadUrl || currentImg.url}
                     target="_blank"
@@ -1239,7 +1250,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                 <button
                   type="button"
                   onClick={() => setLightboxData(null)}
-                  className="p-2 bg-white/10 hover:bg-white/30 text-white rounded-full transition ml-2"
+                  className="p-2 bg-white/10 hover:bg-rose-600 text-white rounded-full transition ml-2 cursor-pointer"
                   title="Close (Esc)"
                 >
                   <Icon name="x" size={20} />
@@ -1256,8 +1267,8 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                 <button
                   type="button"
                   onClick={goPrev}
-                  className="absolute left-2 sm:left-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95"
-                  title="Previous image"
+                  className="absolute left-2 sm:left-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95 cursor-pointer"
+                  title="Previous image (Left Arrow)"
                 >
                   <Icon name="chevron-left" size={26} />
                 </button>
@@ -1273,6 +1284,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                   />
                 ) : (
                   <img
+                    key={currentImg.previewUrl || currentImg.url}
                     src={currentImg.previewUrl || currentImg.url}
                     alt={currentImg.name || 'Preview'}
                     referrerPolicy="no-referrer"
@@ -1299,8 +1311,8 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                 <button
                   type="button"
                   onClick={goNext}
-                  className="absolute right-2 sm:right-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95"
-                  title="Next image"
+                  className="absolute right-2 sm:right-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95 cursor-pointer"
+                  title="Next image (Right Arrow)"
                 >
                   <Icon name="chevron-right" size={26} />
                 </button>
@@ -1313,26 +1325,27 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                 className="w-full max-w-3xl flex items-center justify-center gap-2 py-2 overflow-x-auto z-10"
                 onClick={(e) => e.stopPropagation()}
               >
-                {lightboxData.images.map((img: any, idx: number) => {
+                {validImages.map((img: any, idx: number) => {
                   const isCur = idx === currentIdx;
+                  const thumbSrc = typeof img === 'object' ? (img.previewUrl || img.url) : String(img);
                   return (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setLightboxData(prev => prev ? { ...prev, activeIndex: idx } : null)}
-                      className={`relative rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                      className={`relative rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 cursor-pointer ${
                         isCur
                           ? 'border-indigo-400 scale-110 shadow-lg shadow-indigo-500/50 ring-2 ring-indigo-300'
                           : 'border-white/20 opacity-60 hover:opacity-100 hover:scale-105'
                       }`}
                     >
                       <img
-                        src={img.previewUrl || img.url}
-                        alt={img.name || `Thumb ${idx + 1}`}
+                        src={thumbSrc}
+                        alt={(typeof img === 'object' ? img.name : null) || `Thumb ${idx + 1}`}
                         referrerPolicy="no-referrer"
                         className="w-12 h-12 object-cover"
                         onError={(e) => {
-                          if (img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
+                          if (typeof img === 'object' && img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
                         }}
                       />
                       <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] font-black text-white text-center py-0.5">

@@ -1582,14 +1582,37 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         )}
 
         {/* Rich Lightbox Image Carousel & Viewer Modal */}
-        {lightboxData && lightboxData.images.length > 0 && (() => {
-          const currentImg = lightboxData.images[lightboxData.activeIndex] || lightboxData.images[0];
-          const hasMultiple = lightboxData.images.length > 1;
+        {lightboxData && (() => {
+          const rawImages = Array.isArray(lightboxData.images) ? lightboxData.images : [lightboxData.images];
+          const validImages = rawImages.filter(Boolean);
+          if (validImages.length === 0) return null;
+
+          const total = validImages.length;
+          const safeIndex = Math.min(Math.max(0, lightboxData.activeIndex || 0), total - 1);
+          const rawCurrent = validImages[safeIndex] || validImages[0];
+          const currentImg = typeof rawCurrent === 'object' ? rawCurrent : { url: String(rawCurrent), previewUrl: String(rawCurrent), name: `Photo ${safeIndex + 1}` };
+          const hasMultiple = total > 1;
+
+          const handlePrev = (e?: React.MouseEvent) => {
+            if (e) e.stopPropagation();
+            setLightboxData(prev => prev ? { ...prev, activeIndex: (safeIndex - 1 + total) % total } : null);
+          };
+
+          const handleNext = (e?: React.MouseEvent) => {
+            if (e) e.stopPropagation();
+            setLightboxData(prev => prev ? { ...prev, activeIndex: (safeIndex + 1) % total } : null);
+          };
 
           return (
             <div
-              className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
+              className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none animate-fadeIn"
               onClick={() => setLightboxData(null)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setLightboxData(null);
+                if (e.key === 'ArrowLeft') handlePrev();
+                if (e.key === 'ArrowRight') handleNext();
+              }}
+              tabIndex={0}
             >
               <div
                 className="relative w-full max-w-5xl max-h-[95vh] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col"
@@ -1607,7 +1630,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                       </h4>
                       {hasMultiple && (
                         <p className="text-[10px] text-slate-400 font-mono">
-                          Photo {lightboxData.activeIndex + 1} of {lightboxData.images.length}
+                          Photo {safeIndex + 1} of {total}
                         </p>
                       )}
                     </div>
@@ -1618,8 +1641,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                     {currentImg.embedUrl && (
                       <button
                         type="button"
-                        onClick={() => setLightboxData({ ...lightboxData, useEmbed: !lightboxData.useEmbed })}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition ${
+                        onClick={() => setLightboxData(prev => prev ? { ...prev, useEmbed: !prev.useEmbed } : null)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer ${
                           lightboxData.useEmbed
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'bg-slate-800 hover:bg-slate-700 text-indigo-300'
@@ -1632,23 +1655,25 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                     )}
 
                     {/* Open in Drive / Tab */}
-                    <a
-                      href={currentImg.downloadUrl || currentImg.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition"
-                      title="Open full file in new browser tab / Google Drive"
-                    >
-                      <Icon name="external-link" size={13} />
-                      <span className="hidden sm:inline">Open Drive</span>
-                    </a>
+                    {(currentImg.downloadUrl || currentImg.url) && (
+                      <a
+                        href={currentImg.downloadUrl || currentImg.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition"
+                        title="Open full file in new browser tab / Google Drive"
+                      >
+                        <Icon name="external-link" size={13} />
+                        <span className="hidden sm:inline">Open Drive</span>
+                      </a>
+                    )}
 
                     {/* Close */}
                     <button
                       type="button"
                       onClick={() => setLightboxData(null)}
                       className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl transition cursor-pointer"
-                      title="Close preview"
+                      title="Close preview (Esc)"
                     >
                       <Icon name="x" size={18} />
                     </button>
@@ -1682,7 +1707,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                         } else if (currentImg.downloadUrl && target.src !== currentImg.downloadUrl) {
                           target.src = currentImg.downloadUrl;
                         } else if (currentImg.embedUrl) {
-                          setLightboxData({ ...lightboxData, useEmbed: true });
+                          setLightboxData(prev => prev ? { ...prev, useEmbed: true } : null);
                         }
                       }}
                     />
@@ -1692,13 +1717,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                   {hasMultiple && (
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLightboxData({
-                          ...lightboxData,
-                          activeIndex: (lightboxData.activeIndex - 1 + lightboxData.images.length) % lightboxData.images.length
-                        });
-                      }}
+                      onClick={handlePrev}
                       className="absolute left-3 top-1/2 -translate-y-1/2 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-2xl backdrop-blur-md transition-all shadow-xl cursor-pointer hover:scale-110 active:scale-95"
                       title="Previous Photo (Left Arrow)"
                     >
@@ -1710,13 +1729,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                   {hasMultiple && (
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLightboxData({
-                          ...lightboxData,
-                          activeIndex: (lightboxData.activeIndex + 1) % lightboxData.images.length
-                        });
-                      }}
+                      onClick={handleNext}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-2xl backdrop-blur-md transition-all shadow-xl cursor-pointer hover:scale-110 active:scale-95"
                       title="Next Photo (Right Arrow)"
                     >
@@ -1728,26 +1741,27 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                 {/* Footer Thumbnail Carousel Strip */}
                 {hasMultiple && (
                   <div className="px-4 py-3 bg-slate-950 border-t border-slate-800/80 flex items-center justify-center gap-2 overflow-x-auto">
-                    {lightboxData.images.map((img: any, idx: number) => {
-                      const isActive = idx === lightboxData.activeIndex;
+                    {validImages.map((img: any, idx: number) => {
+                      const isActive = idx === safeIndex;
+                      const thumbUrl = typeof img === 'object' ? (img.previewUrl || img.url) : String(img);
                       return (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => setLightboxData({ ...lightboxData, activeIndex: idx })}
-                          className={`relative rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all ${
+                          onClick={() => setLightboxData(prev => prev ? { ...prev, activeIndex: idx } : null)}
+                          className={`relative rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
                             isActive
                               ? 'border-indigo-500 scale-105 shadow-md shadow-indigo-500/20'
                               : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
                           }`}
                         >
                           <img
-                            src={img.previewUrl || img.url}
-                            alt={`Thumb ${idx + 1}`}
+                            src={thumbUrl}
+                            alt={(typeof img === 'object' ? img.name : null) || `Thumb ${idx + 1}`}
                             referrerPolicy="no-referrer"
                             className="w-12 h-12 object-cover"
                             onError={(e) => {
-                              if (img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
+                              if (typeof img === 'object' && img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
                             }}
                           />
                           <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] font-black text-white text-center py-0.5">

@@ -1985,6 +1985,11 @@ async function startServer() {
     }
   });
 
+  // In-memory cache for proxied Google Drive images (Key: driveId, Value: { buffer, contentType, timestamp })
+  const driveImageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
+  const MAX_CACHE_ITEMS = 200;
+  const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+
   // Google Drive & Cloud Image Proxy Endpoint
   app.get("/api/drive-proxy", async (req, res) => {
     try {
@@ -2005,6 +2010,16 @@ async function startServer() {
         return res.status(400).send("Missing Google Drive file ID or URL parameter.");
       }
 
+      // Check In-Memory Cache for instant sub-millisecond response
+      const cached = driveImageCache.get(driveId);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        res.setHeader("Content-Type", cached.contentType);
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("X-Cache", "HIT");
+        return res.send(cached.buffer);
+      }
+
       const candidateUrls = [
         `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`,
         `https://lh3.googleusercontent.com/d/${driveId}=s1600`,
@@ -2015,7 +2030,7 @@ async function startServer() {
       for (const targetUrl of candidateUrls) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
 
           const response = await fetch(targetUrl, {
             headers: {
@@ -2032,10 +2047,19 @@ async function startServer() {
             if (contentType.startsWith("image/") || contentType.includes("octet-stream") || contentType.includes("binary")) {
               const arrayBuffer = await response.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
+              const resolvedContentType = contentType.startsWith("image/") ? contentType : "image/jpeg";
 
-              res.setHeader("Content-Type", contentType.startsWith("image/") ? contentType : "image/jpeg");
-              res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+              // Store in LRU cache
+              if (driveImageCache.size >= MAX_CACHE_ITEMS) {
+                const oldestKey = driveImageCache.keys().next().value;
+                if (oldestKey) driveImageCache.delete(oldestKey);
+              }
+              driveImageCache.set(driveId, { buffer, contentType: resolvedContentType, timestamp: Date.now() });
+
+              res.setHeader("Content-Type", resolvedContentType);
+              res.setHeader("Cache-Control", "public, max-age=604800, immutable");
               res.setHeader("Access-Control-Allow-Origin", "*");
+              res.setHeader("X-Cache", "MISS");
               return res.send(buffer);
             }
           }
