@@ -2,8 +2,8 @@ import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbys-OIP2ID4a25uNOEkhhb3nbvj3_T1Err0JXy8GGcP6eNcwz0Op9TkNeaQQRxQHxca6Q/exec";
-export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
+export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbxdZEi_IiiQcMYvs_u-Dm5PkHgSf4wXBal7g3FXxH0EGTYuaCaSbwSWtO0qAi6P2J-o/exec";
+export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 // Helper to generate UUIDs client-side
 function generateUuid() {

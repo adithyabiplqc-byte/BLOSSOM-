@@ -236,6 +236,69 @@ export const sheetsService = {
       initial = OFFLINE_SEED_WORKORDERS;
     } else if (sheetName === 'SETTINGS' || sheetName === 'GLOBAL') {
       initial = mapDefaultSettingsToRows();
+    } else if (sheetName === 'CUSTOMER_COMPLAINTS' || sheetName === 'CUSTOMER COMPLAINTS') {
+      initial = [
+        {
+          id: "cc-demo-101",
+          dateTime: "2026-06-18T10:30",
+          customerName: "Trendline Garments & Retail Ltd",
+          style: "Polo Shirt - Summer Collection",
+          size: "M",
+          complaintDetails: "Collar seam unraveled after single wear, with minor drop stitch hole near right shoulder join.",
+          pcsCount: 3,
+          immediateAction: "Replaced customer piece from reserve stock and segregated batch.",
+          rootCause: "Improper needle tension on Line-1 machine M-01 during morning shift.",
+          correctiveAction: "Re-calibrated feed-dog and changed needle size to 11/75 Ballpoint.",
+          pendingAction: "100% audit of remaining 250 pcs in warehouse.",
+          effectiveAfterThreeMonths: "Implemented weekly machine tension calibration checklist.",
+          closedOn: "",
+          status: "OPEN",
+          createdBy: "ADITHYA",
+          zone: "ALL",
+          timestamp: "2026-06-18T10:30:00.000Z",
+          images: [
+            {
+              name: "Collar_Defect_CloseUp.jpg",
+              url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80",
+              previewUrl: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80",
+              downloadUrl: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80"
+            },
+            {
+              name: "Shoulder_Stitch_Defect.jpg",
+              url: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80",
+              previewUrl: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80",
+              downloadUrl: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80"
+            }
+          ]
+        },
+        {
+          id: "cc-demo-102",
+          dateTime: "2026-06-19T14:15",
+          customerName: "CityStyle Apparel Co.",
+          style: "Crewneck T-Shirt Classic",
+          size: "L",
+          complaintDetails: "Color bleeding observed on contrasting rib band after initial cold wash.",
+          pcsCount: 5,
+          immediateAction: "Issued immediate credit note and recalled remaining display samples.",
+          rootCause: "Dye fixation chemical ratio deviation in supplier lot BL-9878.",
+          correctiveAction: "Returned affected fabric rolls to supplier and enforced wash fastness test protocol.",
+          pendingAction: "Supplier credit settlement confirmation.",
+          effectiveAfterThreeMonths: "Mandatory 4-grade wash fastness test report before cutting approval.",
+          closedOn: "2026-06-25T11:00",
+          status: "CLOSED",
+          createdBy: "ADITHYA",
+          zone: "ALL",
+          timestamp: "2026-06-19T14:15:00.000Z",
+          images: [
+            {
+              name: "Rib_Band_Shading.jpg",
+              url: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80",
+              previewUrl: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80",
+              downloadUrl: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80"
+            }
+          ]
+        }
+      ];
     } else if (sheetName === 'INLINE' || sheetName === 'SEWING_DEFECT') {
       initial = [
         {
@@ -439,7 +502,12 @@ export const sheetsService = {
   saveOfflineData(sheetName: string, record: any) {
     const key = `bqos_local_sheet_${sheetName}`;
     const current = this.getOfflineData(sheetName);
-    current.push(record);
+    const existingIdx = current.findIndex(item => String(item.id || item.workorderNumber || item.userCode) === String(record.id || record.workorderNumber || record.userCode));
+    if (existingIdx !== -1) {
+      current[existingIdx] = { ...current[existingIdx], ...record };
+    } else {
+      current.unshift(record);
+    }
     localStorage.setItem(key, JSON.stringify(current));
   },
 
@@ -730,7 +798,7 @@ export const sheetsService = {
       const synonymsMap: { [key: string]: string[] } = {
         'USERS': ['USERS'],
         'CUSTOMER_COMPLAINTS': [
-          'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'CUSTOMER COMPLAINT', 'CUSTOMER_COMPLAINT',
+          'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'CUSTOMER COMPLAINT', 'CUSTOMER_COMPLAINT', 'CUSTOMER COMPLAINT REGISTER',
           'CUSTOMER_COMPLAINTS - KERALA', 'CUSTOMER COMPLAINTS - KERALA',
           'CUSTOMER_COMPLAINTS - TIRUPUR', 'CUSTOMER COMPLAINTS - TIRUPUR',
           'CUSTOMER_COMPLAINTS - BANGLORE', 'CUSTOMER COMPLAINTS - BANGLORE'
@@ -775,12 +843,68 @@ export const sheetsService = {
 
       for (const title of matchingTitles) {
         try {
-          const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z5000`);
-          if (!data.values || data.values.length < 2) continue;
+          let headers: string[] = [];
+          let rowValues: any[][] = [];
 
-          const headers: string[] = data.values[0];
-          for (let i = 1; i < data.values.length; i++) {
-            const row = data.values[i];
+          // 1. Try fetching with grid data to extract rich-text hyperlinks from cells
+          try {
+            const gridData = await this.request(`${spreadsheetId}?ranges=${encodeURIComponent(title)}!A1:Z5000&fields=sheets(data(rowData(values(formattedValue,hyperlink,userEnteredValue,textFormatRuns))))`);
+            const rowData = gridData?.sheets?.[0]?.data?.[0]?.rowData;
+            if (Array.isArray(rowData) && rowData.length >= 2) {
+              const headerCells = rowData[0].values || [];
+              headers = headerCells.map((c: any) => String(c?.formattedValue || c?.userEnteredValue?.stringValue || '').trim()).filter(Boolean);
+              
+              if (headers.length > 0) {
+                for (let i = 1; i < rowData.length; i++) {
+                  const cells = rowData[i].values || [];
+                  const rowArr: any[] = [];
+                  let hasAnyVal = false;
+                  for (let j = 0; j < headers.length; j++) {
+                    const cell = cells[j];
+                    if (!cell) {
+                      rowArr.push('');
+                      continue;
+                    }
+                    const linkUri = cell.hyperlink || cell.textFormatRuns?.find((r: any) => r?.format?.link?.uri)?.format?.link?.uri;
+                    let cellVal: any = '';
+                    if (cell.userEnteredValue?.formulaValue) {
+                      cellVal = cell.userEnteredValue.formulaValue;
+                    } else if (linkUri) {
+                      cellVal = `=HYPERLINK("${linkUri}", "${cell.formattedValue || cell.userEnteredValue?.stringValue || 'Image'}")`;
+                    } else if (cell.userEnteredValue?.stringValue !== undefined) {
+                      cellVal = cell.userEnteredValue.stringValue;
+                    } else if (cell.formattedValue !== undefined) {
+                      cellVal = cell.formattedValue;
+                    } else if (cell.userEnteredValue?.numberValue !== undefined) {
+                      cellVal = cell.userEnteredValue.numberValue;
+                    } else if (cell.userEnteredValue?.boolValue !== undefined) {
+                      cellVal = cell.userEnteredValue.boolValue;
+                    }
+                    if (cellVal !== '' && cellVal !== null && cellVal !== undefined) {
+                      hasAnyVal = true;
+                    }
+                    rowArr.push(cellVal);
+                  }
+                  if (hasAnyVal) {
+                    rowValues.push(rowArr);
+                  }
+                }
+              }
+            }
+          } catch (gridErr) {
+            // Silently fallback to values.get
+          }
+
+          // 2. Fallback to standard values.get if grid fetch was not available
+          if (headers.length === 0 || rowValues.length === 0) {
+            const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z5000?valueRenderOption=FORMULA`);
+            if (!data.values || data.values.length < 2) continue;
+            headers = data.values[0];
+            rowValues = data.values.slice(1);
+          }
+
+          for (let i = 0; i < rowValues.length; i++) {
+            const row = rowValues[i];
             const record: any = {};
             for (let j = 0; j < headers.length; j++) {
               const header = headers[j];
@@ -874,10 +998,17 @@ export const sheetsService = {
                 normKey === 'photos' ||
                 normKey === 'photo' ||
                 normKey === 'evidence' ||
+                normKey === 'attachments' ||
+                normKey === 'attachment' ||
                 normKey === 'complaintimages' ||
-                normKey === 'complaintphotos'
+                normKey === 'complaintphotos' ||
+                normKey.includes('image') ||
+                normKey.includes('photo') ||
+                normKey.includes('attach') ||
+                normKey.includes('evidence')
               ) {
                 record['images'] = val;
+                record['ATTACHED IMAGES'] = val;
               }
             }
 
@@ -934,7 +1065,7 @@ export const sheetsService = {
 
   async saveData(sheetName: string, record: any): Promise<{ success: boolean }> {
     const isRegistry = ['USERS', 'WORKORDER', 'SETTINGS', 'ZONE', 'UNIT', 'ADMIN'].includes(sheetName.toUpperCase().trim());
-    if (!isRegistry) {
+    if (!record.id && !isRegistry) {
       record.id = generateUuid();
     }
 

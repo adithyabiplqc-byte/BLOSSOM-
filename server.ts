@@ -7,8 +7,8 @@ const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 
-const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbys-OIP2ID4a25uNOEkhhb3nbvj3_T1Err0JXy8GGcP6eNcwz0Op9TkNeaQQRxQHxca6Q/exec";
-const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyJynZmlCoRtJhBRNgPIkwZ47lLeXnNuH3BdEf5XzpgXQjI-CkFhY6Ah43gNwD2j1I0Bg/exec";
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbxdZEi_IiiQcMYvs_u-Dm5PkHgSf4wXBal7g3FXxH0EGTYuaCaSbwSWtO0qAi6P2J-o/exec";
+const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 const HARDCODED_GAS_URLS = [USER_SHEET_URL];
 const HARDCODED_GAS_URL = USER_SHEET_URL;
@@ -182,6 +182,7 @@ function readLocalDb(): any {
           parsed.final_reports = parsed.final_reports || [];
           parsed.rework_reports = parsed.rework_reports || [];
           parsed.reports_sop = parsed.reports_sop || [];
+          parsed.customer_complaints = parsed.customer_complaints || [];
           parsed.zone = parsed.zone || [];
           parsed.settings = parsed.settings || {};
           parsed.admin_logs = parsed.admin_logs || [];
@@ -733,6 +734,68 @@ function readLocalDb(): any {
     ] as any[],
     rework_reports: [] as any[],
     reports_sop: [] as any[],
+    customer_complaints: [
+      {
+        id: "cc-demo-101",
+        dateTime: "2026-06-18T10:30",
+        customerName: "Trendline Garments & Retail Ltd",
+        style: "Polo Shirt - Summer Collection",
+        size: "M",
+        complaintDetails: "Collar seam unraveled after single wear, with minor drop stitch hole near right shoulder join.",
+        pcsCount: 3,
+        immediateAction: "Replaced customer piece from reserve stock and segregated batch.",
+        rootCause: "Improper needle tension on Line-1 machine M-01 during morning shift.",
+        correctiveAction: "Re-calibrated feed-dog and changed needle size to 11/75 Ballpoint.",
+        pendingAction: "100% audit of remaining 250 pcs in warehouse.",
+        effectiveAfterThreeMonths: "Implemented weekly machine tension calibration checklist.",
+        closedOn: "",
+        status: "OPEN",
+        createdBy: "admin",
+        zone: "KERALA",
+        timestamp: "2026-06-18T10:30:00.000Z",
+        images: [
+          {
+            name: "Collar_Defect_CloseUp.jpg",
+            url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80",
+            previewUrl: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80",
+            downloadUrl: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=1000&auto=format&fit=crop&q=80"
+          },
+          {
+            name: "Shoulder_Stitch_Defect.jpg",
+            url: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80",
+            previewUrl: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80",
+            downloadUrl: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1000&auto=format&fit=crop&q=80"
+          }
+        ]
+      },
+      {
+        id: "cc-demo-102",
+        dateTime: "2026-06-19T14:15",
+        customerName: "CityStyle Apparel Co.",
+        style: "Crewneck T-Shirt Classic",
+        size: "L",
+        complaintDetails: "Color bleeding observed on contrasting rib band after initial cold wash.",
+        pcsCount: 5,
+        immediateAction: "Issued immediate credit note and recalled remaining display samples.",
+        rootCause: "Dye fixation chemical ratio deviation in supplier lot BL-9878.",
+        correctiveAction: "Returned affected fabric rolls to supplier and enforced wash fastness test protocol.",
+        pendingAction: "Supplier credit settlement confirmation.",
+        effectiveAfterThreeMonths: "Mandatory 4-grade wash fastness test report before cutting approval.",
+        closedOn: "2026-06-25T11:00",
+        status: "CLOSED",
+        createdBy: "admin",
+        zone: "KERALA",
+        timestamp: "2026-06-19T14:15:00.000Z",
+        images: [
+          {
+            name: "Rib_Band_Shading.jpg",
+            url: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80",
+            previewUrl: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80",
+            downloadUrl: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1000&auto=format&fit=crop&q=80"
+          }
+        ]
+      }
+    ] as any[],
     zone: [
       { id: "zmap-1", zone: "KERALA", unit: "UNIT A", worker: "JOHN DOE", timestamp: new Date().toISOString() },
       { id: "zmap-2", zone: "KERALA", unit: "UNIT A", worker: "JANE SMITH", timestamp: new Date().toISOString() }
@@ -1922,6 +1985,73 @@ async function startServer() {
     }
   });
 
+  // Google Drive & Cloud Image Proxy Endpoint
+  app.get("/api/drive-proxy", async (req, res) => {
+    try {
+      let driveId = String(req.query.id || req.query.driveId || "").trim();
+      const rawUrl = String(req.query.url || "").trim();
+
+      if (!driveId && rawUrl) {
+        const matchD = rawUrl.match(/\/d\/([a-zA-Z0-9_-]{20,})/i);
+        const matchId = rawUrl.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+        const matchLh3 = rawUrl.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]{20,})/i);
+        driveId = (matchD && matchD[1]) || (matchId && matchId[1]) || (matchLh3 && matchLh3[1]) || "";
+        if (!driveId && /^[a-zA-Z0-9_-]{20,60}$/.test(rawUrl)) {
+          driveId = rawUrl;
+        }
+      }
+
+      if (!driveId) {
+        return res.status(400).send("Missing Google Drive file ID or URL parameter.");
+      }
+
+      const candidateUrls = [
+        `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`,
+        `https://lh3.googleusercontent.com/d/${driveId}=s1600`,
+        `https://drive.google.com/uc?export=download&id=${driveId}`,
+        `https://drive.google.com/uc?export=view&id=${driveId}`
+      ];
+
+      for (const targetUrl of candidateUrls) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+          const response = await fetch(targetUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+            },
+            redirect: "follow",
+            signal: controller.signal as any
+          });
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const contentType = response.headers.get("content-type") || "";
+            if (contentType.startsWith("image/") || contentType.includes("octet-stream") || contentType.includes("binary")) {
+              const arrayBuffer = await response.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+
+              res.setHeader("Content-Type", contentType.startsWith("image/") ? contentType : "image/jpeg");
+              res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              return res.send(buffer);
+            }
+          }
+        } catch (fetchErr) {
+          // try next candidate URL
+        }
+      }
+
+      // Fallback redirect to direct thumbnail if server proxy fails
+      return res.redirect(`https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`);
+    } catch (err: any) {
+      console.error("[DRIVE PROXY] Error proxying Google Drive file:", err);
+      res.status(500).send("Failed to proxy image");
+    }
+  });
+
   app.post("/api/save-config", async (req, res) => {
     const { url, spreadsheetId, driveUrl } = req.body;
     
@@ -2097,9 +2227,9 @@ async function startServer() {
         clearApiReadCache();
       }
       
-      // Direct routing of SOP and PDF actions to Google Sheets/Drive with self-healing local database & file system fallback
-      if (['api_uploadSOPFile', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData'].includes(action)) {
-        console.log(`[API PROXY] Routing SOP action "${action}" with permanent cloud and local fallback...`);
+      // Direct routing of SOP, PDF, and Customer Complaint actions to Google Sheets/Drive with self-healing local database & file system fallback
+      if (['api_uploadSOPFile', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData', 'api_getCustomerComplaints', 'api_saveCustomerComplaint', 'api_deleteCustomerComplaint', 'api_clearCustomerComplaints', 'api_clearAllCustomerComplaints'].includes(action)) {
+        console.log(`[API PROXY] Routing action "${action}" with permanent cloud and local fallback...`);
         
         let appsScriptSuccess = false;
         let appsScriptResult: any = null;
@@ -2170,7 +2300,7 @@ async function startServer() {
 
         if (appsScriptSuccess) {
           // Sync deletion and saving locally as well to ensure local DB and Google Sheets are in perfect sync
-          if (action === 'api_deleteREPORTS_SOP' || action === 'api_saveREPORTS_SOP') {
+          if (action === 'api_deleteREPORTS_SOP' || action === 'api_saveREPORTS_SOP' || action === 'api_saveCustomerComplaint' || action === 'api_deleteCustomerComplaint' || action === 'api_clearCustomerComplaints' || action === 'api_clearAllCustomerComplaints') {
             try {
               executeLocalAction(action, bodyPayload.params || []);
             } catch (err) {}

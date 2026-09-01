@@ -659,7 +659,16 @@ function getDataFromSheet(sheetName) {
     const sheet = findExistingSheetBySynonym(sheetName) || ss.getSheetByName(sheetName);
     if (!sheet || sheet.getLastRow() < 2) return [];
     
-    const values = sheet.getDataRange().getValues();
+    const range = sheet.getDataRange();
+    const values = range.getValues();
+    const formulas = range.getFormulas();
+    let richTextValues = null;
+    try {
+      if (typeof range.getRichTextValues === 'function') {
+        richTextValues = range.getRichTextValues();
+      }
+    } catch (rtErr) {}
+    
     const headers = values[0];
     const data = [];
     
@@ -668,10 +677,25 @@ function getDataFromSheet(sheetName) {
       for (let j = 0; j < headers.length; j++) {
         var header = headers[j];
         var val = values[i][j];
+        var formula = formulas && formulas[i] ? formulas[i][j] : "";
         var cellVal = val;
+        
+        // Preserve HYPERLINK formulas and embedded URLs so image previews never break
+        if (formula && typeof formula === 'string' && formula.toUpperCase().indexOf('HYPERLINK') !== -1) {
+          cellVal = formula;
+        } else if (richTextValues && richTextValues[i] && richTextValues[i][j]) {
+          try {
+            var rt = richTextValues[i][j];
+            var linkUrl = rt.getLinkUrl ? rt.getLinkUrl() : null;
+            if (linkUrl) {
+              cellVal = '=HYPERLINK("' + linkUrl + '", "' + (val || 'Photo') + '")';
+            }
+          } catch(e) {}
+        }
+        
         try {
-          if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
-            cellVal = JSON.parse(val);
+          if (typeof cellVal === 'string' && (cellVal.startsWith('{') || cellVal.startsWith('['))) {
+            cellVal = JSON.parse(cellVal);
           }
         } catch (e) {}
         
@@ -754,6 +778,19 @@ function getDataFromSheet(sheetName) {
         if (normKey === 'complaintpcs' || normKey === 'failqty' || normKey === 'failedpieces') {
           obj['complaintPcs'] = parseInt(cellVal, 10) || 0;
           obj['failQty'] = parseInt(cellVal, 10) || 0;
+        }
+        if (
+          normKey === 'images' ||
+          normKey === 'image' ||
+          normKey === 'attachedimages' ||
+          normKey === 'attachedimage' ||
+          normKey === 'photos' ||
+          normKey === 'photo' ||
+          normKey === 'evidence' ||
+          normKey === 'complaintimages' ||
+          normKey === 'complaintphotos'
+        ) {
+          obj['images'] = cellVal;
         }
       }
       let isRowEmpty = true;

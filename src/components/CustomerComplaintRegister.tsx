@@ -3,6 +3,7 @@ import Icon from './Icon';
 import { api } from '../services/api';
 import { flexibleSearchMatch } from '../utils/search';
 import { getDirectImageUrl, parseAndNormalizeImages } from '../utils/imageUtils';
+import SmartImage from './SmartImage';
 
 interface CustomerComplaintRegisterProps {
   user: any;
@@ -65,7 +66,12 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
   const [activeTab, setActiveTab] = useState<'form' | 'list'>(mode === 'view' ? 'list' : 'form');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL');
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxData, setLightboxData] = useState<{
+    images: any[];
+    activeIndex: number;
+    title?: string;
+    useEmbed?: boolean;
+  } | null>(null);
 
   // Form State initialized with defaults
   const [form, setForm] = useState({
@@ -85,12 +91,26 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
   });
 
   // Fetch complaints on load or zone change
-  const fetchComplaints = async () => {
+  const fetchComplaints = async (forceRefresh = false) => {
+    if (forceRefresh) {
+      api.clearCache('api_getCustomerComplaints');
+      api.clearCache();
+    }
     setLoading(true);
     try {
       const res = await api.run('api_getCustomerComplaints', { zone: globalZone });
       if (Array.isArray(res)) {
-        setComplaints(res);
+        const normalized = res.map(r => {
+          let parsed = parseAndNormalizeImages(r.images);
+          if (parsed.length === 0) {
+            parsed = parseAndNormalizeImages(r);
+          }
+          return {
+            ...r,
+            images: parsed
+          };
+        });
+        setComplaints(normalized);
       } else {
         setComplaints([]);
       }
@@ -218,7 +238,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
       pendingAction: record.pendingAction || '',
       effectiveAfterThreeMonths: record.effectiveAfterThreeMonths || 'Pending Evaluation',
       closedOn: record.closedOn || '',
-      images: Array.isArray(record.images) ? record.images : [],
+      images: parseAndNormalizeImages(record.images || (record as any)['ATTACHED IMAGES'] || (record as any)['attachedImages'] || (record as any)['ATTACHED_IMAGES'] || (record as any).image || (record as any).photos || (record as any).photo || (record as any).attachments || (record as any).attachment || record),
     });
     setActiveTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -316,9 +336,11 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
       const res = await api.run('api_saveCustomerComplaint', payload) as any;
 
       if (res && res.success !== false) {
+        api.clearCache('api_getCustomerComplaints');
+        api.clearCache();
         triggerSuccess(editingId ? "COMPLAINT RECORD UPDATED SUCCESSFULLY" : "NEW CUSTOMER COMPLAINT REGISTERED SUCCESSFULLY");
         resetForm();
-        await fetchComplaints();
+        await fetchComplaints(true);
         if (refreshData) refreshData();
         setActiveTab('list');
       } else {
@@ -665,16 +687,29 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
             {form.images.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-2">
                 {form.images.map((img, idx) => {
-                  const previewSrc = getDirectImageUrl(img.url);
+                  const normalized = parseAndNormalizeImages(form.images);
                   return (
-                    <div key={idx} className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                      <img
-                        src={previewSrc || img.url}
-                        alt={img.name || `Photo ${idx + 1}`}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-24 object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                        onClick={() => setLightboxImage(previewSrc || img.url)}
-                      />
+                    <div key={idx} className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between">
+                      <div
+                        className="w-full h-24 cursor-pointer overflow-hidden relative"
+                        onClick={() => {
+                          setLightboxData({
+                            images: normalized,
+                            activeIndex: idx,
+                            title: img.name || `Photo ${idx + 1}`
+                          });
+                        }}
+                      >
+                        <SmartImage
+                          image={img}
+                          alt={img.name || `Photo ${idx + 1}`}
+                          className="w-full h-full"
+                          imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-indigo-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity z-20 pointer-events-none">
+                          <Icon name="eye" size={16} />
+                        </div>
+                      </div>
                       <div className="p-1.5 flex items-center justify-between text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white/90 dark:bg-slate-900/90 border-t border-slate-100 dark:border-slate-800">
                         <span className="truncate max-w-[70%]">{img.name || `Photo ${idx + 1}`}</span>
                         {img.isPendingUpload ? (
@@ -685,8 +720,11 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleRemoveImage(idx)}
-                        className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full opacity-90 hover:opacity-100 transition shadow-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveImage(idx);
+                        }}
+                        className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full opacity-90 hover:opacity-100 transition shadow-sm z-30"
                         title="Remove image from form"
                       >
                         <Icon name="x" size={12} />
@@ -774,6 +812,19 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                   </button>
                 ))}
               </div>
+
+              {/* Refresh Button */}
+              <button
+                type="button"
+                id="complaints-list-refresh-btn"
+                onClick={() => fetchComplaints(true)}
+                disabled={loading}
+                title="Refresh and sync complaints data from server"
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition disabled:opacity-50"
+              >
+                <Icon name="refresh-cw" size={13} className={loading ? "animate-spin text-indigo-600" : ""} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
             </div>
           </div>
 
@@ -848,36 +899,68 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                         </td>
                         <td className="p-3 whitespace-nowrap">
                           {(() => {
-                            const rowImgs = parseAndNormalizeImages(row.images || row['ATTACHED IMAGES'] || row['attachedImages'] || row['ATTACHED_IMAGES'] || row.image || row.photos || row);
+                            const rowImgs = parseAndNormalizeImages(Array.isArray(row.images) && row.images.length > 0 ? row.images : row);
                             if (rowImgs.length === 0) {
-                              return <span className="text-[10px] text-slate-400 font-bold">No images</span>;
+                              return (
+                                <span className="text-[10px] text-slate-400 font-bold italic px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                                  No photos
+                                </span>
+                              );
                             }
                             return (
                               <div className="flex items-center gap-1.5">
-                                {rowImgs.slice(0, 4).map((img, i) => (
-                                  <div key={i} className="relative group/thumb">
-                                    <img
-                                      src={img.previewUrl}
-                                      alt={img.name}
-                                      referrerPolicy="no-referrer"
-                                      title={`${img.name} - Click to preview`}
-                                      className="w-10 h-10 rounded-xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer hover:scale-110 transition-transform duration-200 bg-slate-100"
-                                      onClick={() => setLightboxImage(img.previewUrl || img.fallbackUrl || img.downloadUrl || img.url)}
-                                      onError={(e) => {
-                                        const target = e.currentTarget;
-                                        if (img.fallbackUrl && target.src !== img.fallbackUrl) {
-                                          target.src = img.fallbackUrl;
-                                        } else if (img.downloadUrl && target.src !== img.downloadUrl) {
-                                          target.src = img.downloadUrl;
-                                        }
-                                      }}
-                                    />
+                                <button
+                                  type="button"
+                                  onClick={() => setLightboxData({
+                                    images: rowImgs,
+                                    activeIndex: 0,
+                                    title: `${row.customerName || 'Customer Complaint'} - Photos`,
+                                    useEmbed: false
+                                  })}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[10px] font-black uppercase tracking-wider transition shadow-sm cursor-pointer hover:scale-105 active:scale-95 flex-shrink-0"
+                                  title="Preview attached complaint photos in full lightbox"
+                                >
+                                  <Icon name="eye" size={12} className="text-indigo-600 dark:text-indigo-400" />
+                                  <span>{rowImgs.length === 1 ? 'Preview' : `View (${rowImgs.length})`}</span>
+                                </button>
+                                {rowImgs.slice(0, 3).map((img, i) => (
+                                  <div key={i} className="relative group/thumb flex-shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setLightboxData({
+                                        images: rowImgs,
+                                        activeIndex: i,
+                                        title: `${row.customerName || 'Customer Complaint'} - Photo ${i + 1}`,
+                                        useEmbed: false
+                                      })}
+                                      className="relative block w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 transition-all duration-200 bg-slate-100 dark:bg-slate-800"
+                                      title={`${img.name || `Photo ${i + 1}`} - Click to preview`}
+                                    >
+                                      <SmartImage
+                                        image={img}
+                                        alt={img.name || `Photo ${i + 1}`}
+                                        className="w-full h-full"
+                                        imgClassName="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-200"
+                                      />
+                                      <div className="absolute inset-0 bg-indigo-950/60 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity text-white z-20 pointer-events-none">
+                                        <Icon name="eye" size={13} className="text-white drop-shadow" />
+                                      </div>
+                                    </button>
                                   </div>
                                 ))}
-                                {rowImgs.length > 4 && (
-                                  <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg px-1.5 py-1 border border-indigo-200">
-                                    +{rowImgs.length - 4}
-                                  </span>
+                                {rowImgs.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightboxData({
+                                      images: rowImgs,
+                                      activeIndex: 3,
+                                      title: `${row.customerName || 'Customer Complaint'} - All Photos`,
+                                      useEmbed: false
+                                    })}
+                                    className="text-[9px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg px-1.5 py-1 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer"
+                                  >
+                                    +{rowImgs.length - 3}
+                                  </button>
                                 )}
                               </div>
                             );
@@ -987,37 +1070,67 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
             {/* Images Gallery */}
             {(() => {
               const modalImgs = parseAndNormalizeImages(selectedRecord.images || selectedRecord['ATTACHED IMAGES'] || selectedRecord['attachedImages'] || selectedRecord['ATTACHED_IMAGES'] || selectedRecord.image || selectedRecord.photos || selectedRecord);
-              if (modalImgs.length === 0) return null;
+              if (modalImgs.length === 0) {
+                return (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
+                    <Icon name="image" size={24} className="mx-auto text-slate-400" />
+                    <p className="text-xs text-slate-400 font-bold italic">
+                      No photo evidence attached to this complaint record yet.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rec = selectedRecord;
+                        setSelectedRecord(null);
+                        handleEditRecord(rec);
+                      }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 transition"
+                    >
+                      <Icon name="camera" size={13} />
+                      <span>+ Attach Photos to this Complaint</span>
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <div className="space-y-2 pt-2">
-                  <h4 className="font-black text-xs uppercase tracking-wider text-slate-500">13) Attached Photo Evidence ({modalImgs.length})</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-xs uppercase tracking-wider text-slate-500">13) Attached Photo Evidence ({modalImgs.length})</h4>
+                    <button
+                      type="button"
+                      onClick={() => setLightboxData({
+                        images: modalImgs,
+                        activeIndex: 0,
+                        title: `${selectedRecord.customerName || 'Complaint'} - All Photos`,
+                        useEmbed: false
+                      })}
+                      className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase flex items-center gap-1"
+                    >
+                      <Icon name="eye" size={11} />
+                      View All in Fullscreen
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {modalImgs.map((img, i) => (
                       <div key={i} className="group relative bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-                        <div className="relative overflow-hidden aspect-video bg-slate-200 dark:bg-slate-900">
-                          <img
-                            src={img.previewUrl}
+                        <div
+                          className="relative overflow-hidden aspect-video bg-slate-200 dark:bg-slate-900 cursor-pointer"
+                          onClick={() => setLightboxData({
+                            images: modalImgs,
+                            activeIndex: i,
+                            title: `${selectedRecord.customerName || 'Complaint'} - Photo ${i + 1} of ${modalImgs.length}`,
+                            useEmbed: false
+                          })}
+                        >
+                          <SmartImage
+                            image={img}
                             alt={img.name}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-28 object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
-                            onClick={() => setLightboxImage(img.previewUrl || img.fallbackUrl || img.downloadUrl || img.url)}
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              if (img.fallbackUrl && target.src !== img.fallbackUrl) {
-                                target.src = img.fallbackUrl;
-                              } else if (img.downloadUrl && target.src !== img.downloadUrl) {
-                                target.src = img.downloadUrl;
-                              }
-                            }}
+                            className="w-full h-28"
+                            imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
-                          <button
-                            type="button"
-                            onClick={() => setLightboxImage(img.previewUrl)}
-                            className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity duration-200"
-                            title="Enlarge Image"
-                          >
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity duration-200 z-20">
                             <Icon name="maximize-2" size={18} />
-                          </button>
+                          </div>
                         </div>
                         <div className="p-2 flex items-center justify-between text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
                           <span className="truncate max-w-[70%]" title={img.name}>{img.name}</span>
@@ -1064,23 +1177,175 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
         </div>
       )}
 
-      {/* LIGHTBOX IMAGE MODAL */}
-      {lightboxImage && (
-        <div 
-          className="fixed inset-0 z-[1000] bg-black/90 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden">
-            <img src={lightboxImage} alt="Enlarged evidence" className="max-w-full max-h-[85vh] object-contain rounded-xl mx-auto" />
-            <button
-              onClick={() => setLightboxImage(null)}
-              className="absolute top-2 right-2 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full transition"
+      {/* RICH CAROUSEL LIGHTBOX MODAL */}
+      {lightboxData && lightboxData.images.length > 0 && (() => {
+        const total = lightboxData.images.length;
+        const currentIdx = Math.min(Math.max(0, lightboxData.activeIndex), total - 1);
+        const currentImg = lightboxData.images[currentIdx];
+
+        const goNext = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          setLightboxData(prev => prev ? { ...prev, activeIndex: (prev.activeIndex + 1) % total } : null);
+        };
+
+        const goPrev = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          setLightboxData(prev => prev ? { ...prev, activeIndex: (prev.activeIndex - 1 + total) % total } : null);
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-6 select-none animate-fadeIn"
+            onClick={() => setLightboxData(null)}
+          >
+            {/* Header */}
+            <div
+              className="w-full max-w-5xl flex items-center justify-between text-white py-2 z-10"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Icon name="x" size={20} />
-            </button>
+              <div className="flex items-center gap-3">
+                <span className="font-black text-sm tracking-wider uppercase bg-indigo-600/80 px-3 py-1 rounded-full text-white shadow">
+                  Photo {currentIdx + 1} / {total}
+                </span>
+                <span className="text-xs text-slate-300 font-bold max-w-[200px] sm:max-w-md truncate">
+                  {currentImg?.name || lightboxData.title || 'Attached Evidence Photo'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {currentImg?.embedUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxData(prev => prev ? { ...prev, useEmbed: !prev.useEmbed } : null)}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    title="Toggle Google Drive embed viewer"
+                  >
+                    <Icon name="monitor" size={14} />
+                    <span className="hidden sm:inline">{lightboxData.useEmbed ? 'Direct Image' : 'Drive Viewer'}</span>
+                  </button>
+                )}
+                {currentImg && (
+                  <a
+                    href={currentImg.downloadUrl || currentImg.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    title="Open full file in Google Drive"
+                  >
+                    <Icon name="external-link" size={14} />
+                    <span className="hidden sm:inline">Open Drive</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLightboxData(null)}
+                  className="p-2 bg-white/10 hover:bg-white/30 text-white rounded-full transition ml-2"
+                  title="Close (Esc)"
+                >
+                  <Icon name="x" size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Stage */}
+            <div
+              className="relative flex-1 w-full max-w-5xl flex items-center justify-center my-auto overflow-hidden p-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {total > 1 && (
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  className="absolute left-2 sm:left-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95"
+                  title="Previous image"
+                >
+                  <Icon name="chevron-left" size={26} />
+                </button>
+              )}
+
+              <div className="w-full h-full flex items-center justify-center max-h-[75vh]">
+                {lightboxData.useEmbed && currentImg.embedUrl ? (
+                  <iframe
+                    src={currentImg.embedUrl}
+                    title="Google Drive Document Preview"
+                    className="w-full h-full rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl"
+                    allow="autoplay"
+                  />
+                ) : (
+                  <img
+                    src={currentImg.previewUrl || currentImg.url}
+                    alt={currentImg.name || 'Preview'}
+                    referrerPolicy="no-referrer"
+                    className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl transition-all duration-200"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (currentImg.proxyUrl && target.src !== currentImg.proxyUrl && !target.src.includes('/api/drive-proxy')) {
+                        target.src = currentImg.proxyUrl;
+                      } else if (currentImg.fallbackUrl && target.src !== currentImg.fallbackUrl) {
+                        target.src = currentImg.fallbackUrl;
+                      } else if (currentImg.fallbackUrl2 && target.src !== currentImg.fallbackUrl2) {
+                        target.src = currentImg.fallbackUrl2;
+                      } else if (currentImg.downloadUrl && target.src !== currentImg.downloadUrl) {
+                        target.src = currentImg.downloadUrl;
+                      } else if (currentImg.embedUrl) {
+                        setLightboxData(prev => prev ? { ...prev, useEmbed: true } : null);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+
+              {total > 1 && (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="absolute right-2 sm:right-4 z-20 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-full transition shadow-lg hover:scale-110 active:scale-95"
+                  title="Next image"
+                >
+                  <Icon name="chevron-right" size={26} />
+                </button>
+              )}
+            </div>
+
+            {/* Bottom Carousel Filmstrip */}
+            {total > 1 && (
+              <div
+                className="w-full max-w-3xl flex items-center justify-center gap-2 py-2 overflow-x-auto z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {lightboxData.images.map((img: any, idx: number) => {
+                  const isCur = idx === currentIdx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setLightboxData(prev => prev ? { ...prev, activeIndex: idx } : null)}
+                      className={`relative rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                        isCur
+                          ? 'border-indigo-400 scale-110 shadow-lg shadow-indigo-500/50 ring-2 ring-indigo-300'
+                          : 'border-white/20 opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
+                    >
+                      <img
+                        src={img.previewUrl || img.url}
+                        alt={img.name || `Thumb ${idx + 1}`}
+                        referrerPolicy="no-referrer"
+                        className="w-12 h-12 object-cover"
+                        onError={(e) => {
+                          if (img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
+                        }}
+                      />
+                      <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] font-black text-white text-center py-0.5">
+                        {idx + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

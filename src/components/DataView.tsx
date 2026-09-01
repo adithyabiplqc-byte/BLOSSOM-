@@ -6,7 +6,8 @@ import { SUBMODULES, ZONES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { flexibleSearchMatch } from '../utils/search';
-import { getDirectImageUrl, parseAndNormalizeImages } from '../utils/imageUtils';
+import { getDirectImageUrl, parseAndNormalizeImages, resolveIndexedDbImage } from '../utils/imageUtils';
+import SmartImage from './SmartImage';
 
 const HOURLY_ROUNDS = [
   { index: 1, label: '9 TO 10' },
@@ -79,53 +80,32 @@ const normalizeDateToYYYYMMDD = (val: any): string => {
 const DataViewImageItem: React.FC<{
   img: any;
   idx: number;
-  onPreview: (url: string) => void;
+  total?: number;
+  onPreview: () => void;
 }> = ({ img, idx, onPreview }) => {
-  const [failed, setFailed] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState(img.previewUrl || img.url);
-
   return (
     <div className="relative group/img flex-shrink-0">
-      {!failed ? (
-        <button
-          type="button"
-          onClick={() => onPreview(img.downloadUrl || img.previewUrl || img.url)}
-          title={`Click to preview photo: ${img.name}`}
-          className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 transition-all duration-200 bg-slate-100 dark:bg-slate-800 block text-left"
-        >
-          <img
-            src={currentSrc}
-            alt={img.name || `Photo ${idx + 1}`}
-            referrerPolicy="no-referrer"
-            className="w-16 h-16 object-cover group-hover/img:scale-110 transition-transform duration-200"
-            loading="lazy"
-            decoding="async"
-            onError={() => {
-              if (img.fallbackUrl && currentSrc !== img.fallbackUrl) {
-                setCurrentSrc(img.fallbackUrl);
-              } else {
-                setFailed(true);
-              }
-            }}
-          />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-            <Icon name="maximize-2" size={16} className="text-white" />
-          </div>
-        </button>
-      ) : (
-        <a
-          href={img.downloadUrl || img.url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex flex-col items-center justify-center w-16 h-16 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors p-1 text-center group/badge shadow-sm"
-          title={`Click to view attached photo: ${img.name}`}
-        >
-          <Icon name="image" size={18} className="text-indigo-600 dark:text-indigo-400 group-hover/badge:scale-110 transition-transform" />
-          <span className="text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 truncate max-w-full mt-0.5">
-            {img.name || `Photo ${idx + 1}`}
-          </span>
-        </a>
-      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview();
+        }}
+        title={`Click to preview photo: ${img.name || `Photo ${idx + 1}`}`}
+        className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 hover:shadow-md transition-all duration-200 bg-slate-100 dark:bg-slate-800 block text-left group w-12 h-12"
+      >
+        <SmartImage
+          image={img}
+          alt={img.name || `Photo ${idx + 1}`}
+          className="w-full h-full"
+          imgClassName="w-full h-full object-cover"
+        />
+        {/* Eye Icon Badge Overlay */}
+        <div className="absolute inset-0 bg-indigo-950/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white rounded-lg pointer-events-none z-20">
+          <Icon name="eye" size={15} className="text-white drop-shadow animate-pulse" />
+          <span className="text-[7px] font-black uppercase mt-0.5 tracking-tighter text-indigo-200">View</span>
+        </div>
+      </button>
     </div>
   );
 };
@@ -156,7 +136,13 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; row: any }>({ isOpen: false, row: null });
   const [deleting, setDeleting] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxData, setLightboxData] = useState<{
+    images: any[];
+    activeIndex: number;
+    title?: string;
+    useEmbed?: boolean;
+  } | null>(null);
+  const [selectedComplaintDetail, setSelectedComplaintDetail] = useState<any | null>(null);
 
   const exportMatrixToImage = async (mode: 'DOWNLOAD' | 'DRIVE') => {
     const element = document.getElementById('dataview-matrix-board-container');
@@ -246,10 +232,13 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     fetchData();
   }, [id, selectedZone, selectedItem, refreshKey]);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
+    if (forceRefresh) {
+      api.clearCache();
+    }
     setLoading(true);
     setActiveSearch(searchTerm); // Sync active search with term on fetch or button click
-    console.log(`[DataView] Fetching data for id: ${id}`, { selectedZone, selectedItem });
+    console.log(`[DataView] Fetching data for id: ${id}`, { selectedZone, selectedItem, forceRefresh });
     const sheetMapping: { [key: string]: string } = {
       'B1': 'api_getMaterialData',
       'B2': 'api_getCuttingData',
@@ -450,7 +439,31 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         unit: ['unit', 'units'],
         line: ['line', 'lines'],
         worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName'],
-        materialType: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'materialType', 'materialCategory']
+        materialType: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'materialType', 'materialCategory'],
+        customerName: ['customername', 'customer_name', 'customer', 'customerName', 'shop', 'distributor', 'customer_shop_distributor', 'customershopdistributor', 'customer_shop', 'customershop'],
+        complaintDetails: ['complaintdetails', 'complaint_details', 'complaintDetails', 'details_of_complaint', 'detailsofcomplaint', 'complaint', 'details', 'defectdetails', 'defect_details'],
+        pcsCount: ['pcscount', 'pcs_count', 'pcsCount', 'noofpcs', 'no_of_pcs', 'pieces', 'pcs', 'complaintpcs', 'complaint_pcs'],
+        immediateAction: ['immediateaction', 'immediate_action', 'immediateAction', 'immediateactiontaken', 'immediate_action_taken'],
+        rootCause: ['rootcause', 'root_cause', 'rootCause', 'rootcauseofcomplaint', 'root_cause_of_complaint'],
+        correctiveAction: ['correctiveaction', 'corrective_action', 'correctiveAction', 'correctiveactiontakenonrootcause', 'corrective_action_taken_on_root_cause', 'corrective_action_taken'],
+        pendingAction: ['pendingaction', 'pending_action', 'pendingAction', 'pendingactionifany', 'pending_action_if_any'],
+        effectiveAfterThreeMonths: ['effectiveafterthreemonths', 'effective_after_three_months', 'effectiveAfterThreeMonths', 'whethereffectiveafterthreemonths', 'whether_effective_after_three_months'],
+        closedOn: ['closedon', 'closed_on', 'closedOn', 'closeddate', 'closed_date'],
+        dateTime: ['datetime', 'date_time', 'dateTime', 'dateandtime', 'date_and_time', 'complaintdate', 'complaint_date'],
+        images: [
+          'images', 'image', 'attachedimages', 'attachedimage', 'attached_images', 'attached images', 'attachedphoto', 'attachedphotos', 'attached_photos', 'attached photos', 'photos', 'photo', 'evidence', 'photoevidence', 'photo_evidence', 'complaintimages', 'complaintphotos', 'complaint_images', 'complaint_photos', 'attachments', 'attachment', 'attachmenturl', 'attachment_url', 'photolink', 'imagelink', 'drivelink', 'driveurl', 'drive_url', 'fileurl', 'file_url', 'files', 'file'
+        ]
+      };
+
+      const isBlankVal = (v: any) => {
+        if (v === undefined || v === null) return true;
+        if (typeof v === 'string') {
+          const s = v.trim();
+          return s === '' || s === '-' || s === '[]' || s === '{}' || s === 'null' || s === 'undefined';
+        }
+        if (Array.isArray(v)) return v.length === 0;
+        if (typeof v === 'object') return Object.keys(v).length === 0;
+        return false;
       };
 
       // For each canonical target, find and unify matching keys in the row
@@ -462,10 +475,9 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         });
         
         matchedKeys.forEach(k => {
-          if (row[canonical] === undefined || row[canonical] === null || row[canonical] === '') {
+          if (isBlankVal(row[canonical]) && !isBlankVal(row[k])) {
             row[canonical] = row[k];
           }
-          delete row[k];
         });
       });
 
@@ -1068,24 +1080,79 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       h.toLowerCase() === 'image' || 
       h.toLowerCase() === 'photos' || 
       h.toLowerCase() === 'photo' ||
-      h.toLowerCase().includes('image');
+      h.toLowerCase() === 'attachments' ||
+      h.toLowerCase() === 'attachment' ||
+      h.toLowerCase().includes('image') ||
+      h.toLowerCase().includes('photo') ||
+      h.toLowerCase().includes('attach');
 
     if (isImageCol) {
-      const valToParse = (val && val !== '-') 
-        ? val 
-        : (row.images || row['ATTACHED IMAGES'] || row['attachedImages'] || row['ATTACHED_IMAGES'] || row.image || row.photos);
-      const imgList = parseAndNormalizeImages(valToParse);
-      if (imgList.length === 0) return '-';
+      let imgList = parseAndNormalizeImages(val);
+      if (imgList.length === 0 && row) {
+        imgList = parseAndNormalizeImages(row);
+      }
+      if (imgList.length === 0) {
+        return (
+          <span className="text-[11px] text-slate-400 font-medium italic select-none">
+            No photos
+          </span>
+        );
+      }
       return (
         <div className="flex flex-wrap items-center gap-2 max-w-md py-1">
-          {imgList.map((img, idx) => (
+          {/* Prominent Eye Preview Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxData({
+                images: imgList,
+                activeIndex: 0,
+                title: row?.customerName ? `${row.customerName} - ${row.style || 'Customer Complaint'}` : (row?.style ? `${row.style} - Attached Evidence` : `${imgList.length} Attached Photo(s)`),
+                useEmbed: false
+              });
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[10px] font-black uppercase tracking-wider transition shadow-sm cursor-pointer hover:scale-105 active:scale-95 flex-shrink-0"
+            title={`Click to preview all ${imgList.length} attached photo(s)`}
+          >
+            <Icon name="eye" size={13} className="text-indigo-600 dark:text-indigo-400" />
+            <span>{imgList.length === 1 ? 'Preview Photo' : `View (${imgList.length})`}</span>
+          </button>
+
+          {/* Thumbnails */}
+          {imgList.slice(0, 3).map((img, idx) => (
             <DataViewImageItem
               key={idx}
               img={img}
               idx={idx}
-              onPreview={(url) => setLightboxImage(url)}
+              total={imgList.length}
+              onPreview={() => {
+                setLightboxData({
+                  images: imgList,
+                  activeIndex: idx,
+                  title: row?.customerName ? `${row.customerName} - ${row.style || 'Customer Complaint'}` : img.name,
+                  useEmbed: false
+                });
+              }}
             />
           ))}
+          {imgList.length > 3 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxData({
+                  images: imgList,
+                  activeIndex: 3,
+                  title: row?.customerName ? `${row.customerName} - ${row.style || 'Customer Complaint'}` : `${imgList.length} Attached Photo(s)`,
+                  useEmbed: false
+                });
+              }}
+              className="text-[9px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg px-2 py-1 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer"
+            >
+              +{imgList.length - 3}
+            </button>
+          )}
         </div>
       );
     }
@@ -1151,8 +1218,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               <Icon name="download" size={12} /> EXPORT
             </button>
           )}
-          <button onClick={() => setRefreshKey(prev => prev + 1)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">
-            <Icon name="refresh-cw" size={14} />
+          <button 
+            id="dataview-refresh-btn"
+            title="Refresh attached data & sync from server"
+            onClick={() => fetchData(true)} 
+            disabled={loading}
+            className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer"
+          >
+            <Icon name="refresh-cw" size={14} className={loading ? "animate-spin text-indigo-600" : ""} />
           </button>
         </div>
       </div>
@@ -1375,27 +1448,45 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       <div className="overflow-x-auto glass-card">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              {headers.map(h => <th key={h} className="p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest">{formatHeaderLabel(h)}</th>)}
-              {user.role === 'ADMIN' && <th className="p-3 text-[9px] font-black uppercase text-slate-500 tracking-widest text-right">Action</th>}
+            <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+              {headers.map(h => <th key={h} className="p-3 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest">{formatHeaderLabel(h)}</th>)}
+              {(id === 'B10' || user.role === 'ADMIN') && <th className="p-3 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest text-right">Action</th>}
             </tr>
           </thead>
           <tbody>
             {displayData.length === 0 ? (
-              <tr><td colSpan={headers.length + (user.role === 'ADMIN' ? 1 : 0)} className="p-10 text-center text-slate-400 italic text-sm">No data matches your filters.</td></tr>
+              <tr><td colSpan={headers.length + (id === 'B10' || user.role === 'ADMIN' ? 1 : 0)} className="p-10 text-center text-slate-400 italic text-sm">No data matches your filters.</td></tr>
             ) : (
               displayData.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                <tr key={i} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                   {headers.map(h => (
-                    <td key={h} className="p-3 text-xs text-slate-650 font-medium">
+                    <td key={h} className="p-3 text-xs text-slate-650 dark:text-slate-300 font-medium">
                       {renderCellContent(h, row[h], row)}
                     </td>
                   ))}
-                  {user.role === 'ADMIN' && (
-                    <td className="p-3 text-right">
-                      <button onClick={() => handleDelete(row)} className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
-                        <Icon name="trash-2" size={14} />
-                      </button>
+                  {(id === 'B10' || user.role === 'ADMIN') && (
+                    <td className="p-3 text-right whitespace-nowrap space-x-1.5">
+                      {id === 'B10' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedComplaintDetail(row)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[10px] font-black uppercase tracking-wider transition shadow-sm cursor-pointer hover:scale-105 active:scale-95"
+                          title="View complete customer complaint file & all attached photos"
+                        >
+                          <Icon name="eye" size={12} className="text-indigo-600 dark:text-indigo-400" />
+                          <span>View</span>
+                        </button>
+                      )}
+                      {user.role === 'ADMIN' && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row)}
+                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center justify-center cursor-pointer"
+                          title="Delete record"
+                        >
+                          <Icon name="trash-2" size={14} />
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -1425,16 +1516,16 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", duration: 0.3 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-150 overflow-hidden"
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-150 dark:border-slate-800 overflow-hidden"
               id="delete-modal-box"
             >
               <div className="flex items-start gap-4">
-                <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 border border-rose-100 flex-shrink-0">
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 rounded-2xl text-rose-600 border border-rose-100 dark:border-rose-900 flex-shrink-0">
                   <Icon name="alert-triangle" size={24} />
                 </div>
                 <div className="flex-1 space-y-2">
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Confirm Record Deletion</h3>
-                  <p className="text-xs text-slate-500 font-bold leading-relaxed uppercase tracking-normal">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Confirm Record Deletion</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed uppercase tracking-normal">
                     Are you sure you want to permanently delete this record from the Data Center? This action is irreversible and will remove all associated logs instantly.
                   </p>
                 </div>
@@ -1442,9 +1533,9 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
               {/* Record Summary Preview */}
               {deleteConfirmation.row && (
-                <div className="mt-4 p-4 bg-slate-50 border border-slate-200/60 rounded-2xl flex flex-col gap-1.5 shadow-inner">
+                <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-2xl flex flex-col gap-1.5 shadow-inner">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">TARGET RECORD</span>
-                  <p className="text-xs font-black text-indigo-900 uppercase tracking-tight">
+                  <p className="text-xs font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-tight">
                     {getRowDescription(deleteConfirmation.row)}
                   </p>
                   {deleteConfirmation.row.timestamp && (
@@ -1456,12 +1547,12 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               )}
 
               {/* Action Buttons */}
-              <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-4">
                 <button
                   type="button"
                   disabled={deleting}
                   onClick={() => setDeleteConfirmation({ isOpen: false, row: null })}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-655 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 font-sans"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-655 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 font-sans"
                   id="delete-btn-cancel"
                 >
                   Cancel
@@ -1490,53 +1581,426 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
           </div>
         )}
 
-        {/* Lightbox Image Preview Modal */}
-        {lightboxImage && (
-          <div
-            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() => setLightboxImage(null)}
-          >
+        {/* Rich Lightbox Image Carousel & Viewer Modal */}
+        {lightboxData && lightboxData.images.length > 0 && (() => {
+          const currentImg = lightboxData.images[lightboxData.activeIndex] || lightboxData.images[0];
+          const hasMultiple = lightboxData.images.length > 1;
+
+          return (
             <div
-              className="relative max-w-5xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
+              onClick={() => setLightboxData(null)}
             >
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-950/80 border-b border-slate-800 text-white">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <Icon name="image" size={16} className="text-indigo-400" />
-                  Attached Image Evidence
-                </span>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={lightboxImage}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
-                    title="Open original file in new tab"
-                  >
-                    <Icon name="external-link" size={14} />
-                    Open Original
-                  </a>
+              <div
+                className="relative w-full max-w-5xl max-h-[95vh] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header Bar */}
+                <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-950/90 border-b border-slate-800 text-white">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                      <Icon name="eye" size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-200 truncate">
+                        {lightboxData.title || currentImg.name || 'Attached Photo Evidence'}
+                      </h4>
+                      {hasMultiple && (
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          Photo {lightboxData.activeIndex + 1} of {lightboxData.images.length}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Toggle Drive Embed Viewer if Drive ID is available */}
+                    {currentImg.embedUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setLightboxData({ ...lightboxData, useEmbed: !lightboxData.useEmbed })}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition ${
+                          lightboxData.useEmbed
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-slate-800 hover:bg-slate-700 text-indigo-300'
+                        }`}
+                        title="Toggle in-app Google Drive Document/Photo viewer"
+                      >
+                        <Icon name="file-text" size={13} />
+                        <span className="hidden sm:inline">{lightboxData.useEmbed ? 'Direct Image' : 'Drive Viewer'}</span>
+                      </button>
+                    )}
+
+                    {/* Open in Drive / Tab */}
+                    <a
+                      href={currentImg.downloadUrl || currentImg.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition"
+                      title="Open full file in new browser tab / Google Drive"
+                    >
+                      <Icon name="external-link" size={13} />
+                      <span className="hidden sm:inline">Open Drive</span>
+                    </a>
+
+                    {/* Close */}
+                    <button
+                      type="button"
+                      onClick={() => setLightboxData(null)}
+                      className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl transition cursor-pointer"
+                      title="Close preview"
+                    >
+                      <Icon name="x" size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Main Image Stage */}
+                <div className="relative flex-1 min-h-[360px] max-h-[68vh] bg-slate-950 flex items-center justify-center p-3 overflow-hidden select-none">
+                  {lightboxData.useEmbed && currentImg.embedUrl ? (
+                    <iframe
+                      src={currentImg.embedUrl}
+                      title={currentImg.name || 'Google Drive Preview'}
+                      className="w-full h-[65vh] rounded-xl border border-slate-800 bg-white"
+                      allow="autoplay"
+                    />
+                  ) : (
+                    <img
+                      key={currentImg.previewUrl || currentImg.url}
+                      src={currentImg.previewUrl || currentImg.url}
+                      alt={currentImg.name || 'Inspection Photo'}
+                      referrerPolicy="no-referrer"
+                      className="max-w-full max-h-[65vh] object-contain rounded-xl shadow-2xl transition-all duration-200"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (currentImg.proxyUrl && target.src !== currentImg.proxyUrl && !target.src.includes('/api/drive-proxy')) {
+                          target.src = currentImg.proxyUrl;
+                        } else if (currentImg.fallbackUrl && target.src !== currentImg.fallbackUrl) {
+                          target.src = currentImg.fallbackUrl;
+                        } else if (currentImg.fallbackUrl2 && target.src !== currentImg.fallbackUrl2) {
+                          target.src = currentImg.fallbackUrl2;
+                        } else if (currentImg.downloadUrl && target.src !== currentImg.downloadUrl) {
+                          target.src = currentImg.downloadUrl;
+                        } else if (currentImg.embedUrl) {
+                          setLightboxData({ ...lightboxData, useEmbed: true });
+                        }
+                      }}
+                    />
+                  )}
+
+                  {/* Previous Button */}
+                  {hasMultiple && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxData({
+                          ...lightboxData,
+                          activeIndex: (lightboxData.activeIndex - 1 + lightboxData.images.length) % lightboxData.images.length
+                        });
+                      }}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-2xl backdrop-blur-md transition-all shadow-xl cursor-pointer hover:scale-110 active:scale-95"
+                      title="Previous Photo (Left Arrow)"
+                    >
+                      <Icon name="chevron-left" size={20} />
+                    </button>
+                  )}
+
+                  {/* Next Button */}
+                  {hasMultiple && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxData({
+                          ...lightboxData,
+                          activeIndex: (lightboxData.activeIndex + 1) % lightboxData.images.length
+                        });
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-black/60 hover:bg-indigo-600 text-white rounded-2xl backdrop-blur-md transition-all shadow-xl cursor-pointer hover:scale-110 active:scale-95"
+                      title="Next Photo (Right Arrow)"
+                    >
+                      <Icon name="chevron-right" size={20} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Footer Thumbnail Carousel Strip */}
+                {hasMultiple && (
+                  <div className="px-4 py-3 bg-slate-950 border-t border-slate-800/80 flex items-center justify-center gap-2 overflow-x-auto">
+                    {lightboxData.images.map((img: any, idx: number) => {
+                      const isActive = idx === lightboxData.activeIndex;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setLightboxData({ ...lightboxData, activeIndex: idx })}
+                          className={`relative rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all ${
+                            isActive
+                              ? 'border-indigo-500 scale-105 shadow-md shadow-indigo-500/20'
+                              : 'border-slate-800 opacity-60 hover:opacity-100 hover:border-slate-600'
+                          }`}
+                        >
+                          <img
+                            src={img.previewUrl || img.url}
+                            alt={`Thumb ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-12 h-12 object-cover"
+                            onError={(e) => {
+                              if (img.fallbackUrl) e.currentTarget.src = img.fallbackUrl;
+                            }}
+                          />
+                          <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] font-black text-white text-center py-0.5">
+                            {idx + 1}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Customer Complaint Detailed View Modal (For B10) */}
+        {selectedComplaintDetail && (() => {
+          const compImgs = parseAndNormalizeImages(
+            selectedComplaintDetail.images ||
+            selectedComplaintDetail['ATTACHED IMAGES'] ||
+            selectedComplaintDetail['attachedImages'] ||
+            selectedComplaintDetail['ATTACHED_IMAGES'] ||
+            selectedComplaintDetail.image ||
+            selectedComplaintDetail.photos ||
+            selectedComplaintDetail.photo ||
+            selectedComplaintDetail
+          );
+
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+              onClick={() => setSelectedComplaintDetail(null)}
+            >
+              <div
+                className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col my-auto max-h-[92vh]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="p-5 sm:p-6 bg-gradient-to-r from-indigo-900 to-indigo-950 text-white flex items-start justify-between border-b border-indigo-800/50">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 rounded-full text-[10px] font-black uppercase tracking-wider">
+                        B10 Customer Complaint Record
+                      </span>
+                      {selectedComplaintDetail.status ? (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          selectedComplaintDetail.status.toUpperCase() === 'CLOSED'
+                            ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/40'
+                            : 'bg-amber-500/30 text-amber-300 border border-amber-400/40'
+                        }`}>
+                          {selectedComplaintDetail.status}
+                        </span>
+                      ) : null}
+                    </div>
+                    <h3 className="text-xl font-black tracking-tight text-white uppercase">
+                      {selectedComplaintDetail.customerName || 'Customer Complaint File'}
+                    </h3>
+                    <p className="text-xs text-indigo-200 font-medium">
+                      Style: <span className="font-bold text-white">{selectedComplaintDetail.style || '-'}</span> • Size: <span className="font-bold text-white">{selectedComplaintDetail.size || '-'}</span> • Quantity: <span className="font-bold text-white">{selectedComplaintDetail.pcsCount || '-'} PCS</span>
+                    </p>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setLightboxImage(null)}
-                    className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition"
-                    title="Close preview"
+                    onClick={() => setSelectedComplaintDetail(null)}
+                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition cursor-pointer"
+                    title="Close file"
                   >
                     <Icon name="x" size={18} />
                   </button>
                 </div>
-              </div>
-              <div className="p-2 flex items-center justify-center overflow-auto max-h-[82vh] bg-slate-950">
-                <img
-                  src={lightboxImage}
-                  alt="Enlarged Evidence"
-                  referrerPolicy="no-referrer"
-                  className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-lg"
-                />
+
+                {/* Modal Body */}
+                <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+                  {/* Key Stats Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Date & Time</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {selectedComplaintDetail.dateTime || selectedComplaintDetail.timestamp || '-'}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Zone / Plant</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {selectedComplaintDetail.zone || '-'}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Created By</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {selectedComplaintDetail.createdBy || selectedComplaintDetail.inspector || '-'}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Closed On</span>
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                        {selectedComplaintDetail.closedOn || (selectedComplaintDetail.status === 'OPEN' ? 'Still Open' : '-')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Complaint Analysis Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 rounded-2xl space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                        <Icon name="alert-circle" size={13} />
+                        Details of Complaint
+                      </span>
+                      <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
+                        {selectedComplaintDetail.complaintDetails || 'No specific details logged.'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-2xl space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                        <Icon name="search" size={13} />
+                        Root Cause of Complaint
+                      </span>
+                      <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
+                        {selectedComplaintDetail.rootCause || 'Root cause investigation pending.'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                        <Icon name="zap" size={13} />
+                        Immediate Action Taken
+                      </span>
+                      <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
+                        {selectedComplaintDetail.immediateAction || 'No immediate action recorded.'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Icon name="check-circle-2" size={13} />
+                        Corrective Action Taken
+                      </span>
+                      <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
+                        {selectedComplaintDetail.correctiveAction || 'No corrective action recorded.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Secondary Actions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Pending Action If Any</span>
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
+                        {selectedComplaintDetail.pendingAction || '-'}
+                      </p>
+                    </div>
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Effective After 3 Months</span>
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
+                        {selectedComplaintDetail.effectiveAfterThreeMonths || '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Photo Evidence Gallery */}
+                  <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                        <Icon name="image" size={15} className="text-indigo-600 dark:text-indigo-400" />
+                        Attached Image Evidence ({compImgs.length})
+                      </span>
+                      {compImgs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxData({
+                            images: compImgs,
+                            activeIndex: 0,
+                            title: `${selectedComplaintDetail.customerName || 'Customer Complaint'} - All Photos`,
+                            useEmbed: false
+                          })}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                        >
+                          <Icon name="eye" size={12} />
+                          Preview Lightbox
+                        </button>
+                      )}
+                    </div>
+
+                    {compImgs.length === 0 ? (
+                      <div className="py-6 text-center space-y-2 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-4">
+                        <Icon name="image" size={24} className="mx-auto text-slate-400" />
+                        <p className="text-xs text-slate-400 font-bold italic">
+                          No image evidence attached to this complaint record.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {compImgs.map((img, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setLightboxData({
+                              images: compImgs,
+                              activeIndex: idx,
+                              title: `${selectedComplaintDetail.customerName || 'Customer Complaint'} - Photo ${idx + 1}`,
+                              useEmbed: false
+                            })}
+                            className="group relative bg-white dark:bg-slate-900 rounded-2xl p-2 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col"
+                          >
+                            <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800">
+                              <SmartImage
+                                image={img}
+                                alt={img.name}
+                                className="w-full h-full"
+                                imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-indigo-950/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity z-20">
+                                <Icon name="eye" size={18} className="text-white animate-pulse" />
+                                <span className="text-[8px] font-black uppercase mt-1">Preview</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[10px]">
+                              <span className="font-bold text-slate-700 dark:text-slate-300 truncate">
+                                {img.name || `Photo ${idx + 1}`}
+                              </span>
+                              <a
+                                href={img.downloadUrl || img.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-indigo-600 hover:text-indigo-800 font-black flex items-center gap-0.5"
+                                title="Open in Google Drive / New Tab"
+                              >
+                                <Icon name="external-link" size={11} />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedComplaintDetail(null)}
+                    className="px-5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
