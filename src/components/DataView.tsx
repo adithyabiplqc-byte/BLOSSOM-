@@ -116,9 +116,10 @@ interface DataViewProps {
   globalZone?: string;
   settings?: any;
   setGlobalZone?: (z: string) => void;
+  workorders?: any[];
 }
 
-const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, setGlobalZone }) => {
+const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, setGlobalZone, workorders }) => {
   const currentZones = settings?.ZONE || settings?.ZONES || ZONES;
   const currentItems = settings?.ITEMS || settings?.ITEM || ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
 
@@ -481,9 +482,35 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         });
       });
 
+      // Ensure workorder number is resolved from internal wo- id if available
+      const rawWo = row.workorderNumber || row.wo;
+      if (rawWo && String(rawWo).startsWith('wo-')) {
+        const match = (workorders || []).find((w: any) => w.id === rawWo || w.workorderNumber === rawWo);
+        if (match?.workorderNumber) {
+          row.workorderNumber = match.workorderNumber;
+          row.wo = match.workorderNumber;
+        }
+      }
+
+      // Consolidate B8 fields so duplicate synonym columns (e.g. style vs styleName, color vs colour) do not appear
+      if (id === 'B8') {
+        const finalWo = row.workorderNumber || row.wo || row.workorderNo || row.workorder || '';
+        row.workorderNumber = finalWo;
+        row.wo = finalWo;
+        row.style = row.style || row.styleName || '';
+        row.colour = row.colour || row.color || '';
+        row.size = row.size || '';
+        row.cup = row.cup || row.cupsize || '';
+        row.quantity = row.quantity || row.totalQty || row.orderQty || '';
+        row.status = row.status || 'PRECUTTING';
+        row.zone = row.zone || row.location || '';
+        row.createdBy = row.createdBy || row.creator || '';
+        row.createdAt = row.createdAt || row.timestamp || '';
+      }
+
       return row;
     }).filter(Boolean) as any[];
-  }, [data]);
+  }, [data, workorders, id]);
 
   const filteredData = useMemo(() => {
     if (!Array.isArray(normalizedData)) return [];
@@ -801,6 +828,18 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'createdBy',
         'zone',
         'timestamp'
+      ],
+      'B8': [
+        'workorderNumber',
+        'style',
+        'colour',
+        'size',
+        'cup',
+        'quantity',
+        'status',
+        'zone',
+        'createdBy',
+        'createdAt'
       ]
     };
 
@@ -820,14 +859,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         if (!hiddenColumns.includes(key)) allKeys.add(key);
       });
       // Virtual column for rework %
-      if (!hiddenColumns.includes('reworkPercent') && id !== 'B10' && id !== 'A8') {
+      if (!hiddenColumns.includes('reworkPercent') && id !== 'B10' && id !== 'A8' && id !== 'B8') {
         allKeys.add('reworkPercent');
       }
     });
     
     if (targetOrder) {
       const filteredTarget = targetOrder.filter(k => !hiddenColumns.includes(k));
-      if (id === 'B2' || id === 'B1') {
+      if (id === 'B2' || id === 'B1' || id === 'B8') {
         return filteredTarget;
       }
       const remainingHeaders = Array.from(allKeys).filter(k => !targetOrder.includes(k));
@@ -884,28 +923,18 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       createdBy: 'CREATED BY',
       creator: 'CREATED BY',
       userCode: 'USER CODE',
-      wo: 'WORKORDER',
-      workorderNumber: 'WORKORDER',
+      wo: 'WORKORDER #',
+      workorderNumber: 'WORKORDER #',
       color: 'COLOUR',
       colour: 'COLOUR',
       size: 'SIZE',
-      cupsize: 'CUP SIZE',
       cup: 'CUP SIZE',
-      line: 'LINE',
-      unit: 'UNIT',
-      checkedQty: 'CHECKED QTY',
-      passQty: 'PASS QTY',
-      reworkQty: 'REWORK QTY',
-      reworkPercent: 'REWORK %',
-      rejectionPercent: 'REJECTION %',
-      failQty: 'REJECTION QTY',
-      totalQty: id === 'B1' ? 'TOTAL QTY' : 'ORDER QTY',
+      cupsize: 'CUP SIZE',
+      quantity: 'QUANTITY',
       orderQty: 'ORDER QTY',
-      openQty: 'OPEN QTY',
-      sampleSize: 'SAMPLE SIZE',
-      allowedDefects: 'ALLOWED DEFECTS',
-      foundDefects: 'FOUND DEFECTS',
+      totalQty: id === 'B1' ? 'TOTAL QTY' : (id === 'B8' ? 'QUANTITY' : 'ORDER QTY'),
       status: 'STATUS',
+      createdAt: 'CREATED DATE',
       remarks: 'REMARKS',
       dateTime: 'DATE & TIME',
       customerName: 'CUSTOMER / SHOP / DISTRIBUTOR',
@@ -1064,9 +1093,16 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
     // Workorder number formatting
     if (h === 'workorderNumber' || h === 'wo') {
+      let displayVal = valStr;
+      if (displayVal.startsWith('wo-')) {
+        const match = (workorders || []).find((w: any) => w.id === displayVal || w.workorderNumber === displayVal);
+        if (match?.workorderNumber) {
+          displayVal = match.workorderNumber;
+        }
+      }
       return (
-        <span className="font-mono font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-100 text-[10px]">
-          #{valStr}
+        <span className="font-mono font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-100 text-[10px] whitespace-nowrap inline-block">
+          #{displayVal}
         </span>
       );
     }

@@ -11,9 +11,10 @@ interface FinalAuditProps {
   workorders: any[];
   triggerSuccess: (message: string) => void;
   globalZone?: string;
+  refreshData?: () => void;
 }
 
-const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, triggerSuccess, globalZone }) => {
+const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
   const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
   const currentZones = React.useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
@@ -98,15 +99,26 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
     setIsSubmitting(true);
     try {
+      const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
+
       await api.run('api_saveFINALAUDIT', { 
         ...selectedWO, 
         ...form, 
-        wo: selectedWO?.workorderNumber || form.wo,
-        workorderNumber: selectedWO?.workorderNumber || form.wo,
+        wo: resolvedWo,
+        workorderNumber: resolvedWo,
         moveToComplete,
         inspector: user.username, 
         timestamp: new Date().toISOString() 
       });
+
+      if (selectedWO && moveToComplete) {
+        await api.run('api_updateWorkorder', { ...selectedWO, status: 'COMPLETED' });
+      }
+
+      if (refreshData) {
+        await refreshData();
+      }
+
       triggerSuccess(moveToComplete ? 'AUDIT COMPLETE & WORKORDER CLOSED' : 'FINAL AUDIT RECORDED');
       setForm({ ...form, totalAudited: '', pass: '', rejected: '', remarks: '' });
     } catch (error) {
@@ -133,11 +145,11 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
               .filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
-                const status = String(w.status || "").toUpperCase().trim();
-                const matchesStatus = (status === 'FINAL' || status === 'FINALPASSANDHOLD');
-                return wZone === fZone && matchesStatus;
+                const status = String(w.status || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const matchesStatus = (status === 'FINAL' || status === 'FINALPASSANDHOLD' || status === 'AQLPASSANDHOLD');
+                return (wZone === fZone || fZone === 'ALL' || fZone === 'COMMON') && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.id || w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
+              .map(w => <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

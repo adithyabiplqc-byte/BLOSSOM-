@@ -212,6 +212,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       const woData = { 
         zone: form.zone,
         workorderNumber: woNum,
+        wo: woNum,
         style: form.style,
         size: mergedSize,
         cup: form.cup,
@@ -295,7 +296,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       cup: wo.cup || '',
       quantity: wo.quantity || '',
       colour: wo.colour || '',
-      status: wo.status || 'CUTTING'
+      status: wo.status || 'PRECUTTING'
     });
     setSelectedWO(wo);
     setIsEditing(true);
@@ -444,11 +445,11 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   <div>
                     <label>Workflow Status</label>
                     <SearchableSelect className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
+                    <option value="PRECUTTING">PRECUTTING</option>
                     <option value="CUTTING">CUTTING</option>
+                    <option value="INLINE_AND_ENDLINE">INLINE & ENDLINE</option>
                     <option value="INLINE">INLINE</option>
                     <option value="ENDLINE">ENDLINE</option>
-                    <option value="INLINE_AND_ENDLINE">INLINE & ENDLINE</option>
-                    <option value="PASS_AND_HOLD">PASS & HOLD</option>
                     <option value="AQL">AQL</option>
                     <option value="FINAL">FINAL AUDIT</option>
                     <option value="COMPLETED">COMPLETED</option>
@@ -463,7 +464,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                   >
                     {isSubmitting ? 'SAVING...' : (isEditing ? 'UPDATE WO' : 'SUBMIT WO')}
                   </button>
-                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || '', workorderNumber: '', style: '', sizeFrom: '', sizeTo: '', cup: '', quantity: '', colour: '', status: 'CUTTING' }); }} className="btn-secondary mt-4">CANCEL</button>}
+                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setSelectedWO(null); setForm({ zone: currentZones[0] || '', workorderNumber: '', style: '', sizeFrom: '', sizeTo: '', cup: '', quantity: '', colour: '', status: 'PRECUTTING' }); }} className="btn-secondary mt-4">CANCEL</button>}
                 </div>
               </form>
             </div>
@@ -541,24 +542,32 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                 <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-6 mt-4">
                   <span className="text-indigo-500 block uppercase text-[10px] font-black tracking-widest mb-4">Live Production Flow Tracker</span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 font-sans text-left md:text-center">
-                    {['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].map((step, idx) => {
-                      const statusVal = normalizeStatus(selectedWO.status || 'CUTTING');
+                    {['PRECUTTING', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL'].map((step, idx) => {
+                      const statusVal = normalizeStatus(selectedWO.status || 'PRECUTTING');
                       let isPast = false;
                       let isActive = false;
                       
-                      if (statusVal === 'INLINEANDENDLINE') {
-                        if (step === 'CUTTING') {
+                      if (statusVal === 'COMPLETED') {
+                        isPast = true;
+                      } else if (statusVal === 'INLINEANDENDLINE') {
+                        if (step === 'PRECUTTING' || step === 'CUTTING') {
                           isPast = true;
                         } else if (step === 'INLINE' || step === 'ENDLINE') {
                           isActive = true;
                         }
-                      } else if (statusVal === 'PASSANDHOLD') {
-                        if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
+                      } else if (statusVal === 'CUTTINGPASSANDHOLD') {
+                        if (step === 'PRECUTTING') {
+                          isPast = true;
+                        } else if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
+                          isActive = true;
+                        }
+                      } else if (statusVal === 'PRECUTTINGPASSANDHOLD') {
+                        if (step === 'PRECUTTING' || step === 'CUTTING') {
                           isActive = true;
                         }
                       } else {
-                        const activeIdx = ['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].indexOf(statusVal);
-                        isPast = idx < activeIdx;
+                        const activeIdx = ['PRECUTTING', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL'].indexOf(statusVal);
+                        isPast = activeIdx > -1 && idx < activeIdx;
                         isActive = idx === activeIdx;
                       }
                       

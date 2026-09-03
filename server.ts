@@ -1084,7 +1084,9 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_saveWorkorder': {
       const wo = params[0];
       wo.id = wo.id || 'wo-' + Math.random().toString(36).substr(2, 9);
-      if (!wo.status) wo.status = 'CUTTING';
+      if (wo.workorderNumber && !wo.wo) wo.wo = wo.workorderNumber;
+      if (wo.wo && !wo.workorderNumber) wo.workorderNumber = wo.wo;
+      if (!wo.status) wo.status = 'PRECUTTING';
       db.workorders = db.workorders || [];
       db.workorders.push(wo);
       writeLocalDb(db);
@@ -1093,10 +1095,13 @@ function executeLocalAction(action: string, params: any[]): any {
     
     case 'api_updateWorkorder': {
       const wo = params[0];
+      if (wo.workorderNumber && !wo.wo) wo.wo = wo.workorderNumber;
+      if (wo.wo && !wo.workorderNumber) wo.workorderNumber = wo.wo;
       db.workorders = db.workorders || [];
       const idx = db.workorders.findIndex((w: any) => 
         (wo.id && String(w.id) === String(wo.id)) || 
-        (!wo.id && String(w.workorderNumber) === String(wo.workorderNumber) && String(w.style || '') === String(wo.style || ''))
+        (wo.workorderNumber && String(w.workorderNumber) === String(wo.workorderNumber)) ||
+        (wo.wo && (String(w.wo) === String(wo.wo) || String(w.workorderNumber) === String(wo.wo)))
       );
       if (idx !== -1) {
         db.workorders[idx] = { ...db.workorders[idx], ...wo };
@@ -1276,21 +1281,26 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'cut-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
+
+      // Resolve workorder ID if needed
+      db.workorders = db.workorders || [];
+      const woTarget = report.workorderNumber || report.wo;
+      const matchedWO = db.workorders.find((w: any) => String(w.id) === String(woTarget) || String(w.workorderNumber) === String(woTarget));
+      if (matchedWO) {
+        report.wo = matchedWO.workorderNumber;
+        report.workorderNumber = matchedWO.workorderNumber;
+      }
       db.cutting_reports.push(report);
       
       // Update WO status
-      if (report.wo) {
-        db.workorders = db.workorders || [];
-        const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
-        if (woIdx !== -1) {
-          let nextStatus = 'INLINE_AND_ENDLINE';
-          if (report.submodule === 'PRECUTTING') {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
-          } else {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
-          }
-          db.workorders[woIdx].status = nextStatus;
+      if (matchedWO) {
+        let nextStatus = 'INLINE_AND_ENDLINE';
+        if (report.submodule === 'PRECUTTING') {
+          nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTING_PASS_AND_HOLD' : 'CUTTING';
+        } else {
+          nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
         }
+        matchedWO.status = nextStatus;
       }
       writeLocalDb(db);
       return { success: true };
@@ -1429,13 +1439,19 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'aql-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
+
+      db.workorders = db.workorders || [];
+      const woTarget = report.workorderNumber || report.wo;
+      const matchedWO = db.workorders.find((w: any) => String(w.id) === String(woTarget) || String(w.workorderNumber) === String(woTarget));
+      if (matchedWO) {
+        report.wo = matchedWO.workorderNumber;
+        report.workorderNumber = matchedWO.workorderNumber;
+      }
       db.aql_reports.push(report);
       
       // Update WO status
-      if ((report.moveToFinal || report.auditStatus === 'PASS') && report.wo) {
-        db.workorders = db.workorders || [];
-        const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
-        if (woIdx !== -1) db.workorders[woIdx].status = 'FINAL';
+      if (matchedWO && (report.moveToFinal || report.auditStatus === 'PASS')) {
+        matchedWO.status = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
       }
       writeLocalDb(db);
       return { success: true };
@@ -1446,13 +1462,19 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'fin-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
+
+      db.workorders = db.workorders || [];
+      const woTarget = report.workorderNumber || report.wo;
+      const matchedWO = db.workorders.find((w: any) => String(w.id) === String(woTarget) || String(w.workorderNumber) === String(woTarget));
+      if (matchedWO) {
+        report.wo = matchedWO.workorderNumber;
+        report.workorderNumber = matchedWO.workorderNumber;
+      }
       db.final_reports.push(report);
       
       // Update WO status
-      if (report.wo) {
-        db.workorders = db.workorders || [];
-        const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
-        if (woIdx !== -1) db.workorders[woIdx].status = 'COMPLETED';
+      if (matchedWO) {
+        matchedWO.status = report.moveToComplete ? 'COMPLETED' : ((report.passAndHold === true || report.passAndHold === 'true') ? 'FINAL_PASS_AND_HOLD' : 'COMPLETED');
       }
       writeLocalDb(db);
       return { success: true };

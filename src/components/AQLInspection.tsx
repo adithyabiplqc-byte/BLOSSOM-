@@ -206,10 +206,13 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
 
     setIsSubmitting(true);
     try {
+      const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
+      const nextStatus = passAndHold ? 'AQL_PASS_AND_HOLD' : 'FINAL';
+
       const payload = {
         zone: form.zone,
-        wo: selectedWO?.workorderNumber || form.wo,
-        workorderNumber: selectedWO?.workorderNumber || form.wo,
+        wo: resolvedWo,
+        workorderNumber: resolvedWo,
         unit: form.unit,
         remarks: form.remarks || '',
         lotSize: lotSize,
@@ -231,6 +234,9 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       };
 
       await api.run('api_saveAQLREPORT', payload);
+      if (selectedWO && isAuditPassed) {
+        await api.run('api_updateWorkorder', { ...selectedWO, status: nextStatus });
+      }
 
       if (refreshData) {
         await refreshData();
@@ -279,7 +285,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
             <option value="">Select Workorder...</option>
             {workorders
               .filter(w => {
-                const wStatus = String(w.status || 'CUTTING').toUpperCase().trim();
+                const wStatus = String(w.status || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const matchesStatus = (wStatus === 'AQL' || wStatus === 'AQLPASSANDHOLD');
                 if (!matchesStatus) {
                   return false;
@@ -303,7 +309,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
                 return matchesZone;
               })
               .map(w => (
-                <option key={w.id} value={w.id || w.workorderNumber}>
+                <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>
               ))

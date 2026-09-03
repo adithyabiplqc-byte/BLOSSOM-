@@ -526,11 +526,14 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     if (totalQty > 0 && newPassedTotal >= totalQty) {
       setIsSubmitting(true);
       try {
+        if (selectedWO) {
+          await api.run('api_updateWorkorder', { ...selectedWO, status: 'AQL' });
+        }
         if (refreshData) {
-          refreshData();
+          await refreshData();
         }
         if (onNavigate) {
-          triggerSuccess("WORKORDER FULLY PASSED FROM ENDLINE! NAVIGATION TO AQL INSTATED.");
+          triggerSuccess("WORKORDER FULLY PASSED FROM ENDLINE! MOVED TO AQL.");
           onNavigate('A5');
         } else {
           triggerSuccess("WORKORDER FULLY PASSED TO AQL.");
@@ -867,10 +870,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     statusUpper !== 'ENDLINE' && 
                     statusUpper !== 'INLINEANDENDLINE' && 
                     statusUpper !== 'INLINE' &&
-                    statusUpper !== 'PRECUTTINGPASSANDHOLD' &&
-                    statusUpper !== 'CUTTINGPASSANDHOLD' &&
-                    statusUpper !== 'PASSANDHOLD' && 
-                    !statusUpper.includes('HOLD')
+                    statusUpper !== 'CUTTINGPASSANDHOLD'
                   ) {
                     return false;
                   }
@@ -887,7 +887,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   return true;
                 })
                 .map(w => (
-                  <option key={w.id || w.workorderNumber} value={w.id || w.workorderNumber}>
+                  <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                     {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                   </option>
                 ))}

@@ -176,13 +176,16 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
 
     setIsSubmitting(true);
     try {
+      const resolvedWo = selectedWOPre?.workorderNumber || (formPre.wo.startsWith('wo-') ? (workorders.find(w => w.id === formPre.wo)?.workorderNumber || formPre.wo) : formPre.wo);
+      const nextStatus = passAndHold ? 'PRECUTTING_PASS_AND_HOLD' : 'CUTTING';
+
       const payload = {
         ...selectedWOPre,
         id: 'cut-pre-' + Math.random().toString(36).substring(2) + '-' + Date.now(),
-        workorderNumber: selectedWOPre?.workorderNumber || formPre.wo,
+        workorderNumber: resolvedWo,
         submodule: 'PRECUTTING',
         zone: formPre.zone,
-        wo: formPre.wo,
+        wo: resolvedWo,
         checkingDate: new Date().toISOString().split('T')[0],
         timestamp: new Date().toISOString(),
         inspector: user.username,
@@ -206,6 +209,9 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       };
 
       await api.run('api_saveCUTTINGQUALITY', payload);
+      if (selectedWOPre) {
+        await api.run('api_updateWorkorder', { ...selectedWOPre, status: nextStatus });
+      }
 
       triggerSuccess(passAndHold ? 'PRE-CUTTING DATA SAVED & PASSED (HELD IN PRE-CUTTING)' : 'PRE-CUTTING DATA SAVED & PASSED TO CUTTING');
       if (refreshData) {
@@ -273,11 +279,15 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
 
     setIsSubmitting(true);
     try {
+      const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
+      const nextStatus = passAndHold ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+
       const payload = { 
         ...selectedWO, 
         ...form, 
         id: 'cut-main-' + Math.random().toString(36).substring(2) + '-' + Date.now(),
-        workorderNumber: selectedWO?.workorderNumber || form.wo,
+        workorderNumber: resolvedWo,
+        wo: resolvedWo,
         fabricType: form.fabricType || 'N/A',
         bundleNo: form.bundleNo || 'N/A',
         checkedQty: form.checkedQty === '' ? '0' : form.checkedQty,
@@ -294,6 +304,9 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       };
 
       await api.run('api_saveCUTTINGQUALITY', payload);
+      if (selectedWO) {
+        await api.run('api_updateWorkorder', { ...selectedWO, status: nextStatus });
+      }
       
       triggerSuccess(passAndHold ? 'DATA SAVED & PASSED (HELD IN CUTTING)' : 'DATA SAVED & MOVED TO INLINE & ENDLINE');
       if (refreshData) {
@@ -400,20 +413,16 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Precutting dropdown shows workorders needing Precutting (PRECUTTING, CUTTING) or held in Precutting/Cutting (PRECUTTINGPASSANDHOLD, CUTTINGPASSANDHOLD, PASSANDHOLD, HOLD)
+                    // Precutting dropdown shows ONLY workorders in PRECUTTING or held in Precutting (PRECUTTING_PASS_AND_HOLD)
                     const status = String(w.status || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
                     const matchesStatus = (
                       status === 'PRECUTTING' || 
-                      status === 'CUTTING' || 
-                      status === 'PRECUTTINGPASSANDHOLD' || 
-                      status === 'CUTTINGPASSANDHOLD' ||
-                      status === 'PASSANDHOLD' ||
-                      status.includes('HOLD')
+                      status === 'PRECUTTINGPASSANDHOLD'
                     );
                     return matchesZone && matchesStatus;
                   })
                   .map(w => (
-                    <option key={w.id} value={w.id || w.workorderNumber}>
+                    <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
                   ))
@@ -624,20 +633,18 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Main Cutting dropdown shows workorders passed from Precutting, held in Precutting/Cutting (PRECUTTINGPASSANDHOLD, CUTTINGPASSANDHOLD, PASSANDHOLD, HOLD), or CUTTING
-                    const status = String(w.status || 'CUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    // Main Cutting dropdown shows workorders passed from Precutting, held in Precutting, held in Cutting, or CUTTING
+                    const status = String(w.status || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                     const matchesStatus = (
+                      status === 'CUTTING' || 
                       status === 'PRECUTTINGPASSED' || 
                       status === 'PRECUTTINGPASSANDHOLD' || 
-                      status === 'CUTTINGPASSANDHOLD' || 
-                      status === 'CUTTING' || 
-                      status === 'PASSANDHOLD' ||
-                      status.includes('HOLD')
+                      status === 'CUTTINGPASSANDHOLD'
                     );
                     return matchesZone && matchesStatus;
                   })
                   .map(w => (
-                    <option key={w.id} value={w.id || w.workorderNumber}>
+                    <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
                   ))
@@ -874,10 +881,14 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       const rej = Number(rec.rejectedQty || 0);
                       const rwPct = chk > 0 ? ((rw / chk) * 100).toFixed(1) + '%' : '0.0%';
                       const rejPct = chk > 0 ? ((rej / chk) * 100).toFixed(1) + '%' : '0.0%';
+                      const rawWon = rec.wo || rec.workorderNumber;
+                      const displayWon = (rawWon && String(rawWon).startsWith('wo-'))
+                        ? (workorders.find(w => w.id === rawWon || w.workorderNumber === rawWon)?.workorderNumber || rawWon)
+                        : (rawWon || 'N/A');
                       return (
                         <tr key={index} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-3.5 px-4">
-                            <p className="font-black text-indigo-650">{rec.wo || rec.workorderNumber}</p>
+                            <p className="font-black text-indigo-650">{displayWon}</p>
                             <p className="text-[10px] font-bold text-slate-500">{rec.style || 'N/A'}</p>
                           </td>
                           <td className="py-3.5 px-4 text-center">

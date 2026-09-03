@@ -1127,16 +1127,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   status === 'INLINE' || 
                   status === 'ENDLINE' || 
                   status === 'INLINEANDENDLINE' || 
-                  status === 'PRECUTTINGPASSANDHOLD' ||
-                  status === 'CUTTINGPASSANDHOLD' ||
-                  status === 'PASSANDHOLD' || 
-                  status === 'ENDLINEPASSANDHOLD' ||
-                  status.includes('HOLD')
+                  status === 'CUTTINGPASSANDHOLD'
                 );
                 
                 return matchesZone && matchesUnit && matchesStatus;
               })
-              .map(w => <option key={w.id} value={w.id || w.workorderNumber}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
+              .map(w => <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }
           </SearchableSelect>
         </div>

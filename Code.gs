@@ -1545,7 +1545,9 @@ function aggregateZonedData(baseName) {
 // Workorder Management
 function api_saveWorkorder(wo) { 
   wo.id = wo.id || Utilities.getUuid();
-  if (!wo.status) wo.status = 'CUTTING';
+  if (wo.workorderNumber && !wo.wo) wo.wo = wo.workorderNumber;
+  if (wo.wo && !wo.workorderNumber) wo.workorderNumber = wo.wo;
+  if (!wo.status) wo.status = 'PRECUTTING';
   return saveDataToSheet('WORKORDER', wo);
 }
 
@@ -1722,9 +1724,9 @@ function api_saveCUTTINGQUALITY(report) {
     var woTarget = report.wo || report.workorderNumber;
     var nextStatus = 'INLINE_AND_ENDLINE';
     if (report.submodule === 'PRECUTTING') {
-      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
+      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTING_PASS_AND_HOLD' : 'CUTTING';
     } else {
-      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTINGPASSANDHOLD' : 'INLINE_AND_ENDLINE';
+      nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
     }
     internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
   }
@@ -1890,15 +1892,19 @@ function api_saveENDLINEQUALITY(report) {
 }
 function api_saveAQLREPORT(report) { 
   const res = saveDataToSheet('AQL REPORT', report);
-  if (res.success && (report.moveToFinal || report.auditStatus === 'PASS') && report.wo) {
-    internal_updateWorkorderStatus(report.wo, report.zone || report.location, 'FINAL');
+  var woTarget = report.wo || report.workorderNumber;
+  if (res.success && (report.moveToFinal || report.auditStatus === 'PASS') && woTarget) {
+    var nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
   }
   return res;
 }
 function api_saveFINALAUDIT(report) { 
   const res = saveDataToSheet('FINAL AUDIT', report);
-  if (res.success && report.wo) {
-    internal_updateWorkorderStatus(report.wo, report.zone || report.location, 'COMPLETED');
+  var woTarget = report.wo || report.workorderNumber;
+  if (res.success && woTarget) {
+    var nextStatus = report.moveToComplete ? 'COMPLETED' : ((report.passAndHold === true || report.passAndHold === 'true') ? 'FINAL_PASS_AND_HOLD' : 'COMPLETED');
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
   }
   return res;
 }
