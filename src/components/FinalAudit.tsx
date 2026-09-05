@@ -101,7 +101,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     try {
       const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
 
-      await api.run('api_saveFINALAUDIT', { 
+      const finalAuditPayload = { 
         ...selectedWO, 
         ...form, 
         wo: resolvedWo,
@@ -109,11 +109,13 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         moveToComplete,
         inspector: user.username, 
         timestamp: new Date().toISOString() 
-      });
+      };
 
+      const savePromises: Promise<any>[] = [api.run('api_saveFINALAUDIT', finalAuditPayload)];
       if (selectedWO && moveToComplete) {
-        await api.run('api_updateWorkorder', { ...selectedWO, status: 'COMPLETED' });
+        savePromises.push(api.run('api_updateWorkorder', { ...selectedWO, status: 'COMPLETED' }));
       }
+      await Promise.all(savePromises);
 
       if (refreshData) {
         await refreshData();

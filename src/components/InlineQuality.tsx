@@ -419,10 +419,13 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   getReq.onsuccess = () => {
                     const fileData = getReq.result;
                     if (fileData) {
-                      fetch(fileData.base64).then(r => r.blob()).then(blob => {
-                        const objectUrl = URL.createObjectURL(blob);
-                        window.open(objectUrl, '_blank');
-                      });
+                      fetch(fileData.base64)
+                        .then(r => r.blob())
+                        .then(blob => {
+                          const objectUrl = URL.createObjectURL(blob);
+                          window.open(objectUrl, '_blank');
+                        })
+                        .catch(err => console.warn("Failed to create blob URL:", err));
                     }
                   };
                 };

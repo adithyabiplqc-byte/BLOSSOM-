@@ -145,8 +145,8 @@ const App: React.FC = () => {
         return data;
       }
     } catch (e: any) {
-      console.error("Fetch Data Error:", e);
-      if (!silent) {
+      console.warn("Fetch Data Notice:", e);
+      if (!silent && !user) {
         setConnectionError(e.message || "Failed to connect to Google Sheets");
       }
     } finally {
@@ -186,7 +186,7 @@ const App: React.FC = () => {
             freshUser.zone !== user.zone ||
             freshUser.location !== user.location) {
           setUser(freshUser);
-          localStorage.setItem('bqos_session', JSON.stringify(freshUser));
+          try { localStorage.setItem('bqos_session', JSON.stringify(freshUser)); } catch (e) {}
         }
       }
     }
@@ -231,7 +231,7 @@ const App: React.FC = () => {
             activeZone = session.zone || (session.location === 'SYSTEM' || !session.location ? 'ALL' : session.location);
             sessionUserCode = session.userCode || '';
           } catch (e) {
-            localStorage.removeItem('bqos_session');
+            try { localStorage.removeItem('bqos_session'); } catch(err){}
           }
         }
 
@@ -300,9 +300,11 @@ const App: React.FC = () => {
           setView('login');
         }
       } catch (e: any) {
-        console.error("Initialization Error:", e);
-        setConnectionError(e.message || "Initialization Failed");
-        setView('login');
+        console.warn("Initialization Notice (continuing with cached session):", e);
+        const savedSession = localStorage.getItem('bqos_session');
+        if (!savedSession && !user) {
+          setView('login');
+        }
       } finally {
         clearTimeout(timeoutId);
         clearTimeout(skipTimer);
@@ -315,7 +317,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = async (u: any) => {
-    localStorage.setItem('bqos_session', JSON.stringify(u));
+    try { localStorage.setItem('bqos_session', JSON.stringify(u)); } catch(e){}
     setUser(u);
     const activeZone = u.zone || (u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location);
     setGlobalZone(activeZone);
@@ -332,11 +334,11 @@ const App: React.FC = () => {
       ]);
       
       const data = initData as any;
-      setUsers(data?.users || []);
-      setWorkorders(data?.workorders || []);
-      setSettings(s || {});
+      if (data?.users) setUsers(data.users);
+      if (data?.workorders) setWorkorders(data.workorders);
+      if (s) setSettings(s);
     } catch (e) {
-      console.error("Login Data Error:", e);
+      console.warn("Login Data Notice:", e);
     } finally {
       setLoading(false);
     }
@@ -355,7 +357,8 @@ const App: React.FC = () => {
 
   const renderView = () => {
     const hasConnection = localStorage.getItem('VITE_GAS_URL') || isPermanentlyConnected || localStorage.getItem('VITE_SPREADSHEET_ID');
-    if (connectionError === 'CONFIGURATION_REQUIRED' || connectionError === 'CONFIGURATION_MODE' || (!hasConnection && view === 'splash' && !loading)) {
+    // Only hijack screen if explicitly in CONFIGURATION_MODE or if there is no logged in user at splash
+    if (connectionError === 'CONFIGURATION_MODE' || (!user && (connectionError === 'CONFIGURATION_REQUIRED' || (!hasConnection && view === 'splash' && !loading)))) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-start justify-center pt-12 p-4">
           <div className="w-full max-w-2xl">
@@ -578,9 +581,9 @@ const App: React.FC = () => {
             </header>
 
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
-              {connectionError && (connectionError === 'CONFIGURATION_REQUIRED' || connectionError === 'CONFIGURATION_MODE') ? (
+              {connectionError === 'CONFIGURATION_MODE' ? (
                 <ConnectionGuide 
-                  error={connectionError === "CONFIGURATION_MODE" ? "User Configuration Mode" : connectionError} 
+                  error="User Configuration Mode" 
                   onClose={() => setConnectionError(null)} 
                   isPermanentlyConnected={isPermanentlyConnected}
                 />

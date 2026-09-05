@@ -271,7 +271,9 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     }
     if (!window.confirm('Delete this workorder?')) return;
     setWorkorders(workorders.filter(w => w.id !== wo.id));
-    api.run('api_deleteWorkorder', wo.id, wo.zone || wo.location).then(() => refreshData());
+    api.run('api_deleteWorkorder', wo.id, wo.zone || wo.location)
+      .then(() => refreshData && refreshData())
+      .catch((err: any) => console.warn('Delete Workorder error:', err));
     setSelectedWO(null);
   };
 

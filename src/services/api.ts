@@ -83,7 +83,7 @@ async function updateWorkorderStatus(woNum: string, nextStatus: string) {
 // Client-side cache and in-flight request deduplication map
 const clientReadCache = new Map<string, { timestamp: number; data: any }>();
 const inFlightRequests = new Map<string, Promise<any>>();
-const CLIENT_READ_CACHE_TTL = 15000; // 15s TTL for ultra-fast instant UI rendering
+const CLIENT_READ_CACHE_TTL = 30000; // 30s TTL for ultra-fast instant UI rendering
 let cachedServerConfig: { data: any; timestamp: number } | null = null;
 
 const CACHEABLE_METHODS = new Set([
@@ -119,7 +119,7 @@ export const api = {
       }
     } else {
       clientReadCache.clear();
-      cachedServerConfig = null;
+      // Do not clear cachedServerConfig on routine write operations to avoid unnecessary network roundtrips
     }
   },
 
@@ -140,39 +140,27 @@ export const api = {
       const localSpreadsheetId = localStorage.getItem('VITE_SPREADSHEET_ID');
       const localDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
 
-      // Clean up old URLs if stored in client localStorage
-      if (localUrl && (localUrl.includes("AKfycbwK") || localUrl.includes("AKfycbzr") || localUrl.includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs"))) {
-        localStorage.removeItem('VITE_GAS_URL');
+      // Clean up old URLs if stored in client localStorage and ensure active production scripts
+      if (localUrl && localUrl !== DEFAULT_SHEETS_URL) {
+        localStorage.setItem('VITE_GAS_URL', DEFAULT_SHEETS_URL);
       }
-      if (localDriveUrl && (localDriveUrl.includes("AKfycbwK") || localDriveUrl.includes("AKfycbzr"))) {
-        localStorage.removeItem('VITE_GAS_DRIVE_URL');
+      if (localDriveUrl && localDriveUrl !== DEFAULT_DRIVE_URL) {
+        localStorage.setItem('VITE_GAS_DRIVE_URL', DEFAULT_DRIVE_URL);
       }
 
-      const serverUrl = data.gasUrl || DEFAULT_SHEETS_URL;
+      const serverUrl = DEFAULT_SHEETS_URL;
       const serverSpreadsheetId = data.spreadsheetId || "BOUND_TO_SCRIPT";
-      const serverDriveUrl = data.gasDriveUrl || DEFAULT_DRIVE_URL;
+      const serverDriveUrl = DEFAULT_DRIVE_URL;
 
       // Final resolved values
-      const finalUrl = serverUrl || (localUrl && !localUrl.includes("AKfycbwK") && !localUrl.includes("AKfycbzr") && !localUrl.includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs") ? localUrl : "") || DEFAULT_SHEETS_URL;
+      const finalUrl = DEFAULT_SHEETS_URL;
       const finalSpreadsheetId = serverSpreadsheetId || localSpreadsheetId || "BOUND_TO_SCRIPT";
-      const finalDriveUrl = serverDriveUrl || (localDriveUrl && !localDriveUrl.includes("AKfycbwK") && !localDriveUrl.includes("AKfycbzr") ? localDriveUrl : "") || DEFAULT_DRIVE_URL;
+      const finalDriveUrl = DEFAULT_DRIVE_URL;
 
       // Update client localStorage to match the resolved server/firestore/local values
-      if (finalUrl && finalUrl.startsWith("https://script.google.com/macros/s/")) {
-        if (localUrl !== finalUrl) {
-          localStorage.setItem('VITE_GAS_URL', finalUrl);
-        }
-      }
-      if (finalSpreadsheetId) {
-        if (localSpreadsheetId !== finalSpreadsheetId) {
-          localStorage.setItem('VITE_SPREADSHEET_ID', finalSpreadsheetId);
-        }
-      }
-      if (finalDriveUrl && finalDriveUrl.startsWith("https://script.google.com/macros/s/")) {
-        if (localDriveUrl !== finalDriveUrl) {
-          localStorage.setItem('VITE_GAS_DRIVE_URL', finalDriveUrl);
-        }
-      }
+      localStorage.setItem('VITE_GAS_URL', finalUrl);
+      localStorage.setItem('VITE_SPREADSHEET_ID', finalSpreadsheetId);
+      localStorage.setItem('VITE_GAS_DRIVE_URL', finalDriveUrl);
 
       // Safe Auto-Heal: Only write custom config to the server if both are valid AND different from server's current state
       const isServerMissingConfig = !serverUrl || !serverSpreadsheetId || !serverDriveUrl || data.source === 'hardcoded';
@@ -1531,7 +1519,7 @@ export const api = {
             for (const targetUrl of candidateUrls) {
               try {
                 const directController = new AbortController();
-                const directTimeoutId = setTimeout(() => directController.abort(), 30000); // 30 seconds per attempt
+                const directTimeoutId = setTimeout(() => directController.abort(), 25000); // 25s timeout for Google Apps Script
 
                 const response = await fetch(targetUrl, {
                   method: 'POST',
@@ -1577,7 +1565,8 @@ export const api = {
             throw new Error(lastDirectError?.message || proxyError.message || "Failed to communicate with Google Sheets.");
           }
 
-          if (this.isServerConfigured) {
+          const hasSavedSession = !!localStorage.getItem('bqos_session');
+          if (this.isServerConfigured || hasSavedSession) {
             throw new Error(proxyError.message ? `Unable to connect to Google Sheets server proxy. Reason: ${proxyError.message}` : "Unable to connect to Google Sheets server proxy. Please check your internet connection and try again.");
           }
           
