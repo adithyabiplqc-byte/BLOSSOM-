@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
+import { isModuleRestricted } from '../utils/restrictions';
 
 interface UserDashboardProps {
   user: any;
@@ -15,7 +16,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
   workorders = [],
   users = []
 }) => {
-  const isRestricted = (id: string) => (user.restrictions || []).includes(id);
+  const isRestricted = (id: string) => isModuleRestricted(user, id);
 
   // Dynamic greeting based on time of day
   const greeting = useMemo(() => {

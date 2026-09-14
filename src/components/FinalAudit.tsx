@@ -38,6 +38,11 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     return Array.from(new Set(['COMMON', ...list.map(u => String(u).toUpperCase())]));
   }, [settings, user, hasSpreadsheet]);
 
+  const zoneMappings = React.useMemo(() => {
+    const raw = settings?.ZONE_MAPPINGS || settings?.MAPPINGS || settings?.ZONE_MAPPING;
+    return Array.isArray(raw) ? raw : [];
+  }, [settings]);
+
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 
     wo: '', 
@@ -65,6 +70,19 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     }
   }, [currentUnits, form.unit]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+
+  const getWorkorderStatus = React.useCallback((w: any) => {
+    if (!w) return 'FINAL';
+    const keyWo = String(w.workorderNumber || w.wo || '').trim().toUpperCase();
+    const keyId = String(w.id || '').trim().toUpperCase();
+    return (
+      statusOverrides[keyWo] || 
+      (keyId && statusOverrides[keyId]) || 
+      w.status || 
+      'FINAL'
+    );
+  }, [statusOverrides]);
 
   const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
@@ -100,6 +118,15 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     setIsSubmitting(true);
     try {
       const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
+
+      if (resolvedWo && moveToComplete) {
+        const upperWo = String(resolvedWo).trim().toUpperCase();
+        setStatusOverrides(prev => ({
+          ...prev,
+          [upperWo]: 'COMPLETED',
+          ...(selectedWO?.id ? { [String(selectedWO.id).trim().toUpperCase()]: 'COMPLETED' } : {})
+        }));
+      }
 
       const finalAuditPayload = { 
         ...selectedWO, 
@@ -147,9 +174,30 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
               .filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
-                const status = String(w.status || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const matchesStatus = (status === 'FINAL' || status === 'FINALPASSANDHOLD' || status === 'AQLPASSANDHOLD');
-                return (wZone === fZone || fZone === 'ALL' || fZone === 'COMMON') && matchesStatus;
+                const rawStatus = getWorkorderStatus(w);
+                const status = String(rawStatus || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const matchesStatus = (
+                  status === 'FINAL' || 
+                  status === 'FINALAUDIT' ||
+                  status === 'FINALPASSANDHOLD' || 
+                  status === 'AQLPASSANDHOLD' ||
+                  status === 'PASSANDHOLD' ||
+                  (status.includes('FINAL') && status.includes('HOLD'))
+                );
+
+                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === 'COMMON' || wZone === 'SYSTEM');
+                if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                  const matchingRows = zoneMappings.filter((m: any) => 
+                    String(m.zone || '').toUpperCase().trim() === fZone || 
+                    String(m.id || '').toUpperCase().trim() === fZone
+                  );
+                  matchesZone = matchingRows.some((m: any) => 
+                    String(m.zone || '').toUpperCase().trim() === wZone || 
+                    String(m.id || '').toUpperCase().trim() === wZone
+                  );
+                }
+
+                return matchesZone && matchesStatus;
               })
               .map(w => <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
             }

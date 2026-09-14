@@ -384,7 +384,7 @@ function getCanonicalBase(baseName) {
 
 function getReportSheetName(baseName, data) {
   const canonical = getCanonicalBase(baseName);
-  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS'];
+  const systemSheets = ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS'];
   if (systemSheets.indexOf(canonical) !== -1) {
     return canonical;
   }
@@ -1667,16 +1667,19 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
     const ss = getSS();
     const allSheets = ss.getSheets();
     let updated = false;
+    const targetWo = String(woNum || '').trim().toUpperCase();
+    if (!targetWo) return { success: false, error: "Empty WO" };
     
     for (let sIdx = 0; sIdx < allSheets.length; sIdx++) {
       const sheet = allSheets[sIdx];
-      const sNameUpper = sheet.getName().toUpperCase().trim();
-      if (sNameUpper === 'WORKORDER' || sNameUpper.startsWith('WORKORDER - ') || sNameUpper.startsWith('WORK_ORDER') || sNameUpper.startsWith('WORKORDERS')) {
+      const sNameClean = sheet.getName().toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
+      if (sNameClean === 'WORKORDER' || sNameClean === 'WORKORDERS' || sNameClean.startsWith('WORKORDER')) {
         const data = sheet.getDataRange().getValues();
         if (data.length > 0) {
           const headers = data[0];
           const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
           
+          let idIdx = normHeaders.indexOf('id');
           let woIdx = normHeaders.indexOf('workordernumber');
           if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
           if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
@@ -1687,7 +1690,7 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
           let statusIdx = normHeaders.indexOf('status');
           if (statusIdx === -1) statusIdx = normHeaders.indexOf('state');
           
-          if (woIdx !== -1) {
+          if (woIdx !== -1 || idIdx !== -1) {
             let colToUpdate = statusIdx;
             if (statusIdx === -1) {
               colToUpdate = headers.length;
@@ -1695,7 +1698,9 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
             }
             
             for (let i = 1; i < data.length; i++) {
-              if (String(data[i][woIdx]) === String(woNum)) {
+              var rowWo = woIdx !== -1 ? String(data[i][woIdx] || '').trim().toUpperCase() : '';
+              var rowId = idIdx !== -1 ? String(data[i][idIdx] || '').trim().toUpperCase() : '';
+              if ((rowWo && rowWo === targetWo) || (rowId && rowId === targetWo)) {
                 sheet.getRange(i + 1, colToUpdate + 1).setValue(nextStatus);
                 updated = true;
                 clearSheetCache(sheet.getName());
@@ -1706,8 +1711,8 @@ function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
         }
       }
     }
-    
-    return { success: true };
+    SpreadsheetApp.flush();
+    return { success: true, updated: updated };
   } catch (e) {
     console.error("Error updating WO status:", e);
     return { success: false, error: e.toString() };
@@ -1967,23 +1972,75 @@ function api_updateDataBySheet(sheetName, record) {
     clearSheetCache(targetSheetName);
     const sheet = getOrCreateSheet(targetSheetName);
     const data = sheet.getDataRange().getValues();
+    if (!data || data.length === 0) return { success: false, error: "Empty sheet" };
+
     const headers = data[0];
     const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    
     let idIdx = normHeaders.indexOf('id');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
-    const id = record.id || record.workorderNumber || record.userCode;
+    let woIdx = normHeaders.indexOf('workordernumber');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
+    let userCodeIdx = normHeaders.indexOf('usercode');
+    if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('username');
 
+    let matchedRow = -1;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][idIdx] === id) {
-        const newRow = headers.map(h => {
-          const val = resolveSynonymValue(h, record);
-          return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
-        });
-        sheet.getRange(i + 1, 1, 1, headers.length).setValues([newRow]);
-        return { success: true };
+      const row = data[i];
+      // 1. Check direct ID if non-empty
+      if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
+        matchedRow = i;
+        break;
+      }
+      // 2. Check workorder number
+      if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
+        const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
+        if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+          matchedRow = i;
+          break;
+        }
+      }
+      // 3. Check user code
+      if (userCodeIdx !== -1 && (record.userCode || record.username)) {
+        const targetUser = String(record.userCode || record.username).trim().toLowerCase();
+        if (String(row[userCodeIdx] || '').trim().toLowerCase() === targetUser) {
+          matchedRow = i;
+          break;
+        }
       }
     }
+
+    // Fallback: general idIdx check
+    if (matchedRow === -1 && idIdx !== -1) {
+      const fallbackId = String(record.id || record.workorderNumber || record.wo || record.userCode || '').trim().toUpperCase();
+      if (fallbackId) {
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][idIdx] || '').trim().toUpperCase() === fallbackId) {
+            matchedRow = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (matchedRow !== -1) {
+      const existingRow = data[matchedRow];
+      const newRow = headers.map(function(h, cIdx) {
+        const val = resolveSynonymValue(h, record);
+        if (val !== undefined && val !== null) {
+          return (typeof val === 'object') ? JSON.stringify(val) : val;
+        }
+        return existingRow && existingRow[cIdx] !== undefined ? existingRow[cIdx] : "";
+      });
+      sheet.getRange(matchedRow + 1, 1, 1, headers.length).setValues([newRow]);
+      SpreadsheetApp.flush();
+      clearSheetCache(targetSheetName);
+      return { success: true };
+    }
+
     return { success: false, error: "Record not found" };
   } catch (e) {
     return { success: false, error: e.toString() };

@@ -81,10 +81,25 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
   }, [globalZone, currentZones, form.zone, formPre.zone]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+
+  // Helper to get active status with local optimistic overrides
+  const getWorkorderStatus = React.useCallback((w: any) => {
+    if (!w) return 'PRECUTTING';
+    const keyWo = String(w.workorderNumber || '').trim();
+    const keyId = String(w.id || '').trim();
+    return statusOverrides[keyWo] || (keyId && statusOverrides[keyId]) || w.status || 'PRECUTTING';
+  }, [statusOverrides]);
 
   // Selected workorders for each submodule
-  const selectedWOPre = workorders.find(w => String(w.id) === String(formPre.wo) || String(w.workorderNumber) === String(formPre.wo));
-  const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
+  const selectedWOPre = workorders.find(w => 
+    String(w.id || '').trim() === String(formPre.wo || '').trim() || 
+    String(w.workorderNumber || '').trim() === String(formPre.wo || '').trim()
+  );
+  const selectedWO = workorders.find(w => 
+    String(w.id || '').trim() === String(form.wo || '').trim() || 
+    String(w.workorderNumber || '').trim() === String(form.wo || '').trim()
+  );
 
   const [cuttingRecords, setCuttingRecords] = useState<any[]>([]);
   const [zoneMappings, setZoneMappings] = React.useState<any[]>([]);
@@ -178,6 +193,15 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
     try {
       const resolvedWo = selectedWOPre?.workorderNumber || (formPre.wo.startsWith('wo-') ? (workorders.find(w => w.id === formPre.wo)?.workorderNumber || formPre.wo) : formPre.wo);
       const nextStatus = passAndHold ? 'PRECUTTING_PASS_AND_HOLD' : 'CUTTING';
+
+      // Immediately override status locally for instant 0ms feedback
+      if (resolvedWo) {
+        setStatusOverrides(prev => ({
+          ...prev,
+          [String(resolvedWo).trim()]: nextStatus,
+          ...(selectedWOPre?.id ? { [String(selectedWOPre.id).trim()]: nextStatus } : {})
+        }));
+      }
 
       const payload = {
         ...selectedWOPre,
@@ -282,6 +306,15 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
     try {
       const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
       const nextStatus = passAndHold ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
+
+      // Immediately override status locally for instant 0ms feedback
+      if (resolvedWo) {
+        setStatusOverrides(prev => ({
+          ...prev,
+          [String(resolvedWo).trim()]: nextStatus,
+          ...(selectedWO?.id ? { [String(selectedWO.id).trim()]: nextStatus } : {})
+        }));
+      }
 
       const payload = { 
         ...selectedWO, 
@@ -415,11 +448,14 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Precutting dropdown shows ONLY workorders in PRECUTTING or held in Precutting (PRECUTTING_PASS_AND_HOLD)
-                    const status = String(w.status || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    // Precutting dropdown shows workorders in PRECUTTING, held in Precutting, or general PASS_AND_HOLD
+                    const rawStatus = getWorkorderStatus(w);
+                    const status = String(rawStatus || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
                     const matchesStatus = (
+                      status === '' ||
                       status === 'PRECUTTING' || 
-                      status === 'PRECUTTINGPASSANDHOLD'
+                      status === 'PRECUTTINGPASSANDHOLD' ||
+                      status === 'PASSANDHOLD'
                     );
                     return matchesZone && matchesStatus;
                   })
@@ -436,7 +472,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
           {selectedWOPre && (
             <div className="space-y-4">
               <div className="animate-zoom-in">
-                <WorkorderDetailCard wo={selectedWOPre} settings={settings} />
+                <WorkorderDetailCard wo={{ ...selectedWOPre, status: getWorkorderStatus(selectedWOPre) }} settings={settings} />
               </div>
             </div>
           )}
@@ -635,13 +671,15 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Main Cutting dropdown shows workorders passed from Precutting, held in Precutting, held in Cutting, or CUTTING
-                    const status = String(w.status || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    // Main Cutting dropdown shows workorders passed from Precutting, held in Precutting, held in Cutting, CUTTING, or PASS_AND_HOLD
+                    const rawStatus = getWorkorderStatus(w);
+                    const status = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                     const matchesStatus = (
                       status === 'CUTTING' || 
                       status === 'PRECUTTINGPASSED' || 
                       status === 'PRECUTTINGPASSANDHOLD' || 
-                      status === 'CUTTINGPASSANDHOLD'
+                      status === 'CUTTINGPASSANDHOLD' ||
+                      status === 'PASSANDHOLD'
                     );
                     return matchesZone && matchesStatus;
                   })
@@ -658,7 +696,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
           {selectedWO && (
             <div className="space-y-4">
               <div className="animate-zoom-in">
-                <WorkorderDetailCard wo={selectedWO} settings={settings} />
+                <WorkorderDetailCard wo={{ ...selectedWO, status: getWorkorderStatus(selectedWO) }} settings={settings} />
               </div>
               
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 animate-fade-in">

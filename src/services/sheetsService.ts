@@ -527,18 +527,23 @@ export const sheetsService = {
     const key = `bqos_local_sheet_${sheetName}`;
     const current = this.getOfflineData(sheetName);
     
+    const recId = String(record.id || '').trim().toLowerCase();
+    const recWo = String(record.workorderNumber || record.wo || '').trim().toUpperCase();
+    const recUser = String(record.userCode || record.username || '').trim().toLowerCase();
+
     const idx = current.findIndex(item => {
-      if (record.userCode && item.userCode && sheetName === 'USERS') {
-        return String(item.userCode) === String(record.userCode);
+      if (recUser && (item.userCode || item.username) && sheetName === 'USERS') {
+        return String(item.userCode || item.username).trim().toLowerCase() === recUser;
       }
-      if (record.id && item.id) {
-        return String(item.id) === String(record.id);
+      if (recId && item.id) {
+        return String(item.id).trim().toLowerCase() === recId;
       }
-      if (record.workorderNumber && item.workorderNumber && (record.style || item.style)) {
-        return String(item.workorderNumber) === String(record.workorderNumber) && String(item.style || '') === String(record.style || '');
-      }
-      if (record.workorderNumber && item.workorderNumber) {
-        return String(item.workorderNumber) === String(record.workorderNumber);
+      if (recWo && (item.workorderNumber || item.wo)) {
+        const itemWo = String(item.workorderNumber || item.wo).trim().toUpperCase();
+        if (record.style || item.style) {
+          return itemWo === recWo && String(item.style || '').trim().toUpperCase() === String(record.style || '').trim().toUpperCase();
+        }
+        return itemWo === recWo;
       }
       return false;
     });
@@ -1230,35 +1235,71 @@ export const sheetsService = {
     if (!data.values || data.values.length === 0) return { success: false };
 
     const headers: string[] = data.values[0];
-    const id = record.id || record.workorderNumber || record.userCode;
-    
     const normHeaders = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+    
     let idIdx = normHeaders.indexOf('id');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('workorderno');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('wo');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('wonum');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('wonumber');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('workorder');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
-
-    if (idIdx === -1) throw new Error('ID or Code column not found in database sheet');
+    let woIdx = normHeaders.indexOf('workordernumber');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
+    if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
+    let userCodeIdx = normHeaders.indexOf('usercode');
+    if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('username');
 
     let matchedRowIndex = -1;
     for (let i = 1; i < data.values.length; i++) {
-      if (String(data.values[i][idIdx]) === String(id)) {
+      const row = data.values[i];
+      // 1. Direct ID match if both the cell and record.id are present and non-empty
+      if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
         matchedRowIndex = i;
         break;
+      }
+      // 2. Workorder match: if woIdx exists and record has workorderNumber or wo
+      if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
+        const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
+        if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+          matchedRowIndex = i;
+          break;
+        }
+      }
+      // 3. User match: if userCodeIdx exists and record has userCode or username
+      if (userCodeIdx !== -1 && (record.userCode || record.username)) {
+        const targetUser = String(record.userCode || record.username).trim().toLowerCase();
+        if (String(row[userCodeIdx] || '').trim().toLowerCase() === targetUser) {
+          matchedRowIndex = i;
+          break;
+        }
+      }
+    }
+
+    // Fallback: if no smart match, check general idIdx if available
+    if (matchedRowIndex === -1 && idIdx !== -1) {
+      const fallbackId = String(record.id || record.workorderNumber || record.wo || record.userCode || '').trim().toUpperCase();
+      if (fallbackId) {
+        for (let i = 1; i < data.values.length; i++) {
+          if (String(data.values[i][idIdx] || '').trim().toUpperCase() === fallbackId) {
+            matchedRowIndex = i;
+            break;
+          }
+        }
       }
     }
 
     if (matchedRowIndex === -1) {
+      this.updateOfflineData(sheetName, record);
       return await this.saveData(resolvedName, record);
     }
 
-    const row = headers.map(header => {
+    this.updateOfflineData(sheetName, record);
+
+    const existingRow = data.values[matchedRowIndex] || [];
+    const row = headers.map((header, colIdx) => {
       const val = resolveSynonymValue(header, record);
-      return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
+      if (val !== undefined && val !== null) {
+        return (typeof val === 'object') ? JSON.stringify(val) : val;
+      }
+      return existingRow[colIdx] !== undefined ? existingRow[colIdx] : "";
     });
 
     const excelRow = matchedRowIndex + 1;

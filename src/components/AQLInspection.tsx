@@ -84,6 +84,19 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
   const [defectLog, setDefectLog] = useState<DefectEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [zoneMappings, setZoneMappings] = useState<any[]>([]);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+
+  const getWorkorderStatus = React.useCallback((w: any) => {
+    if (!w) return 'AQL';
+    const keyWo = String(w.workorderNumber || w.wo || '').trim().toUpperCase();
+    const keyId = String(w.id || '').trim().toUpperCase();
+    return (
+      statusOverrides[keyWo] || 
+      (keyId && statusOverrides[keyId]) || 
+      w.status || 
+      'AQL'
+    );
+  }, [statusOverrides]);
 
   // Load zone mappings
   useEffect(() => {
@@ -209,6 +222,16 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
       const nextStatus = passAndHold ? 'AQL_PASS_AND_HOLD' : 'FINAL';
 
+      // Immediately override status locally for instant 0ms feedback
+      if (resolvedWo && isAuditPassed) {
+        const upperWo = String(resolvedWo).trim().toUpperCase();
+        setStatusOverrides(prev => ({
+          ...prev,
+          [upperWo]: nextStatus,
+          ...(selectedWO?.id ? { [String(selectedWO.id).trim().toUpperCase()]: nextStatus } : {})
+        }));
+      }
+
       const payload = {
         zone: form.zone,
         wo: resolvedWo,
@@ -286,8 +309,15 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
             <option value="">Select Workorder...</option>
             {workorders
               .filter(w => {
-                const wStatus = String(w.status || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const matchesStatus = (wStatus === 'AQL' || wStatus === 'AQLPASSANDHOLD');
+                const rawStatus = getWorkorderStatus(w);
+                const wStatus = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const matchesStatus = (
+                  wStatus === 'AQL' || 
+                  wStatus === 'AQLPASSANDHOLD' || 
+                  wStatus === 'ENDLINEPASSANDHOLD' || 
+                  wStatus === 'PASSANDHOLD' ||
+                  (wStatus.includes('AQL') && wStatus.includes('HOLD'))
+                );
                 if (!matchesStatus) {
                   return false;
                 }
@@ -295,7 +325,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
                 const fZone = String(form.zone).toUpperCase().trim();
                 
-                let matchesZone = wZone === fZone;
+                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === 'COMMON' || wZone === 'SYSTEM');
                 if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
                   const matchingRows = zoneMappings.filter(m => 
                     String(m.zone || '').toUpperCase().trim() === fZone || 

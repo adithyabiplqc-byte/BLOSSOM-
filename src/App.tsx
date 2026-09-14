@@ -34,13 +34,23 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<any[]>(() => getSavedCache('bqos_cache_users', []));
   const [workorders, setWorkorders] = useState<any[]>(() => getSavedCache('bqos_cache_wo', []));
   const [settings, setSettings] = useState<any>(() => getSavedCache('bqos_cache_settings', null));
+  const [selectedSubmodule, setSelectedSubmodule] = useState<string>(() => {
+    try {
+      return localStorage.getItem('bqos_active_submodule') || '';
+    } catch (e) {
+      return '';
+    }
+  });
   const [view, setView] = useState<'splash' | 'login' | 'admin' | 'workorder' | 'user' | 'submodule'>(() => {
     if (!initialSession) return 'login';
+    try {
+      const savedSub = localStorage.getItem('bqos_active_submodule');
+      if (savedSub && initialSession.role !== 'WORKORDER') return 'submodule';
+    } catch (e) {}
     if (initialSession.role === 'ADMIN') return 'admin';
     if (initialSession.role === 'WORKORDER') return 'workorder';
     return 'user';
   });
-  const [selectedSubmodule, setSelectedSubmodule] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(true);
@@ -58,6 +68,22 @@ const App: React.FC = () => {
     document.documentElement.classList.remove('dark');
     localStorage.removeItem('bqos_theme');
   }, []);
+
+  const handleSelectSubmodule = useCallback((id: string) => {
+    try {
+      localStorage.setItem('bqos_active_submodule', id);
+    } catch (e) {}
+    setSelectedSubmodule(id);
+    setView('submodule');
+  }, []);
+
+  const handleBackFromSubmodule = useCallback(() => {
+    try {
+      localStorage.removeItem('bqos_active_submodule');
+    } catch (e) {}
+    setSelectedSubmodule('');
+    setView(prev => (user?.role === 'ADMIN' ? 'admin' : 'user'));
+  }, [user?.role]);
 
   const getParsedSettingList = useCallback((keys: string[], defaultVal: string[] = []) => {
     if (!settings) return defaultVal;
@@ -100,7 +126,7 @@ const App: React.FC = () => {
 
   const triggerSuccess = (message: string) => {
     setSuccessMessage(message);
-    fetchData();
+    fetchData(undefined, true);
     setTimeout(() => setSuccessMessage(null), 2500);
   };
 
@@ -166,27 +192,33 @@ const App: React.FC = () => {
     }, 30000);
     
     return () => clearInterval(pollInterval);
-  }, [fetchData, user]);
+  }, [fetchData, user?.userCode]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN') {
-      fetchData();
+      fetchData(globalZone, true);
     }
-  }, [globalZone, fetchData, user?.role]);
+  }, [globalZone, user?.role]);
 
   // Keep logged-in user info in sync with fresh database updates (e.g., administrator restriction updates)
   useEffect(() => {
     if (user && users.length > 0) {
-      const freshUser = users.find(u => u.userCode === user.userCode);
+      const freshUser = users.find(u => 
+        String(u.userCode || '').trim().toUpperCase() === String(user.userCode || '').trim().toUpperCase() ||
+        String(u.username || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()
+      );
       if (freshUser) {
-        if (JSON.stringify(freshUser.restrictions) !== JSON.stringify(user.restrictions) || 
-            freshUser.canDownload !== user.canDownload || 
-            freshUser.role !== user.role || 
-            freshUser.username !== user.username ||
-            freshUser.zone !== user.zone ||
-            freshUser.location !== user.location) {
-          setUser(freshUser);
-          try { localStorage.setItem('bqos_session', JSON.stringify(freshUser)); } catch (e) {}
+        const restrictionsChanged = JSON.stringify(freshUser.restrictions) !== JSON.stringify(user.restrictions);
+        const canDownloadChanged = freshUser.canDownload !== user.canDownload;
+        const roleChanged = freshUser.role !== user.role;
+        const usernameChanged = freshUser.username !== user.username;
+        const zoneChanged = freshUser.zone !== user.zone;
+        const locChanged = freshUser.location !== user.location;
+
+        if (restrictionsChanged || canDownloadChanged || roleChanged || usernameChanged || zoneChanged || locChanged) {
+          const merged = { ...user, ...freshUser };
+          setUser(merged);
+          try { localStorage.setItem('bqos_session', JSON.stringify(merged)); } catch (e) {}
         }
       }
     }
@@ -221,19 +253,9 @@ const App: React.FC = () => {
         }
 
         // 2. Identify saved session before calling initial data so we can request for specific user settings immediately!
-        const savedSession = localStorage.getItem('bqos_session');
-        let session: any = null;
-        let activeZone = 'ALL';
-        let sessionUserCode = '';
-        if (savedSession) {
-          try {
-            session = JSON.parse(savedSession);
-            activeZone = session.zone || (session.location === 'SYSTEM' || !session.location ? 'ALL' : session.location);
-            sessionUserCode = session.userCode || '';
-          } catch (e) {
-            try { localStorage.removeItem('bqos_session'); } catch(err){}
-          }
-        }
+        const savedSession = getSavedSession();
+        const activeZone = savedSession ? (savedSession.zone || (savedSession.location === 'SYSTEM' || !savedSession.location ? 'ALL' : savedSession.location)) : 'ALL';
+        const sessionUserCode = savedSession?.userCode || '';
 
         // 3. Run initialization queries in a single direct backend operation! Let's pass userCode and zone to fetch everything parallelly!
         const [initResult, zmResult] = await Promise.allSettled([
@@ -278,32 +300,50 @@ const App: React.FC = () => {
           } catch (e) {}
         }
 
-        if (session) {
-          setUser(session);
-          setGlobalZone(activeZone);
+        // Re-read current live session from localStorage to ensure user wasn't logged out or logged in during init
+        const currentSavedSession = getSavedSession();
+
+        if (currentSavedSession) {
+          // Sync fresh profile details if in the database
+          const fresh = allUsers.find((u: any) => 
+            String(u.userCode || '').trim().toUpperCase() === String(currentSavedSession.userCode || '').trim().toUpperCase() ||
+            String(u.username || '').trim().toLowerCase() === String(currentSavedSession.username || '').trim().toLowerCase()
+          );
+          const resolvedUser = fresh ? { ...currentSavedSession, ...fresh } : currentSavedSession;
+          setUser(resolvedUser);
+          try { localStorage.setItem('bqos_session', JSON.stringify(resolvedUser)); } catch (e) {}
+
+          setGlobalZone(prev => (prev === 'ALL' && activeZone !== 'ALL' ? activeZone : prev));
           
           if (initialData?.workorders) {
             setWorkorders(initialData.workorders);
             try { localStorage.setItem('bqos_cache_wo', JSON.stringify(initialData.workorders)); } catch(e){}
           }
 
-          if (session.role === 'ADMIN') setView('admin');
-          else if (session.role === 'WORKORDER') setView('workorder');
-          else setView('user');
+          // NEVER close an active submodule or override an active dashboard if user is already navigating!
+          setView(currentView => {
+            if (currentView === 'submodule') return 'submodule';
+            if (currentView === 'admin' || currentView === 'workorder' || currentView === 'user') return currentView;
 
-          // Sync fresh profile details if in the database
-          const fresh = allUsers.find((u: any) => u.userCode === session.userCode);
-          if (fresh) {
-             setUser(fresh);
-          }
+            // If still uninitialized or on splash screen:
+            try {
+              const activeSub = localStorage.getItem('bqos_active_submodule');
+              if (activeSub && resolvedUser.role !== 'WORKORDER') return 'submodule';
+            } catch (e) {}
+            if (resolvedUser.role === 'ADMIN') return 'admin';
+            if (resolvedUser.role === 'WORKORDER') return 'workorder';
+            return 'user';
+          });
         } else {
-          setView('login');
+          setUser(null);
+          setView(currentView => (currentView === 'splash' ? 'login' : currentView));
         }
       } catch (e: any) {
         console.warn("Initialization Notice (continuing with cached session):", e);
-        const savedSession = localStorage.getItem('bqos_session');
-        if (!savedSession && !user) {
-          setView('login');
+        const currentSavedSession = getSavedSession();
+        if (!currentSavedSession) {
+          setUser(null);
+          setView(currentView => (currentView === 'splash' ? 'login' : currentView));
         }
       } finally {
         clearTimeout(timeoutId);
@@ -318,6 +358,8 @@ const App: React.FC = () => {
 
   const handleLogin = async (u: any) => {
     try { localStorage.setItem('bqos_session', JSON.stringify(u)); } catch(e){}
+    try { localStorage.removeItem('bqos_active_submodule'); } catch(e){}
+    setSelectedSubmodule('');
     setUser(u);
     const activeZone = u.zone || (u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location);
     setGlobalZone(activeZone);
@@ -326,56 +368,51 @@ const App: React.FC = () => {
     else if (u.role === 'WORKORDER') setView('workorder');
     else setView('user');
     
-    setLoading(true);
+    // Background fetch fresh data silently without flashing loading screen
     try {
-      const [initData, s] = await Promise.all([
-        api.run('api_getInitialData', { zone: activeZone }),
+      const [initData, s] = await Promise.allSettled([
+        api.run('api_getInitialData', { zone: activeZone, userCode: u.userCode }),
         api.run('api_getUserSettings', u.userCode)
       ]);
       
-      const data = initData as any;
-      if (data?.users) setUsers(data.users);
-      if (data?.workorders) setWorkorders(data.workorders);
-      if (s) setSettings(s);
+      if (initData.status === 'fulfilled' && initData.value) {
+        const data = initData.value as any;
+        if (data?.users) {
+          setUsers(data.users);
+          try { localStorage.setItem('bqos_cache_users', JSON.stringify(data.users)); } catch(e){}
+        }
+        if (data?.workorders) {
+          setWorkorders(data.workorders);
+          try { localStorage.setItem('bqos_cache_wo', JSON.stringify(data.workorders)); } catch(e){}
+        }
+        if (data?.settings) {
+          setSettings(data.settings);
+          try { localStorage.setItem('bqos_cache_settings', JSON.stringify(data.settings)); } catch(e){}
+        }
+      }
+      if (s.status === 'fulfilled' && s.value) {
+        setSettings(s.value);
+        try { localStorage.setItem('bqos_cache_settings', JSON.stringify(s.value)); } catch(e){}
+      }
     } catch (e) {
       console.warn("Login Data Notice:", e);
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem('bqos_session');
+    try {
+      localStorage.removeItem('bqos_session');
+      localStorage.removeItem('bqos_active_submodule');
+    } catch (e) {}
     setUser(null);
-    // Keep users to allow login without refresh
+    setSelectedSubmodule('');
     setWorkorders([]);
     setSettings(null);
     setGlobalZone('ALL');
     setView('login');
-    setSelectedSubmodule('');
   };
 
   const renderView = () => {
-    const hasConnection = localStorage.getItem('VITE_GAS_URL') || isPermanentlyConnected || localStorage.getItem('VITE_SPREADSHEET_ID');
-    // Only hijack screen if explicitly in CONFIGURATION_MODE or if there is no logged in user at splash
-    if (connectionError === 'CONFIGURATION_MODE' || (!user && (connectionError === 'CONFIGURATION_REQUIRED' || (!hasConnection && view === 'splash' && !loading)))) {
-      return (
-        <div className="min-h-screen bg-slate-50 flex items-start justify-center pt-12 p-4">
-          <div className="w-full max-w-2xl">
-            <AdminDashboard 
-              currentUser={{ role: 'ADMIN', username: 'CONFIG_MODE' }} 
-              onLogout={() => {
-                setConnectionError(null);
-                if (view === 'splash' || !user) setView('login');
-              }}
-              configOnlyMode={true}
-              settings={settings}
-            />
-          </div>
-        </div>
-      );
-    }
-
     switch (view) {
       case 'splash':
         return (
@@ -498,7 +535,11 @@ const App: React.FC = () => {
                   <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-inner border border-slate-200 dark:border-slate-700 justify-center">
                     {user?.role === 'ADMIN' && (
                       <button
-                        onClick={() => { setView('admin'); setSelectedSubmodule(''); }}
+                        onClick={() => {
+                          try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
+                          setSelectedSubmodule('');
+                          setView('admin');
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                       >
                         <Icon name="shield" size={12} />
@@ -506,14 +547,22 @@ const App: React.FC = () => {
                       </button>
                     )}
                     <button
-                      onClick={() => { setView('workorder'); setSelectedSubmodule(''); }}
+                      onClick={() => {
+                        try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
+                        setSelectedSubmodule('');
+                        setView('workorder');
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${view === 'workorder' ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                     >
                       <Icon name="package" size={12} />
                       Workorders
                     </button>
                     <button
-                      onClick={() => { setView('user'); setSelectedSubmodule(''); }}
+                      onClick={() => {
+                        try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
+                        setSelectedSubmodule('');
+                        setView('user');
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${(view === 'user' || view === 'submodule') ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
                     >
                       <Icon name="activity" size={12} />
@@ -643,7 +692,7 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                   <UserDashboard 
                     user={user} 
-                    onSelectSubmodule={(id) => { setSelectedSubmodule(id); setView('submodule'); }} 
+                    onSelectSubmodule={handleSelectSubmodule} 
                     workorders={workorders}
                     users={users}
                   />
@@ -656,11 +705,11 @@ const App: React.FC = () => {
                   settings={settings} 
                   workorders={workorders} 
                   users={users}
-                  onBack={() => setView('user')} 
+                  onBack={handleBackFromSubmodule} 
                   triggerSuccess={triggerSuccess}
                   globalZone={globalZone}
                   setGlobalZone={setGlobalZone}
-                  onNavigate={(newSubId) => setSelectedSubmodule(newSubId)}
+                  onNavigate={handleSelectSubmodule}
                   refreshData={fetchData}
                 />
               )}

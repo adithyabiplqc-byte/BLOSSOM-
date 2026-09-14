@@ -93,6 +93,28 @@ const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings 
               } else if (step === 'INLINE' || step === 'ENDLINE') {
                 isActive = true;
               }
+            } else if (statusVal === 'PRECUTTINGPASSANDHOLD') {
+              if (step === 'CUTTING') {
+                isActive = true;
+              }
+            } else if (statusVal === 'CUTTINGPASSANDHOLD') {
+              if (step === 'CUTTING') {
+                isPast = true;
+              } else if (step === 'INLINE' || step === 'ENDLINE') {
+                isActive = true;
+              }
+            } else if (statusVal === 'INLINEPASSANDHOLD' || statusVal === 'ENDLINEPASSANDHOLD') {
+              const activeIdx = ['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].indexOf('ENDLINE');
+              isPast = idx < activeIdx;
+              isActive = step === 'INLINE' || step === 'ENDLINE' || step === 'AQL';
+            } else if (statusVal === 'AQLPASSANDHOLD') {
+              const activeIdx = ['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].indexOf('AQL');
+              isPast = idx < activeIdx;
+              isActive = step === 'AQL' || step === 'FINAL';
+            } else if (statusVal === 'FINALPASSANDHOLD') {
+              const activeIdx = ['CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL', 'COMPLETED'].indexOf('FINAL');
+              isPast = idx < activeIdx;
+              isActive = step === 'FINAL';
             } else if (statusVal === 'PASSANDHOLD') {
               if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
                 isActive = true;

@@ -13,6 +13,7 @@ import DataView from './DataView';
 import MISView from './MISView';
 import BlossomAIView from './BlossomAIView';
 import { api } from '../services/api';
+import { isModuleRestricted } from '../utils/restrictions';
 
 interface SubmoduleContainerProps {
   id: string;
@@ -29,10 +30,7 @@ interface SubmoduleContainerProps {
 }
 
 const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, setGlobalZone, onNavigate, refreshData }) => {
-  const isRestricted = user?.role !== 'ADMIN' && (
-    (user?.restrictions || []).includes(id) || 
-    (user?.restrictions || []).includes(id.charAt(0))
-  );
+  const isRestricted = isModuleRestricted(user, id);
 
   const renderSubmodule = () => {
     if (isRestricted) {

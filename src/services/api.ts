@@ -2,7 +2,7 @@ import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbxdZEi_IiiQcMYvs_u-Dm5PkHgSf4wXBal7g3FXxH0EGTYuaCaSbwSWtO0qAi6P2J-o/exec";
+export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
 export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 // Helper to generate UUIDs client-side
@@ -69,12 +69,22 @@ const SEED_USERS = [
 
 async function updateWorkorderStatus(woNum: string, nextStatus: string) {
   try {
+    const target = String(woNum || '').trim().toUpperCase();
+    if (!target) return;
     const workorders = await sheetsService.getData('WORKORDER');
-    const matched = workorders.find(w => String(w.workorderNumber) === String(woNum));
+    const matched = workorders.find(w => 
+      String(w.workorderNumber || '').trim().toUpperCase() === target || 
+      String(w.id || '').trim().toUpperCase() === target ||
+      String(w.wo || '').trim().toUpperCase() === target
+    );
     if (matched) {
       matched.status = nextStatus;
       await sheetsService.updateData('WORKORDER', matched);
+    } else {
+      await sheetsService.updateData('WORKORDER', { workorderNumber: woNum, status: nextStatus });
     }
+    api.clearCache('api_getWorkorders');
+    api.clearCache('api_getInitialData');
   } catch (e) {
     console.warn("Failed to update status on sheet:", e);
   }
@@ -236,7 +246,7 @@ export const api = {
         resData = await response.json();
       }
 
-      // Share configuration in remote Firestore securely
+      // Share configuration in remote Firestore securely if available
       try {
         const docRef = doc(db, "system_config", "global");
         const fbPayload: any = {
@@ -249,7 +259,7 @@ export const api = {
         await setDoc(docRef, fbPayload, { merge: true });
         console.log("[FIRESTORE] Connection config persisted.");
       } catch (fe) {
-        console.error("[FIRESTORE] Failed to save config:", fe);
+        // Non-blocking: remote Firestore database may not be provisioned yet; configuration is permanently saved to server storage & localStorage
       }
 
       return resData;
@@ -871,9 +881,9 @@ export const api = {
           const woTarget = report.wo || report.workorderNumber;
           let nextStatus = 'INLINE_AND_ENDLINE';
           if (report.submodule === 'PRECUTTING') {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTINGPASSANDHOLD' : 'PRECUTTINGPASSED';
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'PRECUTTING_PASS_AND_HOLD' : 'CUTTING';
           } else {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTINGPASSANDHOLD' : 'INLINE_AND_ENDLINE';
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
           }
           await updateWorkorderStatus(woTarget, nextStatus);
         }
@@ -902,7 +912,7 @@ export const api = {
         if (res.success && report.wo) {
           let nextStatus = 'AQL';
           if (report.moveToFinal || report.auditStatus === 'PASS') {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQLPASSANDHOLD' : 'FINAL';
+            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
           }
           await updateWorkorderStatus(report.wo, nextStatus);
         }
@@ -913,7 +923,7 @@ export const api = {
         const report = args[0];
         const res = await sheetsService.saveData('FINAL AUDIT', report);
         if (res.success && report.wo) {
-          const nextStatus = (report.moveToComplete === true || report.moveToComplete === 'true') ? 'COMPLETED' : 'FINALPASSANDHOLD';
+          const nextStatus = (report.moveToComplete === true || report.moveToComplete === 'true') ? 'COMPLETED' : 'FINAL_PASS_AND_HOLD';
           await updateWorkorderStatus(report.wo, nextStatus);
         }
         return res;

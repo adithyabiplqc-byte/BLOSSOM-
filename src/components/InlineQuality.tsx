@@ -1130,7 +1130,9 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   status === 'INLINE' || 
                   status === 'ENDLINE' || 
                   status === 'INLINEANDENDLINE' || 
-                  status === 'CUTTINGPASSANDHOLD'
+                  status === 'CUTTINGPASSANDHOLD' ||
+                  status === 'INLINEPASSANDHOLD' ||
+                  status === 'PASSANDHOLD'
                 );
                 
                 return matchesZone && matchesUnit && matchesStatus;

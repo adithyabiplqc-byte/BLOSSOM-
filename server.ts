@@ -7,7 +7,7 @@ const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 
-const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbxdZEi_IiiQcMYvs_u-Dm5PkHgSf4wXBal7g3FXxH0EGTYuaCaSbwSWtO0qAi6P2J-o/exec";
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
 const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 const HARDCODED_GAS_URLS = [USER_SHEET_URL];
@@ -16,7 +16,7 @@ const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
 
 // Auto-initialize connection configuration files on container boot so every device works out of the box
 try {
-  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
+  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbxd") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
     fs.writeFileSync(CONFIG_FILE, USER_SHEET_URL);
     console.log("[BOOT CONFIG] Auto-initialized permanent Google Sheets URL:", USER_SHEET_URL);
   }
@@ -58,6 +58,53 @@ try {
 let cachedFsConfig: any = null;
 let lastFsFetchTime = 0;
 const CACHE_TTL = 3 * 60 * 1000; // Cache Firestore config for 3 minutes
+
+let isFirestoreAvailable: boolean = true;
+let isFirestoreChecked: boolean = false;
+
+function handleFirestoreError(resStatus: number, resText: string): boolean {
+  if (
+    resStatus === 404 ||
+    resStatus === 401 ||
+    resStatus === 403 ||
+    resText.includes("does not exist") ||
+    resText.includes("NOT_FOUND") ||
+    resText.includes("API keys are not supported")
+  ) {
+    if (isFirestoreAvailable) {
+      isFirestoreAvailable = false;
+      console.log(`[FIRESTORE] Cloud Firestore database is not provisioned on project (${FIREBASE_PROJECT_ID}). BQOS is operating smoothly in primary Google Sheets & local persistent DB mode.`);
+    }
+    return true;
+  }
+  return false;
+}
+
+async function checkFirestoreAvailability(): Promise<boolean> {
+  if (isFirestoreChecked) return isFirestoreAvailable;
+  isFirestoreChecked = true;
+  if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID) {
+    isFirestoreAvailable = false;
+    return false;
+  }
+  try {
+    const keyParam = `?key=${FIREBASE_API_KEY}`;
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/system_config/ping${keyParam}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(url, { signal: controller.signal as any });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const text = await res.text();
+      handleFirestoreError(res.status, text);
+    } else {
+      isFirestoreAvailable = true;
+    }
+  } catch (e) {
+    isFirestoreAvailable = false;
+  }
+  return isFirestoreAvailable;
+}
 
 // High-performance response cache for read queries
 const apiReadCache = new Map<string, { timestamp: number; data: any }>();
@@ -215,6 +262,10 @@ async function getFirestoreConfig() {
     }
   } catch (e) {}
 
+  if (!isFirestoreAvailable || !FIREBASE_API_KEY || !FIREBASE_PROJECT_ID) {
+    return cachedFsConfig;
+  }
+
   // Asynchronously trigger Firestore fetch in background without holding up request
   (async () => {
     try {
@@ -234,6 +285,9 @@ async function getFirestoreConfig() {
           cachedFsConfig = { gasUrl, spreadsheetId, gasDriveUrl };
           lastFsFetchTime = Date.now();
         }
+      } else {
+        const text = await res.text();
+        handleFirestoreError(res.status, text);
       }
     } catch (e) {}
   })();
@@ -242,6 +296,9 @@ async function getFirestoreConfig() {
 }
 
 async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, gasDriveUrl = "", forceClear = false) {
+  if (!isFirestoreAvailable || !FIREBASE_API_KEY || !FIREBASE_PROJECT_ID) {
+    return;
+  }
   try {
     let currentGasUrl = gasUrl;
     let currentSpreadsheetId = spreadsheetId;
@@ -290,10 +347,15 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, gasDri
       cachedFsConfig = { gasUrl: currentGasUrl, spreadsheetId: currentSpreadsheetId, gasDriveUrl: currentGasDriveUrl };
       lastFsFetchTime = Date.now();
     } else {
-      console.warn("[SERVER FIRESTORE] Auto-sync PATCH failed:", await res.text());
+      const text = await res.text();
+      if (!handleFirestoreError(res.status, text)) {
+        console.warn("[SERVER FIRESTORE] Auto-sync PATCH failed:", text);
+      }
     }
   } catch (e: any) {
-    console.error("[SERVER FIRESTORE] Error auto-syncing config to Firestore:", e.message);
+    if (isFirestoreAvailable) {
+      console.error("[SERVER FIRESTORE] Error auto-syncing config to Firestore:", e.message);
+    }
   }
 }
 
@@ -980,6 +1042,9 @@ const TABLES = [
 let lastPushedData: { [key: string]: string } = {};
 
 async function pushTableToFirestore(table: string, data: any) {
+  if (!isFirestoreAvailable || !FIREBASE_API_KEY || !FIREBASE_PROJECT_ID) {
+    return;
+  }
   try {
     const jsonStr = JSON.stringify(data);
     if (lastPushedData[table] === jsonStr) {
@@ -997,14 +1062,22 @@ async function pushTableToFirestore(table: string, data: any) {
     if (res.ok) {
       console.log(`[FIRESTORE PUSH] Synced table ${table} to Firestore cloud database.`);
     } else {
-      console.warn(`[FIRESTORE PUSH] Failed to sync table ${table}:`, await res.text());
+      const text = await res.text();
+      if (!handleFirestoreError(res.status, text)) {
+        console.warn(`[FIRESTORE PUSH] Failed to sync table ${table}:`, text);
+      }
     }
   } catch (e: any) {
-    console.error(`[FIRESTORE PUSH] Error syncing table ${table}:`, e.message);
+    if (isFirestoreAvailable) {
+      console.error(`[FIRESTORE PUSH] Error syncing table ${table}:`, e.message);
+    }
   }
 }
 
 async function pullFromFirestore() {
+  if (!isFirestoreAvailable || !FIREBASE_API_KEY || !FIREBASE_PROJECT_ID) {
+    return;
+  }
   let db: any = {};
   try {
     if (fs.existsSync(LOCAL_DB_FILE)) {
@@ -1014,6 +1087,7 @@ async function pullFromFirestore() {
 
   let changed = false;
   for (const table of TABLES) {
+    if (!isFirestoreAvailable) break;
     try {
       const keyParam = FIREBASE_API_KEY ? `?key=${FIREBASE_API_KEY}` : "";
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/system_config/db_${table}${keyParam}`;
@@ -1027,6 +1101,11 @@ async function pullFromFirestore() {
             db[table] = parsed;
             changed = true;
           }
+        }
+      } else {
+        const text = await res.text();
+        if (handleFirestoreError(res.status, text)) {
+          break;
         }
       }
     } catch (e) {
@@ -1045,10 +1124,13 @@ let lastPullTime = 0;
 const PULL_INTERVAL = 15000; // 15 seconds
 
 async function maybePullFromFirestore() {
+  if (!isFirestoreAvailable) return;
   const now = Date.now();
   if (now - lastPullTime > PULL_INTERVAL) {
     lastPullTime = now;
-    pullFromFirestore().catch(e => console.error("[BG PULL] Error:", e));
+    pullFromFirestore().catch(e => {
+      if (isFirestoreAvailable) console.error("[BG PULL] Error:", e);
+    });
   }
 }
 
@@ -2030,9 +2112,14 @@ async function startServer() {
   // Ensure local DB is initialized on boot
   readLocalDb();
 
-  // Pull latest database from Firestore cloud to restore state immediately across containers!
-  console.log("[BOOT] Pulling latest table data from Firestore cloud database...");
-  await pullFromFirestore().catch(() => {});
+  // Check Firestore availability upfront to prevent connection errors if not provisioned
+  await checkFirestoreAvailability();
+
+  // Pull latest database from Firestore cloud if available
+  if (isFirestoreAvailable) {
+    console.log("[BOOT] Pulling latest table data from Firestore cloud database...");
+    await pullFromFirestore().catch(() => {});
+  }
 
   // Perm-Sync Auto-Heal from Firestore on server boot!
   // If the container restarts or gets redeployed, this pulls the saved Google Sheets credentials

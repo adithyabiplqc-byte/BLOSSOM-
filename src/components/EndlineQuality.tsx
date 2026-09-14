@@ -870,7 +870,9 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     statusUpper !== 'ENDLINE' && 
                     statusUpper !== 'INLINEANDENDLINE' && 
                     statusUpper !== 'INLINE' &&
-                    statusUpper !== 'CUTTINGPASSANDHOLD'
+                    statusUpper !== 'CUTTINGPASSANDHOLD' &&
+                    statusUpper !== 'ENDLINEPASSANDHOLD' &&
+                    statusUpper !== 'PASSANDHOLD'
                   ) {
                     return false;
                   }
