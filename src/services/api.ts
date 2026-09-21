@@ -1,6 +1,7 @@
 import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 
 export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
 export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
@@ -1173,11 +1174,35 @@ export const api = {
       case 'api_getREPORTS_SOPData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('REPORTS_SOP');
+        if (Array.isArray(data)) {
+          data = data.map((r: any) => {
+            if (!r || typeof r !== 'object') return r;
+            const rawDriveId = r.driveFileId || r.drive_file_id || '';
+            const rawAttach = r.attachmentUrl || r.attachment_url || '';
+            const rawView = r.viewUrl || r.view_url || '';
+            const rawDown = r.downloadUrl || r.download_url || '';
+
+            const cleanAttach = extractCleanDocumentUrl(rawAttach, rawDriveId) || extractCleanDocumentUrl(rawView, rawDriveId);
+            const driveFileId = extractDriveFileId(cleanAttach, rawDriveId);
+            const cleanView = extractCleanDocumentUrl(rawView, driveFileId) || getDirectViewUrl(cleanAttach, driveFileId);
+            const cleanDown = extractCleanDocumentUrl(rawDown, driveFileId) || getDirectDownloadUrl(cleanAttach, driveFileId);
+
+            return {
+              ...r,
+              attachmentUrl: cleanAttach,
+              driveFileId: driveFileId || rawDriveId,
+              viewUrl: cleanView,
+              downloadUrl: cleanDown
+            };
+          });
+        }
         if (zoneArg && zoneArg !== 'ALL') {
           const zTarget = String(zoneArg).trim().toUpperCase();
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
+            // COMMON or ALL documents are global company SOP policies applicable to all zones
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON') return true;
             if (rZone === zTarget || rUnit === zTarget) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
             const cTarget = clean(zTarget);

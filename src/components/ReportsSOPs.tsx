@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { api } from '../services/api';
+import { 
+  extractCleanDocumentUrl, 
+  extractDriveFileId, 
+  getEmbedPreviewUrl, 
+  getDirectViewUrl, 
+  getDirectDownloadUrl 
+} from '../utils/sopUtils';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface SOPReport {
@@ -239,13 +246,14 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     let objectUrlToCleanup = '';
 
     const resolve = async () => {
-      if (!selectedReport?.attachmentUrl) {
+      if (!selectedReport?.attachmentUrl && !selectedReport?.driveFileId) {
         setResolvedSelectedUrl('');
         return;
       }
-      const url = selectedReport.attachmentUrl;
-      if (url.startsWith('indexeddb://')) {
-        const key = url.replace('indexeddb://', '');
+      const rawUrl = selectedReport.attachmentUrl || '';
+      const clean = extractCleanDocumentUrl(rawUrl, selectedReport.driveFileId);
+      if (clean.startsWith('indexeddb://')) {
+        const key = clean.replace('indexeddb://', '');
         try {
           const fileData = await getSopFile(key);
           if (fileData && isMounted) {
@@ -262,7 +270,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           if (isMounted) setResolvedSelectedUrl('');
         }
       } else {
-        if (isMounted) setResolvedSelectedUrl(url);
+        if (isMounted) setResolvedSelectedUrl(clean);
       }
     };
 
@@ -281,13 +289,14 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
     let objectUrlToCleanup = '';
 
     const resolve = async () => {
-      if (!previewReport?.attachmentUrl) {
+      if (!previewReport?.attachmentUrl && !previewReport?.driveFileId) {
         setResolvedPreviewUrl('');
         return;
       }
-      const url = previewReport.attachmentUrl;
-      if (url.startsWith('indexeddb://')) {
-        const key = url.replace('indexeddb://', '');
+      const rawUrl = previewReport.attachmentUrl || '';
+      const clean = extractCleanDocumentUrl(rawUrl, previewReport.driveFileId);
+      if (clean.startsWith('indexeddb://')) {
+        const key = clean.replace('indexeddb://', '');
         try {
           const fileData = await getSopFile(key);
           if (fileData && isMounted) {
@@ -304,7 +313,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           if (isMounted) setResolvedPreviewUrl('');
         }
       } else {
-        if (isMounted) setResolvedPreviewUrl(url);
+        if (isMounted) setResolvedPreviewUrl(clean);
       }
     };
 
@@ -367,12 +376,22 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         mapped = rawRecords.map((item: any) => {
           const rawId = getValCaseInsensitive(item, 'id', '');
           const id = rawId ? String(rawId) : `sop-${Math.random().toString(36).substr(2, 9)}`;
+          const rawDriveId = getValCaseInsensitive(item, 'driveFileId', getValCaseInsensitive(item, 'drive_file_id', ''));
+          const rawAttach = getValCaseInsensitive(item, 'attachmentUrl', getValCaseInsensitive(item, 'attachment_url', ''));
+          const rawView = getValCaseInsensitive(item, 'viewUrl', getValCaseInsensitive(item, 'view_url', ''));
+          const rawDown = getValCaseInsensitive(item, 'downloadUrl', getValCaseInsensitive(item, 'download_url', ''));
+
+          const cleanAttach = extractCleanDocumentUrl(rawAttach, rawDriveId) || extractCleanDocumentUrl(rawView, rawDriveId);
+          const driveFileId = extractDriveFileId(cleanAttach, rawDriveId);
+          const cleanView = extractCleanDocumentUrl(rawView, driveFileId) || getDirectViewUrl(cleanAttach, driveFileId);
+          const cleanDown = extractCleanDocumentUrl(rawDown, driveFileId) || getDirectDownloadUrl(cleanAttach, driveFileId);
+
           return {
             id,
             title: getValCaseInsensitive(item, 'title', 'Untitled'),
             category: String(getValCaseInsensitive(item, 'category', 'SOP')) as SOPReport['category'],
             description: getValCaseInsensitive(item, 'description', ''),
-            attachmentUrl: getValCaseInsensitive(item, 'attachmentUrl', getValCaseInsensitive(item, 'attachment_url', '')),
+            attachmentUrl: cleanAttach,
             attachmentName: getValCaseInsensitive(item, 'attachmentName', getValCaseInsensitive(item, 'attachment_name', '')),
             creator: getValCaseInsensitive(item, 'creator', 'Anonymous'),
             creatorCode: getValCaseInsensitive(item, 'creatorCode', getValCaseInsensitive(item, 'creator_code', '')),
@@ -383,9 +402,9 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
             department: getValCaseInsensitive(item, 'department', 'Quality'),
             version: getValCaseInsensitive(item, 'version', '1.0'),
             remarks: getValCaseInsensitive(item, 'remarks', ''),
-            driveFileId: getValCaseInsensitive(item, 'driveFileId', getValCaseInsensitive(item, 'drive_file_id', '')),
-            viewUrl: getValCaseInsensitive(item, 'viewUrl', getValCaseInsensitive(item, 'view_url', '')),
-            downloadUrl: getValCaseInsensitive(item, 'downloadUrl', getValCaseInsensitive(item, 'download_url', '')),
+            driveFileId: driveFileId || rawDriveId,
+            viewUrl: cleanView,
+            downloadUrl: cleanDown,
             fileSize: getValCaseInsensitive(item, 'fileSize', getValCaseInsensitive(item, 'file_size', '')),
             uploadedBy: getValCaseInsensitive(item, 'uploadedBy', getValCaseInsensitive(item, 'uploaded_by', '')),
             uploadDate: getValCaseInsensitive(item, 'uploadDate', getValCaseInsensitive(item, 'upload_date', '')),
@@ -402,8 +421,18 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       } catch (err) {}
       if (Array.isArray(localCustom)) {
         localCustom.forEach((item: any) => {
-          if (!mapped.some(r => String(r.id) === String(item.id))) {
-            mapped.push(item);
+          const rawDriveId = item.driveFileId || item.drive_file_id || '';
+          const cleanAttach = extractCleanDocumentUrl(item.attachmentUrl || item.attachment_url, rawDriveId);
+          const driveFileId = extractDriveFileId(cleanAttach, rawDriveId);
+          const cleanedItem: SOPReport = {
+            ...item,
+            attachmentUrl: cleanAttach,
+            driveFileId: driveFileId || rawDriveId,
+            viewUrl: extractCleanDocumentUrl(item.viewUrl || item.view_url, driveFileId) || getDirectViewUrl(cleanAttach, driveFileId),
+            downloadUrl: extractCleanDocumentUrl(item.downloadUrl || item.download_url, driveFileId) || getDirectDownloadUrl(cleanAttach, driveFileId)
+          };
+          if (!mapped.some(r => String(r.id) === String(cleanedItem.id))) {
+            mapped.push(cleanedItem);
           }
         });
       }
@@ -712,40 +741,8 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   };
 
   // Convert standard Drive URL to Preview or use Google Viewer fallback for nested domains
-  const getHelperUrl = (url: string) => {
-    if (!url) return "";
-    let cleanUrl = url.trim();
-    if (cleanUrl.includes("drive.google.com")) {
-      if (cleanUrl.includes("/view")) {
-        cleanUrl = cleanUrl.replace("/view", "/preview");
-      } else if (cleanUrl.includes("/edit")) {
-        cleanUrl = cleanUrl.replace("/edit", "/preview");
-      } else if (cleanUrl.includes("open?id=")) {
-        const urlObj = new URL(cleanUrl);
-        const id = urlObj.searchParams.get("id");
-        if (id) {
-          return `https://drive.google.com/file/d/${id}/preview`;
-        }
-      }
-      return cleanUrl;
-    }
-
-    // Convert relative path to absolute path for Google GView and proper iframe loading
-    let absoluteUrl = cleanUrl;
-    if (cleanUrl.startsWith("/")) {
-      absoluteUrl = window.location.origin + cleanUrl;
-    }
-
-    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-
-    if (absoluteUrl.startsWith("http")) {
-      if (isLocal) {
-        // Localhost cannot be fetched by Google GView, return raw absolute URL
-        return absoluteUrl;
-      }
-      return `https://docs.google.com/gview?url=${encodeURIComponent(absoluteUrl)}&embedded=true`;
-    }
-    return cleanUrl;
+  const getHelperUrl = (url: string, driveId?: string) => {
+    return getEmbedPreviewUrl(url, driveId);
   };
 
   // Filtering and Sorting Logic
@@ -1367,9 +1364,10 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                     )}
                     {selectedReport.attachmentUrl && (
                       <a
-                        href={resolvedSelectedUrl || selectedReport.attachmentUrl}
+                        href={getDirectDownloadUrl(resolvedSelectedUrl || selectedReport.attachmentUrl, selectedReport.driveFileId)}
                         target="_blank"
                         rel="noopener noreferrer"
+                        download={selectedReport.attachmentName || `${selectedReport.title}.pdf`}
                         className="p-1.5 text-slate-500 hover:text-slate-850 hover:bg-slate-100 border border-slate-200 rounded-lg shadow-xs transition block"
                         title="Download Link"
                       >
@@ -1420,7 +1418,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
               <div className="flex items-center gap-2 flex-shrink-0">
                 {previewReport.attachmentUrl && (
                   <a
-                    href={resolvedPreviewUrl || previewReport.attachmentUrl}
+                    href={getDirectViewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 bg-slate-100 hover:bg-[#00B4D8] hover:text-white text-slate-650 rounded-lg text-[11px] font-bold transition flex items-center gap-1 border border-slate-200"
@@ -1451,7 +1449,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       </div>
                     </div>
                     <a
-                      href={resolvedPreviewUrl || previewReport.attachmentUrl}
+                      href={getDirectViewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-[#00B4D8] hover:bg-[#0077B6] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shrink-0 shadow-sm shadow-[#00B4D8]/20"
@@ -1468,7 +1466,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                       <p className="text-[11px] text-slate-400 mt-2 max-w-sm">If this loading spinner persists or Google blocks the frame, please click the "Open PDF in New Tab" button above to view it instantly.</p>
                     </div>
                     <iframe
-                      src={getHelperUrl(resolvedPreviewUrl || previewReport.attachmentUrl)}
+                      src={getEmbedPreviewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
                       className="w-full h-full border-0 relative z-10"
                       title={previewReport.title}
                       referrerPolicy="no-referrer"

@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
+import { getDirectViewUrl } from '../utils/sopUtils';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface AdminDashboardProps {
@@ -1768,7 +1769,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <td className="p-4">{dateStr}</td>
                                   <td className="p-4">
                                     {record.attachmentUrl ? (
-                                      <a href={record.attachmentUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">View PDF</a>
+                                      <a href={getDirectViewUrl(record.attachmentUrl, record.driveFileId)} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">View PDF</a>
                                     ) : '-'}
                                   </td>
                                 </>
