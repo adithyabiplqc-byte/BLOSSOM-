@@ -1,5 +1,9 @@
 import { getAccessToken } from './auth';
 
+let cachedSpreadsheetMetadata: { id: string; timestamp: number; data: any } | null = null;
+const sheetDataCache = new Map<string, { timestamp: number; data: any[] }>();
+const SHEET_CACHE_TTL = 30000; // 30s read cache for instant multi-device responsiveness
+
 export function areSynonyms(h1: string, h2: string): boolean {
   if (!h1 || !h2) return false;
   const norm1 = h1.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -529,11 +533,25 @@ export const sheetsService = {
     
     const recId = String(record.id || '').trim().toLowerCase();
     const recWo = String(record.workorderNumber || record.wo || '').trim().toUpperCase();
-    const recUser = String(record.userCode || record.username || '').trim().toLowerCase();
+    const recUserCode = String(record.userCode || '').trim().toLowerCase();
+    const recOldUserCode = String(record.oldUserCode || '').trim().toLowerCase();
+    const recUsername = String(record.username || '').trim().toLowerCase();
+    const recOldUsername = String(record.oldUsername || '').trim().toLowerCase();
+
+    const isUserSheet = sheetName === 'USERS' || sheetName.toUpperCase().includes('USER');
 
     const idx = current.findIndex(item => {
-      if (recUser && (item.userCode || item.username) && sheetName === 'USERS') {
-        return String(item.userCode || item.username).trim().toLowerCase() === recUser;
+      if (isUserSheet) {
+        const itemCode = String(item.userCode || '').trim().toLowerCase();
+        const itemName = String(item.username || '').trim().toLowerCase();
+        const itemId = String(item.id || '').trim().toLowerCase();
+
+        if (recId && itemId && itemId === recId) return true;
+        if (recOldUserCode && itemCode && itemCode === recOldUserCode) return true;
+        if (recUserCode && itemCode && itemCode === recUserCode) return true;
+        if (recOldUsername && itemName && itemName === recOldUsername) return true;
+        if (recUsername && itemName && itemName === recUsername) return true;
+        return false;
       }
       if (recId && item.id) {
         return String(item.id).trim().toLowerCase() === recId;
@@ -554,6 +572,22 @@ export const sheetsService = {
       current.push(record);
     }
     localStorage.setItem(key, JSON.stringify(current));
+
+    if (isUserSheet) {
+      try {
+        localStorage.setItem('bqos_cache_users', JSON.stringify(current));
+        const sessionRaw = localStorage.getItem('bqos_session');
+        if (sessionRaw) {
+          const session = JSON.parse(sessionRaw);
+          const sCode = String(session.userCode || '').trim().toLowerCase();
+          const sName = String(session.username || '').trim().toLowerCase();
+          if ((recOldUserCode && sCode === recOldUserCode) || (recUserCode && sCode === recUserCode) || (recOldUsername && sName === recOldUsername) || (recUsername && sName === recUsername)) {
+            const updatedSession = { ...session, ...record };
+            localStorage.setItem('bqos_session', JSON.stringify(updatedSession));
+          }
+        }
+      } catch (e) {}
+    }
   },
 
   deleteOfflineData(sheetName: string, id: any) {
@@ -563,6 +597,28 @@ export const sheetsService = {
       String(item.id || item.workorderNumber || item.userCode) !== String(id)
     );
     localStorage.setItem(key, JSON.stringify(filtered));
+  },
+
+  clearSheetCache(sheetName?: string) {
+    if (sheetName) {
+      const canonical = this.getCanonicalBase(sheetName);
+      for (const key of sheetDataCache.keys()) {
+        if (key === canonical || key.startsWith(canonical + '::') || key.includes(canonical)) {
+          sheetDataCache.delete(key);
+        }
+      }
+    } else {
+      sheetDataCache.clear();
+    }
+  },
+
+  async getSpreadsheetMetadata(spreadsheetId: string, forceFresh = false): Promise<any> {
+    if (!forceFresh && cachedSpreadsheetMetadata && cachedSpreadsheetMetadata.id === spreadsheetId && (Date.now() - cachedSpreadsheetMetadata.timestamp < 60000)) {
+      return cachedSpreadsheetMetadata.data;
+    }
+    const data = await this.request(spreadsheetId);
+    cachedSpreadsheetMetadata = { id: spreadsheetId, timestamp: Date.now(), data };
+    return data;
   },
 
   async request(path: string, options: RequestInit = {}) {
@@ -672,10 +728,11 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    const metadata = await this.request(spreadsheetId);
+    const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
     const existing = metadata.sheets?.some((s: any) => String(s.properties?.title || '').toUpperCase().trim() === String(sheetName).toUpperCase().trim());
 
     if (!existing) {
+      cachedSpreadsheetMetadata = null;
       await this.request(`${spreadsheetId}:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({
@@ -759,46 +816,52 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
+    const canonicalKeys: { [key: string]: string } = {
+      'MATERIAL': 'MATERIAL',
+      'MATERIAL REPORT': 'MATERIAL',
+      'MATERIAL QUALITY': 'MATERIAL',
+      'CUTTING': 'CUTTING',
+      'CUTTING QUALITY': 'CUTTING',
+      'CUTTING REPORT': 'CUTTING',
+      'INLINE': 'INLINE',
+      'INLINE REPORT': 'INLINE',
+      'INLINE QUALITY': 'INLINE',
+      'ENDLINE': 'ENDLINE',
+      'ENDLINE QUALITY': 'ENDLINE',
+      'ENDLINE REPORT': 'ENDLINE',
+      'AQL': 'AQL',
+      'AQL REPORT': 'AQL',
+      'AQL INSPECTION': 'AQL',
+      'FINAL': 'FINAL AUDIT',
+      'FINAL AUDIT': 'FINAL AUDIT',
+      'FINAL AUDIT REPORT': 'FINAL AUDIT',
+      'FINAL REPORT': 'FINAL AUDIT',
+      'WORKORDER': 'WORKORDER',
+      'WORKORDERS': 'WORKORDER',
+      'WORK ORDER': 'WORKORDER',
+      'REPORTS_SOP': 'REPORTS_SOP',
+      'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS',
+      'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS',
+      'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS',
+      'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
+      'ZONE': 'ZONE',
+      'REWORK': 'REWORK',
+      'REWORK REPORT': 'REWORK',
+      'REWORK QUALITY': 'REWORK'
+    };
+
+    const normBase = sheetName.toUpperCase().trim();
+    const canonicalName = canonicalKeys[normBase] || sheetName;
+
+    // 1. Fast cache check (instant response for all devices)
+    const cached = sheetDataCache.get(canonicalName);
+    if (cached && (Date.now() - cached.timestamp < SHEET_CACHE_TTL) && Array.isArray(cached.data) && cached.data.length > 0) {
+      return cached.data;
+    }
+
     try {
-      const metadata = await this.request(spreadsheetId);
+      const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
       const sheetTitles = (metadata.sheets || []).map((s: any) => s.properties?.title || "");
-
-      const canonicalKeys: { [key: string]: string } = {
-        'MATERIAL': 'MATERIAL',
-        'MATERIAL REPORT': 'MATERIAL',
-        'MATERIAL QUALITY': 'MATERIAL',
-        'CUTTING': 'CUTTING',
-        'CUTTING QUALITY': 'CUTTING',
-        'CUTTING REPORT': 'CUTTING',
-        'INLINE': 'INLINE',
-        'INLINE REPORT': 'INLINE',
-        'INLINE QUALITY': 'INLINE',
-        'ENDLINE': 'ENDLINE',
-        'ENDLINE QUALITY': 'ENDLINE',
-        'ENDLINE REPORT': 'ENDLINE',
-        'AQL': 'AQL',
-        'AQL REPORT': 'AQL',
-        'AQL INSPECTION': 'AQL',
-        'FINAL': 'FINAL AUDIT',
-        'FINAL AUDIT': 'FINAL AUDIT',
-        'FINAL AUDIT REPORT': 'FINAL AUDIT',
-        'FINAL REPORT': 'FINAL AUDIT',
-        'WORKORDER': 'WORKORDER',
-        'WORKORDERS': 'WORKORDER',
-        'WORK ORDER': 'WORKORDER',
-        'REPORTS_SOP': 'REPORTS_SOP',
-        'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS',
-        'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS',
-        'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS',
-        'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
-        'ZONE': 'ZONE',
-        'REWORK': 'REWORK',
-        'REWORK REPORT': 'REWORK',
-        'REWORK QUALITY': 'REWORK'
-      };
-
-      const normBase = sheetName.toUpperCase().trim();
-      const canonicalName = canonicalKeys[normBase] || sheetName;
 
       const synonymsMap: { [key: string]: string[] } = {
         'USERS': ['USERS'],
@@ -831,7 +894,7 @@ export const sheetsService = {
       const seenIds = new Set();
 
       // Find all matching sheets inside the spreadsheet for aggregation
-      const matchingTitles = sheetTitles.filter((title: string) => {
+      let matchingTitles = sheetTitles.filter((title: string) => {
         const uTitle = title.toUpperCase().trim();
         if (canonicalName === 'USERS' || canonicalName === 'SETTINGS' || canonicalName === 'ADMIN') {
           return uTitle === canonicalName;
@@ -846,68 +909,77 @@ export const sheetsService = {
         matchingTitles.push(resolvedName);
       }
 
-      for (const title of matchingTitles) {
-        try {
+      const isSop = canonicalName === 'REPORTS_SOP';
+
+      // 2. Fetch all matching sub-sheets concurrently in parallel for ultra-high speed
+      const titleResults = await Promise.allSettled(
+        matchingTitles.map(async (title) => {
           let headers: string[] = [];
           let rowValues: any[][] = [];
 
-          // 1. Try fetching with grid data to extract rich-text hyperlinks from cells
-          try {
-            const gridData = await this.request(`${spreadsheetId}?ranges=${encodeURIComponent(title)}!A1:Z5000&fields=sheets(data(rowData(values(formattedValue,hyperlink,userEnteredValue,textFormatRuns))))`);
-            const rowData = gridData?.sheets?.[0]?.data?.[0]?.rowData;
-            if (Array.isArray(rowData) && rowData.length >= 2) {
-              const headerCells = rowData[0].values || [];
-              headers = headerCells.map((c: any) => String(c?.formattedValue || c?.userEnteredValue?.stringValue || '').trim()).filter(Boolean);
-              
-              if (headers.length > 0) {
-                for (let i = 1; i < rowData.length; i++) {
-                  const cells = rowData[i].values || [];
-                  const rowArr: any[] = [];
-                  let hasAnyVal = false;
-                  for (let j = 0; j < headers.length; j++) {
-                    const cell = cells[j];
-                    if (!cell) {
-                      rowArr.push('');
-                      continue;
+          if (isSop) {
+            // SOP sheets need rich hyperlink formatting
+            try {
+              const gridData = await this.request(`${spreadsheetId}?ranges=${encodeURIComponent(title)}!A1:Z5000&fields=sheets(data(rowData(values(formattedValue,hyperlink,userEnteredValue,textFormatRuns))))`);
+              const rowData = gridData?.sheets?.[0]?.data?.[0]?.rowData;
+              if (Array.isArray(rowData) && rowData.length >= 2) {
+                const headerCells = rowData[0].values || [];
+                headers = headerCells.map((c: any) => String(c?.formattedValue || c?.userEnteredValue?.stringValue || '').trim()).filter(Boolean);
+                
+                if (headers.length > 0) {
+                  for (let i = 1; i < rowData.length; i++) {
+                    const cells = rowData[i].values || [];
+                    const rowArr: any[] = [];
+                    let hasAnyVal = false;
+                    for (let j = 0; j < headers.length; j++) {
+                      const cell = cells[j];
+                      if (!cell) {
+                        rowArr.push('');
+                        continue;
+                      }
+                      const linkUri = cell.hyperlink || cell.textFormatRuns?.find((r: any) => r?.format?.link?.uri)?.format?.link?.uri;
+                      let cellVal: any = '';
+                      if (cell.userEnteredValue?.formulaValue) {
+                        cellVal = cell.userEnteredValue.formulaValue;
+                      } else if (linkUri) {
+                        cellVal = `=HYPERLINK("${linkUri}", "${cell.formattedValue || cell.userEnteredValue?.stringValue || 'Image'}")`;
+                      } else if (cell.userEnteredValue?.stringValue !== undefined) {
+                        cellVal = cell.userEnteredValue.stringValue;
+                      } else if (cell.formattedValue !== undefined) {
+                        cellVal = cell.formattedValue;
+                      } else if (cell.userEnteredValue?.numberValue !== undefined) {
+                        cellVal = cell.userEnteredValue.numberValue;
+                      } else if (cell.userEnteredValue?.boolValue !== undefined) {
+                        cellVal = cell.userEnteredValue.boolValue;
+                      }
+                      if (cellVal !== '' && cellVal !== null && cellVal !== undefined) {
+                        hasAnyVal = true;
+                      }
+                      rowArr.push(cellVal);
                     }
-                    const linkUri = cell.hyperlink || cell.textFormatRuns?.find((r: any) => r?.format?.link?.uri)?.format?.link?.uri;
-                    let cellVal: any = '';
-                    if (cell.userEnteredValue?.formulaValue) {
-                      cellVal = cell.userEnteredValue.formulaValue;
-                    } else if (linkUri) {
-                      cellVal = `=HYPERLINK("${linkUri}", "${cell.formattedValue || cell.userEnteredValue?.stringValue || 'Image'}")`;
-                    } else if (cell.userEnteredValue?.stringValue !== undefined) {
-                      cellVal = cell.userEnteredValue.stringValue;
-                    } else if (cell.formattedValue !== undefined) {
-                      cellVal = cell.formattedValue;
-                    } else if (cell.userEnteredValue?.numberValue !== undefined) {
-                      cellVal = cell.userEnteredValue.numberValue;
-                    } else if (cell.userEnteredValue?.boolValue !== undefined) {
-                      cellVal = cell.userEnteredValue.boolValue;
+                    if (hasAnyVal) {
+                      rowValues.push(rowArr);
                     }
-                    if (cellVal !== '' && cellVal !== null && cellVal !== undefined) {
-                      hasAnyVal = true;
-                    }
-                    rowArr.push(cellVal);
-                  }
-                  if (hasAnyVal) {
-                    rowValues.push(rowArr);
                   }
                 }
               }
+            } catch (sopErr) {
+              // Fallback to standard values
             }
-          } catch (gridErr) {
-            // Silently fallback to values.get
           }
 
-          // 2. Fallback to standard values.get if grid fetch was not available
+          // Ultra-fast values endpoint for all standard sheets or fallback
           if (headers.length === 0 || rowValues.length === 0) {
             const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z5000?valueRenderOption=FORMULA`);
-            if (!data.values || data.values.length < 2) continue;
-            headers = data.values[0];
-            rowValues = data.values.slice(1);
+            if (data.values && data.values.length >= 2) {
+              headers = data.values[0];
+              rowValues = data.values.slice(1);
+            }
           }
 
+          if (headers.length === 0 || rowValues.length === 0) return [];
+
+          const records: any[] = [];
           for (let i = 0; i < rowValues.length; i++) {
             const row = rowValues[i];
             const record: any = {};
@@ -971,7 +1043,7 @@ export const sheetsService = {
               if (normKey === 'shipdate') record['shipDate'] = val;
               if (normKey === 'status') record['status'] = val;
 
-               if (normKey === 'worker' || normKey === 'workername' || normKey === 'operator' || normKey === 'operatorname') {
+              if (normKey === 'worker' || normKey === 'workername' || normKey === 'operator' || normKey === 'operatorname') {
                 record['worker'] = val;
               }
               if (normKey === 'machine' || normKey === 'machineno' || normKey === 'machinenumber') {
@@ -1017,6 +1089,15 @@ export const sheetsService = {
               }
             }
 
+            records.push(record);
+          }
+          return records;
+        })
+      );
+
+      for (const res of titleResults) {
+        if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+          for (const record of res.value) {
             let uniqueId = undefined;
             let shouldDeduplicate = false;
 
@@ -1037,8 +1118,6 @@ export const sheetsService = {
             }
             allValues.push(record);
           }
-        } catch (err) {
-          console.warn(`[SHEETS SERVICE] Skipping non-existent or inaccessible sub-sheet: ${title}`);
         }
       }
 
@@ -1058,13 +1137,16 @@ export const sheetsService = {
         return timeB - timeA;
       });
 
+      // Save in sheetDataCache
+      sheetDataCache.set(canonicalName, { timestamp: Date.now(), data: allValues });
+      if (canonicalName === 'USERS' && allValues.length > 0) {
+        try { localStorage.setItem('bqos_cache_users', JSON.stringify(allValues)); } catch(e){}
+      }
+
       return allValues;
     } catch (error: any) {
-      if (error.message?.includes('not found') || error.message?.includes('400')) {
-        await this.ensureSheetExists(sheetName);
-        return [];
-      }
-      throw error;
+      console.warn(`[SHEETS SERVICE] Error reading from Google Sheets (${sheetName}):`, error.message);
+      return this.getOfflineData(sheetName);
     }
   },
 
@@ -1150,6 +1232,9 @@ export const sheetsService = {
       body: JSON.stringify({ values: [row] })
     });
 
+    this.clearSheetCache(sheetName);
+    this.clearSheetCache(resolvedName);
+
     return { success: true };
   },
 
@@ -1216,6 +1301,9 @@ export const sheetsService = {
       body: JSON.stringify({ values: rows })
     });
 
+    this.clearSheetCache(sheetName);
+    this.clearSheetCache(resolvedName);
+
     return { success: true, count: rows.length };
   },
 
@@ -1247,28 +1335,67 @@ export const sheetsService = {
     let userCodeIdx = normHeaders.indexOf('usercode');
     if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('username');
 
+    const isUserSheet = sheetName === 'USERS' || sheetName.toUpperCase().includes('USER') || resolvedName.toUpperCase().includes('USER');
+
     let matchedRowIndex = -1;
-    for (let i = 1; i < data.values.length; i++) {
-      const row = data.values[i];
-      // 1. Direct ID match if both the cell and record.id are present and non-empty
-      if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
-        matchedRowIndex = i;
-        break;
-      }
-      // 2. Workorder match: if woIdx exists and record has workorderNumber or wo
-      if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
-        const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
-        if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+
+    if (isUserSheet) {
+      let userCodeIdx = normHeaders.indexOf('usercode');
+      if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('code');
+      let usernameIdx = normHeaders.indexOf('username');
+      if (usernameIdx === -1) usernameIdx = normHeaders.indexOf('name');
+
+      const targetUserCode = String(record.userCode || '').trim().toLowerCase();
+      const targetOldUserCode = String(record.oldUserCode || '').trim().toLowerCase();
+      const targetUsername = String(record.username || '').trim().toLowerCase();
+      const targetOldUsername = String(record.oldUsername || '').trim().toLowerCase();
+      const targetId = String(record.id || '').trim().toLowerCase();
+
+      for (let i = 1; i < data.values.length; i++) {
+        const row = data.values[i];
+        const rowCode = userCodeIdx !== -1 ? String(row[userCodeIdx] || '').trim().toLowerCase() : '';
+        const rowName = usernameIdx !== -1 ? String(row[usernameIdx] || '').trim().toLowerCase() : '';
+        const rowId = idIdx !== -1 ? String(row[idIdx] || '').trim().toLowerCase() : '';
+
+        // Priority 1: Match by immutable userCode (either old or current)
+        if (targetOldUserCode && rowCode && rowCode === targetOldUserCode) {
+          matchedRowIndex = i;
+          break;
+        }
+        if (targetUserCode && rowCode && rowCode === targetUserCode) {
+          matchedRowIndex = i;
+          break;
+        }
+        // Priority 2: Match by username (prioritize oldUsername if changed)
+        if (targetOldUsername && rowName && rowName === targetOldUsername) {
+          matchedRowIndex = i;
+          break;
+        }
+        if (targetUsername && rowName && rowName === targetUsername) {
+          matchedRowIndex = i;
+          break;
+        }
+        // Priority 3: Match by record.id
+        if (targetId && rowId && rowId === targetId) {
           matchedRowIndex = i;
           break;
         }
       }
-      // 3. User match: if userCodeIdx exists and record has userCode or username
-      if (userCodeIdx !== -1 && (record.userCode || record.username)) {
-        const targetUser = String(record.userCode || record.username).trim().toLowerCase();
-        if (String(row[userCodeIdx] || '').trim().toLowerCase() === targetUser) {
+    } else {
+      for (let i = 1; i < data.values.length; i++) {
+        const row = data.values[i];
+        // 1. Direct ID match if both the cell and record.id are present and non-empty
+        if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
           matchedRowIndex = i;
           break;
+        }
+        // 2. Workorder match: if woIdx exists and record has workorderNumber or wo
+        if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
+          const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
+          if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+            matchedRowIndex = i;
+            break;
+          }
         }
       }
     }
@@ -1287,6 +1414,8 @@ export const sheetsService = {
     }
 
     if (matchedRowIndex === -1) {
+      this.clearSheetCache(sheetName);
+      this.clearSheetCache(resolvedName);
       this.updateOfflineData(sheetName, record);
       return await this.saveData(resolvedName, record);
     }
@@ -1307,6 +1436,9 @@ export const sheetsService = {
       method: 'PUT',
       body: JSON.stringify({ values: [row] })
     });
+
+    this.clearSheetCache(sheetName);
+    this.clearSheetCache(resolvedName);
 
     return { success: true };
   },
@@ -1361,6 +1493,9 @@ export const sheetsService = {
       method: 'PUT',
       body: JSON.stringify({ values: filteredValues })
     });
+
+    this.clearSheetCache(sheetName);
+    this.clearSheetCache(resolvedName);
 
     return { success: true };
   },

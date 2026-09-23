@@ -25,6 +25,7 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
+  ReferenceLine,
 } from 'recharts';
 
 interface BlossomAIViewProps {
@@ -38,11 +39,29 @@ interface Recommendation {
   description: string;
 }
 
+export interface ModuleAnalysis {
+  moduleId: string; // 'B1' to 'B10'
+  name: string;
+  status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL';
+  score: number;
+  totalRecords: number;
+  defectCount: number;
+  rate: string;
+  keyFindings: string;
+  actionRequired: string;
+}
+
 interface IdentifiedProblem {
-  Area: string;
-  issue: string;
-  impact: string;
-  status: string;
+  Area?: string;
+  issue?: string;
+  impact?: string;
+  status?: string;
+  Module?: string;
+  affectedModule?: string;
+  problem?: string;
+  occurrences?: number;
+  risk?: string;
+  mitigation?: string;
 }
 
 interface Prediction {
@@ -50,14 +69,23 @@ interface Prediction {
   probability: number;
   timeline: string;
   indicator: string;
+  affectedModule?: string;
 }
 
 interface AIAnalysisResult {
   aiGenerated: boolean;
+  overallScore?: number;
+  qualityVerdict?: string;
   summary: string;
+  moduleBreakdown?: ModuleAnalysis[];
   recommendations: Recommendation[];
   identifiedProblems: IdentifiedProblem[];
   predictions: Prediction[];
+  capaMatrix?: {
+    immediate24h: string[];
+    shortTerm7d: string[];
+    longTerm30d: string[];
+  };
   score: number;
 }
 
@@ -91,172 +119,372 @@ interface FactoryAnalysisMetrics {
 }
 
 const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResult => {
-  let totalLogs = 0;
-  let totalDefects = 0;
-  
-  const material = payload.materialData || [];
-  const cutting = payload.cuttingData || [];
-  const inline = payload.inlineData || [];
-  const endlineData = payload.endlineData || [];
-  const aql = payload.aqlData || [];
-  const finalAudit = payload.finalAuditData || [];
+  const b1 = payload.materialData || payload.b1_material || [];
+  const b2 = payload.cuttingData || payload.b2_cutting || [];
+  const b3 = payload.inlineData || payload.b3_inline || [];
+  const b4 = payload.endlineData || payload.b4_endline || [];
+  const b5 = payload.aqlData || payload.b5_aql || [];
+  const b6 = payload.finalAuditData || payload.b6_finalAudit || [];
+  const b7 = payload.usersData || payload.b7_users || [];
+  const b8 = payload.workordersData || payload.b8_workorders || [];
+  const b9 = payload.sopData || payload.b9_sop || [];
+  const b10 = payload.customerComplaintData || payload.b10_customerComplaints || [];
 
-  material.forEach((log: any) => {
-    totalLogs++;
-    let logDef = 0;
-    if (log && Array.isArray(log.items)) {
-      log.items.forEach((item: any) => {
-        logDef += Number(item.rejectedQuantity || item.failQty || 0);
-      });
-    } else if (log) {
-      logDef += Number(log.rejectedQuantity || log.failQty || 0);
-    }
-    totalDefects += logDef;
-  });
-
-  cutting.forEach((log: any) => {
-    totalLogs++;
-    const def = Number(log.reworkQty || 0) + Number(log.rejectedQty || 0) + Number(log.failQty || 0);
-    totalDefects += def;
-  });
-
-  inline.forEach((log: any) => {
-    totalLogs++;
-    const def = Number(log.complaintPcs || log.failQty || 0);
-    totalDefects += def;
-  });
-
-  endlineData.forEach((log: any) => {
-    totalLogs++;
-    const def = Number(log.reworkQty || 0) + Number(log.failQty || 0) + Number(log.rework || 0);
-    totalDefects += def;
-  });
-
-  let aqlFails = 0;
-  aql.forEach((log: any) => {
-    totalLogs++;
-    const def = Number(log.failedPieces || log.failedPcs || log.failQty || 0);
-    totalDefects += def;
-    
-    const statusL = String(log.status || log.auditStatus || '').toUpperCase();
-    if (statusL === 'FAIL') {
-      aqlFails++;
+  // B1 Material
+  let b1Checked = 0, b1Defects = 0;
+  b1.forEach((log: any) => {
+    b1Checked += Number(log.checkedQuantity || log.rollLength || log.quantity || 100);
+    if (Array.isArray(log.items)) {
+      log.items.forEach((it: any) => b1Defects += Number(it.rejectedQuantity || it.failQty || 0));
+    } else {
+      b1Defects += Number(log.rejectedQuantity || log.failQty || 0);
     }
   });
+  const b1Score = Math.max(60, Math.min(99, Math.round(98 - (b1Defects / (b1Checked || 1)) * 120)));
+  const b1Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b1Score >= 90 ? 'OPTIMAL' : b1Score >= 75 ? 'STABLE' : b1Score >= 60 ? 'WARNING' : 'CRITICAL';
 
-  finalAudit.forEach((log: any) => {
-    totalLogs++;
-    const def = Number(log.rejected || log.rejectedQty || log.failQty || 0);
-    totalDefects += def;
+  // B2 Cutting
+  let b2Checked = 0, b2Defects = 0;
+  b2.forEach((log: any) => {
+    b2Checked += Number(log.totalPcsCut || log.tableCheckedQty || log.checkedQty || 100);
+    b2Defects += Number(log.reworkQty || 0) + Number(log.rejectedQty || 0) + Number(log.failQty || 0);
   });
+  const b2Score = Math.max(60, Math.min(99, Math.round(97 - (b2Defects / (b2Checked || 1)) * 150)));
+  const b2Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b2Score >= 90 ? 'OPTIMAL' : b2Score >= 75 ? 'STABLE' : b2Score >= 60 ? 'WARNING' : 'CRITICAL';
 
-  let score = 92; 
-  if (totalLogs > 0) {
-    const defectRatio = totalDefects / totalLogs;
-    score -= Math.min(35, Math.round(defectRatio * 50 + (totalDefects > 0 ? 5 : 0)));
-  }
-  if (aqlFails > 0) {
-    score -= Math.min(25, aqlFails * 10);
-  }
-  
-  if (totalLogs === 0) {
-    score = 89; 
-  } else {
-    score = Math.max(55, Math.min(98, score));
-  }
-  
+  // B3 Inline
+  let b3Checked = 0, b3Defects = 0;
+  b3.forEach((log: any) => {
+    b3Checked += Number(log.pcsChecked || log.checkedQty || 50);
+    b3Defects += Number(log.complaintPcs || log.failQty || 0);
+  });
+  const b3Score = Math.max(55, Math.min(99, Math.round(96 - (b3Defects / (b3Checked || 1)) * 130)));
+  const b3Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b3Score >= 90 ? 'OPTIMAL' : b3Score >= 75 ? 'STABLE' : b3Score >= 60 ? 'WARNING' : 'CRITICAL';
+
+  // B4 Endline
+  let b4Checked = 0, b4Defects = 0;
+  b4.forEach((log: any) => {
+    b4Checked += Number(log.checkedQty || log.pcsChecked || 80);
+    b4Defects += Number(log.reworkQty || 0) + Number(log.failQty || 0) + Number(log.rework || 0);
+  });
+  const b4Score = Math.max(50, Math.min(99, Math.round(95 - (b4Defects / (b4Checked || 1)) * 100)));
+  const b4Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b4Score >= 90 ? 'OPTIMAL' : b4Score >= 75 ? 'STABLE' : b4Score >= 60 ? 'WARNING' : 'CRITICAL';
+
+  // B5 AQL
+  let b5Lots = b5.length, b5Fails = 0, b5DefectPcs = 0;
+  b5.forEach((log: any) => {
+    b5DefectPcs += Number(log.failedPieces || log.failedPcs || log.failQty || 0);
+    const st = String(log.status || log.auditStatus || '').toUpperCase();
+    if (st === 'FAIL') b5Fails++;
+  });
+  const b5Score = Math.max(50, Math.min(99, Math.round(98 - b5Fails * 12)));
+  const b5Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b5Fails > 0 ? (b5Fails > 2 ? 'CRITICAL' : 'WARNING') : (b5Lots > 0 ? 'OPTIMAL' : 'STABLE');
+
+  // B6 Final Audit
+  let b6Audits = b6.length, b6Rejects = 0;
+  b6.forEach((log: any) => {
+    b6Rejects += Number(log.rejected || log.rejectedQty || log.failQty || 0);
+  });
+  const b6Score = Math.max(55, Math.min(99, Math.round(97 - b6Rejects * 8)));
+  const b6Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b6Rejects > 0 ? 'WARNING' : 'OPTIMAL';
+
+  // B7 Users
+  const b7Total = b7.length;
+  const b7Inspectors = b7.filter((u: any) => String(u.role).toUpperCase() === 'USER').length;
+  const b7Score = b7Total >= 3 ? 96 : b7Total > 0 ? 88 : 75;
+  const b7Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b7Total >= 2 ? 'OPTIMAL' : 'WARNING';
+
+  // B8 Workorders
+  const b8Total = b8.length;
+  const b8Active = b8.filter((w: any) => !w.status || String(w.status).toUpperCase() !== 'CLOSED').length;
+  const b8Score = b8Total > 0 ? 94 : 85;
+  const b8Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b8Active > 0 ? 'OPTIMAL' : 'STABLE';
+
+  // B9 SOPs
+  const b9Total = b9.length;
+  const b9Score = b9Total >= 3 ? 98 : b9Total > 0 ? 90 : 78;
+  const b9Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b9Total > 0 ? 'OPTIMAL' : 'WARNING';
+
+  // B10 Customer Complaints
+  const b10Total = b10.length;
+  let b10Pieces = 0;
+  b10.forEach((c: any) => b10Pieces += Number(c.pcsCount || c.pcs || 1));
+  const b10Score = b10Total === 0 ? 98 : Math.max(45, 95 - b10Total * 10 - Math.min(25, b10Pieces * 2));
+  const b10Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b10Total === 0 ? 'OPTIMAL' : b10Total > 2 ? 'CRITICAL' : 'WARNING';
+
+  const score = Math.round(
+    (b1Score * 0.10) +
+    (b2Score * 0.10) +
+    (b3Score * 0.15) +
+    (b4Score * 0.15) +
+    (b5Score * 0.15) +
+    (b6Score * 0.10) +
+    (b7Score * 0.05) +
+    (b8Score * 0.05) +
+    (b9Score * 0.05) +
+    (b10Score * 0.10)
+  );
+
   const zoneName = activeZone && activeZone !== 'ALL' ? `Zone ${activeZone}` : 'Global Production';
-  
-  const recommendations: Recommendation[] = [];
-  const identifiedProblems: IdentifiedProblem[] = [];
-  const predictions: Prediction[] = [];
+  const totalRecords = b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b7.length + b8.length + b9.length + b10.length;
 
-  if (totalDefects > 0 || aqlFails > 0) {
-    recommendations.push({
-      title: `Calibrate Sewing Machinery in ${zoneName}`,
-      priority: score < 75 ? 'HIGH' : 'MEDIUM',
-      description: `Detected ${totalDefects} manufacturing deviations in inline/endline inspections. Re-verify needle alignment and thread tension to stabilize stitch tolerances.`
-    });
-    identifiedProblems.push({
-      Area: `${zoneName} Assembly Lines`,
-      issue: `Accumulated stitching or measurement deviations`,
-      impact: `Increases downstream rework burden by estimated ${Math.round((totalDefects / (totalLogs || 1)) * 100)}%`,
-      status: score < 75 ? 'Critical Warning' : 'Stable Review'
-    });
-  } else {
-    recommendations.push({
-      title: `Maintain standard preventative maintenance in ${zoneName}`,
-      priority: 'LOW',
-      description: "Active quality metrics reside well within acceptable tolerances. Maintain current inspection pacing and standard machine calibrations."
-    });
-  }
+  const moduleBreakdown: ModuleAnalysis[] = [
+    {
+      moduleId: "B1",
+      name: "Material Report",
+      status: b1Status,
+      score: b1Score,
+      totalRecords: b1.length,
+      defectCount: b1Defects,
+      rate: b1Checked > 0 ? ((b1Defects / b1Checked) * 100).toFixed(2) + "% Defect" : "0% Defect",
+      keyFindings: b1.length > 0 ? `Evaluated ${b1.length} material logs with ${b1Defects} rejected fabric/trim units.` : "Standard fabric intake logging active; shrinkage and elasticity within baseline.",
+      actionRequired: b1Defects > 0 ? "Execute 4-point fabric inspection and request supplier shade delta verification." : "Maintain routine roll-by-roll elastane tension testing."
+    },
+    {
+      moduleId: "B2",
+      name: "Cutting Report",
+      status: b2Status,
+      score: b2Score,
+      totalRecords: b2.length,
+      defectCount: b2Defects,
+      rate: b2Checked > 0 ? ((b2Defects / b2Checked) * 100).toFixed(2) + "% Reject/Rework" : "0% Defect",
+      keyFindings: b2.length > 0 ? `Registered ${b2.length} cutting audits. ${b2Defects} panels rejected or marked for recut.` : "Cutting table accuracy consistent; marker efficiency running at target.",
+      actionRequired: b2Defects > 0 ? "Re-align laser cutters and check rotary blade sharpness to avoid jagged fraying." : "Routine pattern notch alignment verification on daily changeovers."
+    },
+    {
+      moduleId: "B3",
+      name: "Inline Report",
+      status: b3Status,
+      score: b3Score,
+      totalRecords: b3.length,
+      defectCount: b3Defects,
+      rate: b3Checked > 0 ? ((b3Defects / b3Checked) * 100).toFixed(2) + "% Deviation" : "0% Deviation",
+      keyFindings: `Hourly inline audits registered ${b3.length} inspection rounds with ${b3Defects} defective stitch pieces detected early.`,
+      actionRequired: b3Defects > 0 ? "Focus technician attention on needle thread tensions and feed-dog calibration." : "Preserve 8-round hourly inspection frequency across all active sewing lines."
+    },
+    {
+      moduleId: "B4",
+      name: "Endline Report",
+      status: b4Status,
+      score: b4Score,
+      totalRecords: b4.length,
+      defectCount: b4Defects,
+      rate: b4Checked > 0 ? ((1 - b4Defects / (b4Checked || 1)) * 100).toFixed(1) + "% FTT" : "100% FTT",
+      keyFindings: `100% endline checkpoints processed ${b4.length} batches; recorded ${b4Defects} rework items.`,
+      actionRequired: b4Defects > 0 ? "Isolate recurring operator defects (e.g. cup attachment slip) for station-side retraining." : "Maintain 100% final garment check prior to transfer to finishing."
+    },
+    {
+      moduleId: "B5",
+      name: "AQL Report",
+      status: b5Status,
+      score: b5Score,
+      totalRecords: b5Lots,
+      defectCount: b5DefectPcs,
+      rate: b5Lots > 0 ? (((b5Lots - b5Fails) / b5Lots) * 100).toFixed(1) + "% Pass" : "100% Pass",
+      keyFindings: b5Lots > 0 ? `${b5Lots} random sampling lots audited; ${b5Fails} lots failed standard acceptance sampling.` : "AQL batch gatekeeping operating on standard sampling schedules.",
+      actionRequired: b5Fails > 0 ? "Initiate 100% quarantine sorting on failed lots prior to packaging release." : "Preserve AQL 2.5 major / 4.0 minor inspection parameters."
+    },
+    {
+      moduleId: "B6",
+      name: "Final Audit Report",
+      status: b6Status,
+      score: b6Score,
+      totalRecords: b6Audits,
+      defectCount: b6Rejects,
+      rate: b6Audits > 0 ? (((b6Audits - (b6Rejects > 0 ? 1 : 0)) / b6Audits) * 100).toFixed(1) + "% Acceptance" : "100% Release",
+      keyFindings: `Pre-shipment audit logs track ${b6Audits} releases with ${b6Rejects} carton/packaging infractions.`,
+      actionRequired: b6Rejects > 0 ? "Cross-verify carton barcode label barcodes and polybag hanger tags." : "Continue standard pre-dispatch carton drop and seal testing."
+    },
+    {
+      moduleId: "B7",
+      name: "Quality Inspectors & Users",
+      status: b7Status,
+      score: b7Score,
+      totalRecords: b7Total,
+      defectCount: 0,
+      rate: `${b7Inspectors} Inspectors Active`,
+      keyFindings: `Quality assurance human capital stands at ${b7Total} users with ${b7Inspectors} active line inspectors deployed.`,
+      actionRequired: b7Inspectors < 2 ? "Assign additional dedicated inspectors to evening shifts to prevent audit gaps." : "Maintain bi-weekly calibration sessions between inspectors."
+    },
+    {
+      moduleId: "B8",
+      name: "Workorder Data",
+      status: b8Status,
+      score: b8Score,
+      totalRecords: b8Total,
+      defectCount: 0,
+      rate: `${b8Active} Active Batches`,
+      keyFindings: `Tracking ${b8Total} workorders across factory lines; ${b8Active} active lots undergoing active assembly.`,
+      actionRequired: "Sync production milestone completion with physical QC tally to eliminate inventory drift."
+    },
+    {
+      moduleId: "B9",
+      name: "SOP & Audit Documents",
+      status: b9Status,
+      score: b9Score,
+      totalRecords: b9Total,
+      defectCount: 0,
+      rate: `${b9Total} Active SOPs`,
+      keyFindings: `${b9Total} validated quality procedures and compliance audit protocols on file.`,
+      actionRequired: b9Total === 0 ? "Upload foundational bra & panty sewing SOPs and buyer compliance criteria." : "Verify annual revision cycles on technical construction sheets."
+    },
+    {
+      moduleId: "B10",
+      name: "Customer Complaint Report",
+      status: b10Status,
+      score: b10Score,
+      totalRecords: b10Total,
+      defectCount: b10Pieces,
+      rate: b10Total > 0 ? `${b10Pieces} Affected Pcs` : "Zero Complaints",
+      keyFindings: b10Total > 0 ? `Registered ${b10Total} external buyer complaints involving ${b10Pieces} garments.` : "Flawless external quality record: zero post-market client complaints.",
+      actionRequired: b10Total > 0 ? "Execute formal 8D CAPA report and implement poke-yoke fixture on reported seam." : "Maintain customer feedback monitoring loop."
+    }
+  ];
 
-  if (aqlFails > 0) {
-    recommendations.push({
-      title: "Initiate AQL Fail Batch Re-auditing",
-      priority: 'HIGH',
-      description: `AQL inspection reports register ${aqlFails} batch failure(s). Execute structured 100% sorting audits on affected lots prior to shipment release.`
-    });
-    identifiedProblems.push({
-      Area: "AQL Gatekeeper Station",
-      issue: `${aqlFails} inspection lot(s) failed standard audit metrics`,
-      impact: "Shipment hold and sorting required to protect outer brand quality profile",
-      status: "Action Required"
-    });
-    predictions.push({
-      risk: "Downstream shipment delay due to AQL lot quarantine",
-      probability: 75,
-      timeline: "Next 24 to 48 hours",
-      indicator: `Active failure in AQL lot tracking under ${zoneName}`
-    });
-  }
+  const recommendations: Recommendation[] = [
+    {
+      title: "Cross-Module Inline & Endline Needle Tension Calibration",
+      priority: b3Defects > 5 || b4Defects > 10 ? "HIGH" : "MEDIUM",
+      description: "Coordinate B3 (Inline) hourly findings with B4 (Endline) reject records. Fine-tune double-needle lockstitch tension to eliminate recurring skipped stitches and seam grins."
+    },
+    {
+      title: "AQL Batch Quarantine & 100% Sorting Gate",
+      priority: b5Fails > 0 ? "HIGH" : "LOW",
+      description: b5Fails > 0 ? `B5 reports record ${b5Fails} failed lots. Do not release lots to packaging without signed QA manager approval.` : "Maintain standard AQL 2.5 random audit verification on finished workorders."
+    },
+    {
+      title: "Customer Complaint CAPA Implementation (B10)",
+      priority: b10Total > 0 ? "HIGH" : "LOW",
+      description: b10Total > 0 ? `Address root causes for registered customer complaints immediately. Update B9 SOP documentation to prevent recurrence.` : "Maintain proactive packaging and labeling checks in B6 Final Audit."
+    },
+    {
+      title: "Material Receiving Verification & Supplier Quality (B1)",
+      priority: b1Defects > 0 ? "MEDIUM" : "LOW",
+      description: "Enforce pre-production 4-point inspection on all incoming elastane roll goods to detect stretch variation before spreading in B2 Cutting."
+    }
+  ];
 
-  if (recommendations.length < 2) {
-    recommendations.push({
-      title: "Cross-validate material receiving specifications",
-      priority: 'MEDIUM',
-      description: "Perform randomized elasticity and stretch-back validations on incoming elastane-rich trims to counter ambient humidity adjustments."
-    });
-  }
-  if (recommendations.length < 3) {
-    recommendations.push({
-      title: "Perform operator gauge re-training",
-      priority: 'LOW',
-      description: "Conduct bi-weekly operator measurement posture checks. Ensure consistent fabric smoothing on flat tables during caliper logging."
-    });
-  }
+  const identifiedProblems: IdentifiedProblem[] = [
+    {
+      Area: "B3/B4 Sewing Lines",
+      issue: b3Defects > 0 ? "Stitching tension and thread breakage deviations" : "Minor seam alignment variance",
+      Module: "B3 - Inline Quality",
+      impact: "Downstream rework burden at 100% endline inspection checkpoint",
+      status: b3Defects > 10 ? "Critical" : "Warning",
+      affectedModule: "B3",
+      problem: b3Defects > 0 ? `Stitching tension and thread breakage deviations (${b3Defects} detected)` : "Minor seam alignment variance",
+      occurrences: b3Defects || 3,
+      risk: b3Defects > 10 ? "CRITICAL" : b3Defects > 4 ? "HIGH" : "MEDIUM",
+      mitigation: "Coordinate hourly inline audits with needle thread tension calibration and operator guidance."
+    },
+    {
+      Area: "B5 AQL Audit Gate",
+      issue: b5Fails > 0 ? `${b5Fails} sampling lot(s) exceeded rejectable quality limit` : "Sample lot size tracking",
+      Module: "B5 - AQL Inspection",
+      impact: "Potential delivery delay if 100% sorting is enforced",
+      status: b5Fails > 0 ? "Critical" : "Open",
+      affectedModule: "B5",
+      problem: b5Fails > 0 ? `${b5Fails} sampling lot(s) exceeded rejectable quality limit` : "Routine sampling lot monitoring",
+      occurrences: b5DefectPcs || (b5Fails * 4) || 2,
+      risk: b5Fails > 0 ? "CRITICAL" : "LOW",
+      mitigation: "Quarantine failed lots immediately, mobilize 100% sorting team, and obtain QA sign-off."
+    },
+    {
+      Area: "B10 Customer Satisfaction",
+      issue: b10Total > 0 ? `${b10Total} external complaints pending full CAPA closure` : "No external defects logged",
+      Module: "B10 - Customer Complaints",
+      impact: b10Total > 0 ? "Risk to client scorecard and future purchase orders" : "Optimal brand reputation",
+      status: b10Total > 0 ? "Critical" : "Open",
+      affectedModule: "B10",
+      problem: b10Total > 0 ? `${b10Total} customer complaint(s) logged (${b10Pieces} pcs)` : "Client return monitoring",
+      occurrences: b10Pieces || b10Total || 0,
+      risk: b10Total > 1 ? "CRITICAL" : b10Total === 1 ? "HIGH" : "LOW",
+      mitigation: "Follow 8D CAPA procedure and link corrective actions back to B9 standard operating procedures."
+    },
+    {
+      Area: "B1 Material Receiving",
+      issue: b1Defects > 0 ? "Raw material fabric/trim reject count noted" : "Acceptable incoming roll tolerance",
+      Module: "B1 - Material Inspection",
+      impact: "Panel yield reduction during cutting layups",
+      status: b1Defects > 0 ? "Warning" : "Open",
+      affectedModule: "B1",
+      problem: b1Defects > 0 ? `Fabric defect rate noted (${b1Defects} rejected items)` : "Incoming roll quality verified",
+      occurrences: b1Defects || 1,
+      risk: b1Defects > 5 ? "HIGH" : b1Defects > 0 ? "MEDIUM" : "LOW",
+      mitigation: "Enforce 4-point fabric inspection and request supplier test report verification."
+    },
+    {
+      Area: "B2 Cutting Room",
+      issue: b2Defects > 0 ? `Cutting panel rejects or re-cut required (${b2Defects} pcs)` : "Cutting accuracy within tolerance",
+      Module: "B2 - Cutting Quality",
+      impact: "Bundle mismatch risk at sewing assembly line feeding",
+      status: b2Defects > 5 ? "Warning" : "Open",
+      affectedModule: "B2",
+      problem: b2Defects > 0 ? `Cutting reject rate noted (${b2Defects} pcs)` : "Pattern notch alignment verified",
+      occurrences: b2Defects || 1,
+      risk: b2Defects > 10 ? "HIGH" : b2Defects > 0 ? "MEDIUM" : "LOW",
+      mitigation: "Check rotary knife blade sharpness and verify marker nesting accuracy before lay cutting."
+    }
+  ];
 
-  if (identifiedProblems.length === 0) {
-    identifiedProblems.push({
-      Area: `${zoneName} Operations`,
-      issue: "No significant outlier defects detected in current log cycle",
-      impact: "Minimal process disruption; scrap rate under target threshold of 1.5%",
-      status: "Healthy"
-    });
-  }
+  const predictions: Prediction[] = [
+    {
+      risk: "Downstream shipment hold risk from AQL lot failures",
+      probability: b5Fails > 0 ? 80 : 25,
+      timeline: "Within 24 to 48 hours",
+      affectedModule: "B5 - AQL Inspection",
+      indicator: `${b5Fails} failed lots in active AQL records`
+    },
+    {
+      risk: "Seam slippage and measurement variance on stretch lace",
+      probability: Math.max(30, Math.min(85, Math.round(b3Defects * 3 + 20))),
+      timeline: "Next 3 production days",
+      affectedModule: "B3 - Inline Quality",
+      indicator: "Hourly inspection deviation trends in sewing"
+    },
+    {
+      risk: "Cutting panel dimensional drift due to fabric relaxation",
+      probability: b1Defects > 0 ? 55 : 30,
+      timeline: "1 week horizon",
+      affectedModule: "B2 - Cutting Quality",
+      indicator: "Material roll elasticity variances in B1"
+    }
+  ];
 
-  if (predictions.length === 0) {
-    predictions.push({
-      risk: "Minor measurement variance warning on premium wings",
-      probability: 35,
-      timeline: "3 days horizon",
-      indicator: "Localized operator shift change or stretch tolerance relaxation"
-    });
-  }
-  
-  predictions.push({
-    risk: "Stitching friction on double-needle speed runs",
-    probability: Math.max(30, Math.round(100 - score)),
-    timeline: "Ongoing cycle",
-    indicator: "Aggregate inline skip-stitch frequency trends"
-  });
+  const qualityVerdict = score >= 90 
+    ? "OPTIMAL MANUFACTURING QUALITY" 
+    : score >= 75 
+    ? "STABLE - CONTROLLED REWORK LEVEL" 
+    : score >= 60 
+    ? "DRIFT WARNING - PROCESS INTERVENTION REQUIRED" 
+    : "CRITICAL ALERT - MULTI-MODULE STOPPAGE RISK";
 
   return {
     aiGenerated: false,
-    summary: `Blossom AI diagnostic engine completed local statistical profiling for ${zoneName}. Processed ${totalLogs} quality logs with ${totalDefects} defect events. Statistical quality health index is scored at ${score}/100.`,
+    overallScore: score,
+    qualityVerdict,
+    summary: `Blossom AI completed industrial diagnostic auditing across all 10 operational modules (B1 through B10) for ${zoneName}. Total quality records tracked: ${totalRecords}. Active quality health profile indexes at ${score}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
+    moduleBreakdown,
     recommendations,
     identifiedProblems,
     predictions,
+    capaMatrix: {
+      immediate24h: [
+        "Calibrate sewing needle thread tension on high-defect inline machines.",
+        b5Fails > 0 ? "Quarantine failed AQL lots and mobilize 100% sorting team." : "Perform random cross-check on endline defect bins.",
+        b10Total > 0 ? "Review active customer complaint samples with line supervisors." : "Audit cutting table bundle numbering accuracy."
+      ],
+      shortTerm7d: [
+        "Conduct operator posture and seam alignment refresher training for high-rework operations.",
+        "Review supplier fabric stretch test certificates prior to bulk roll layups.",
+        "Update technical specifications in B9 SOP library for any modified seams."
+      ],
+      longTerm30d: [
+        "Implement automated needle replacement schedules to eliminate needle cut defects.",
+        "Deploy continuous statistical process control (SPC) charts across all zones.",
+        "Conduct vendor quarterly quality reviews with B1 supplier defect scorecards."
+      ]
+    },
     score
   };
 };
@@ -406,78 +634,59 @@ const parseFactoryAnalytics = (logs: any, activeZone: string, zoneMappings: any[
       const label = `Customer Issue: ${r.complaintDetails || r.style || 'Field Defect'}`;
       addDefect(label, qty);
     }
-    const worker = r.createdBy || r.customerName;
-    if (worker) addWorkerData(worker, qty, def, zone);
+    // Do NOT add customer or complaint creator as sewing worker
   });
 
-  // Blend with sophisticated real seeds to always provide full graphics capability
-  const finalDefects: DefectMetric[] = [
-    { name: 'Broken Stitching', count: realDefects['Broken Stitching'] || realDefects['BROKEN STITCHING'] || 34, severity: 'CRITICAL' },
-    { name: 'Measurement Variance', count: realDefects['Measurement Variance'] || realDefects['MEASUREMENT VARIANCE'] || 23, severity: 'HIGH' },
-    { name: 'Seam Puckering', count: realDefects['Seam Puckering'] || realDefects['SEAM PUCKERING'] || 18, severity: 'MEDIUM' },
-    { name: 'Elastic Tension Slip', count: realDefects['Elastic Tension Slip'] || realDefects['ELASTIC TENSION SLIP'] || 14, severity: 'MEDIUM' },
-    { name: 'Shade Variation', count: realDefects['Shade Variation'] || realDefects['SHADE VARIATION'] || 9, severity: 'LOW' },
-    { name: 'Skip Stitching', count: realDefects['Skip Stitching'] || realDefects['SKIP STITCHING'] || 15, severity: 'HIGH' }
-  ];
-
-  const defaultNames = new Set(finalDefects.map(d => d.name.toUpperCase()));
-  Object.keys(realDefects).forEach(k => {
-    const cleanK = k.toUpperCase();
-    if (!defaultNames.has(cleanK) && realDefects[k] > 0) {
+  // Build defects strictly prioritizing real factory records
+  const finalDefects: DefectMetric[] = [];
+  const realEntries = Object.entries(realDefects).filter(([_, c]) => c > 0);
+  if (realEntries.length > 0) {
+    realEntries.forEach(([name, count]) => {
       finalDefects.push({
-        name: k,
-        count: realDefects[k],
-        severity: realDefects[k] > 20 ? 'CRITICAL' : realDefects[k] > 10 ? 'HIGH' : realDefects[k] > 5 ? 'MEDIUM' : 'LOW'
+        name,
+        count,
+        severity: count >= 20 ? 'CRITICAL' : count >= 10 ? 'HIGH' : count >= 5 ? 'MEDIUM' : 'LOW'
       });
-    }
-  });
+    });
+  } else {
+    // Only if 0 defects have ever been logged across any module, provide starter baseline references
+    finalDefects.push(
+      { name: 'Broken Stitching', count: 14, severity: 'HIGH' },
+      { name: 'Measurement Variance', count: 9, severity: 'MEDIUM' },
+      { name: 'Seam Puckering', count: 6, severity: 'MEDIUM' },
+      { name: 'Elastic Tension Slip', count: 4, severity: 'LOW' },
+      { name: 'Skip Stitching', count: 5, severity: 'MEDIUM' }
+    );
+  }
   finalDefects.sort((a, b) => b.count - a.count);
 
-  const defaultUnits = [
-    { name: 'Unit 1 (Sewing Section A)', checked: 1450, defects: 35 },
-    { name: 'Unit 3 (Molding & Trim)', checked: 1020, defects: 41 },
-    { name: 'Unit 4 (Finishing & Pack)', checked: 2100, defects: 164 },
-    { name: 'Unit 2 (Side Assembly)', checked: 1180, defects: 185 }
-  ];
-
-  const finalUnits: UnitMetric[] = defaultUnits.map(du => {
-    // Look for matching real data keys
-    const matchKey = Object.keys(realUnits).find(rk => 
-      rk.toUpperCase().includes(du.name.split(' ')[0].toUpperCase()) ||
-      du.name.toUpperCase().includes(rk.toUpperCase())
-    );
-    const ch = matchKey ? realUnits[matchKey].checked + du.checked : du.checked;
-    const def = matchKey ? realUnits[matchKey].defects + du.defects : du.defects;
-    const rate = Number(((1 - def / (ch || 1)) * 100).toFixed(1));
-    return {
-      name: du.name,
-      checked: ch,
-      defects: def,
-      score: Math.max(50, Math.min(100, rate))
-    };
-  });
-
-  // Dynamically include any new/custom zone or unit created by the user
-  Object.keys(realUnits).forEach(rk => {
-    const isAlreadyMatched = defaultUnits.some(du => 
-      rk.toUpperCase().includes(du.name.split(' ')[0].toUpperCase()) ||
-      du.name.toUpperCase().includes(rk.toUpperCase())
-    );
-    if (!isAlreadyMatched && (realUnits[rk].checked > 0 || realUnits[rk].checked === 0) && rk.trim() !== '') {
+  // Build units strictly prioritizing real factory records
+  const hasRealUnits = Object.keys(realUnits).some(k => realUnits[k].checked > 0 || realUnits[k].defects > 0);
+  let finalUnits: UnitMetric[] = [];
+  if (hasRealUnits) {
+    Object.keys(realUnits).forEach(rk => {
+      if (!rk || rk.trim() === '') return;
       const ch = realUnits[rk].checked;
       const def = realUnits[rk].defects;
-      const rate = Number(((1 - def / (ch || 1)) * 100).toFixed(1));
+      const rate = ch > 0 ? Number(((1 - def / ch) * 100).toFixed(1)) : 100;
       finalUnits.push({
         name: rk,
         checked: ch,
         defects: def,
-        score: Math.max(30, Math.min(100, rate)) // support scores down to 30 for low yield zones
+        score: Math.max(30, Math.min(100, ch === 0 ? 95 : rate))
       });
-    }
-  });
-
+    });
+  } else {
+    finalUnits = [
+      { name: 'Unit 1 (Sewing Section A)', checked: 1450, defects: 35, score: 97.6 },
+      { name: 'Unit 3 (Molding & Trim)', checked: 1020, defects: 41, score: 96.0 },
+      { name: 'Unit 4 (Finishing & Pack)', checked: 2100, defects: 164, score: 92.2 },
+      { name: 'Unit 2 (Side Assembly)', checked: 1180, defects: 185, score: 84.3 }
+    ];
+  }
   finalUnits.sort((a, b) => b.score - a.score);
 
+  // Build operator metrics prioritizing real factory records
   const defaultBest: WorkerMetric[] = [
     { name: 'Amina K.', checked: 480, defects: 1, rate: 0.21, unit: 'Unit 1' },
     { name: 'Siti R.', checked: 320, defects: 1, rate: 0.31, unit: 'Unit 3' },
@@ -492,34 +701,35 @@ const parseFactoryAnalytics = (logs: any, activeZone: string, zoneMappings: any[
     { name: 'Dorothy L.', checked: 200, defects: 14, rate: 7.00, unit: 'Unit 1', focus: 'Cup mold edge trimming' }
   ];
 
-  const realBestList = [...defaultBest];
-  const realBackList = [...defaultBack];
+  const validRealWorkers = Object.entries(realWorkers).filter(([name]) => 
+    name && !name.toLowerCase().includes('admin') && !name.toLowerCase().includes('client') && !name.toLowerCase().includes('customer')
+  );
+  const realWorkersWithData = validRealWorkers.filter(([_, w]) => w.checked > 0 || w.defects > 0);
 
-  Object.keys(realWorkers).forEach(name => {
-    const w = realWorkers[name];
-    if (w.checked >= 0) { // 0 checked piece minimum ensures immediate responsiveness to newly registered operators
-      const rate = Number(((w.defects / (w.checked || 1)) * 100).toFixed(2));
-      const alreadyBest = realBestList.some(o => o.name.toUpperCase() === name.toUpperCase());
-      const alreadyBack = realBackList.some(o => o.name.toUpperCase() === name.toUpperCase());
-      if (!alreadyBest && !alreadyBack) {
-        if (rate <= 4.0) {
-          realBestList.push({ name, checked: w.checked, defects: w.defects, rate, unit: w.unit });
-        } else {
-          realBackList.push({
-            name,
-            checked: w.checked,
-            defects: w.defects,
-            rate,
-            unit: w.unit,
-            focus: 'Precision alignment & stitch speed control'
-          });
-        }
-      }
+  let bestWorkers: WorkerMetric[] = [];
+  let backWorkers: WorkerMetric[] = [];
+
+  if (realWorkersWithData.length > 0) {
+    const mapped = realWorkersWithData.map(([name, w]) => {
+      const rate = w.checked > 0 ? Number(((w.defects / w.checked) * 100).toFixed(2)) : 0;
+      return {
+        name,
+        checked: w.checked,
+        defects: w.defects,
+        rate,
+        unit: w.unit || 'Sewing Line',
+        focus: rate > 4 ? 'Needle speed & seam tension guidance' : undefined
+      };
+    });
+    bestWorkers = [...mapped].sort((a, b) => a.rate - b.rate).slice(0, 5);
+    backWorkers = [...mapped].filter(w => w.defects > 0).sort((a, b) => b.rate - a.rate).slice(0, 5);
+    if (backWorkers.length === 0) {
+      backWorkers = [...mapped].sort((a, b) => b.checked - a.checked).slice(0, 3);
     }
-  });
-
-  const bestWorkers = realBestList.sort((a, b) => a.rate - b.rate).slice(0, 5);
-  const backWorkers = realBackList.sort((a, b) => b.rate - a.rate).slice(0, 5);
+  } else {
+    bestWorkers = defaultBest;
+    backWorkers = defaultBack;
+  }
 
   return {
     defects: finalDefects,
@@ -529,9 +739,12 @@ const parseFactoryAnalytics = (logs: any, activeZone: string, zoneMappings: any[
   };
 };
 
+type TabType = 'modules' | 'briefing' | 'concerns' | 'capa' | 'predictions' | 'analytics';
+
 const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'briefing' | 'concerns' | 'analytics'>('briefing');
+  const [activeTab, setActiveTab] = useState<TabType>('modules');
+  const [moduleFilter, setModuleFilter] = useState<'ALL' | 'PROD' | 'AUDIT' | 'GOV' | 'ATTENTION'>('ALL');
   const [dataLogs, setDataLogs] = useState<any>({
     material: [],
     cutting: [],
@@ -539,6 +752,9 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     endline: [],
     aql: [],
     finalAudit: [],
+    users: [],
+    workorders: [],
+    sop: [],
     customerComplaints: []
   });
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
@@ -557,6 +773,9 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         endline, 
         aql, 
         finalAudit,
+        users,
+        workorders,
+        sop,
         customerComplaints,
         zoneMappings
       ] = await Promise.all([
@@ -566,6 +785,9 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         api.run('api_getEndlineData').catch(() => []),
         api.run('api_getAQLData').catch(() => []),
         api.run('api_getFinalAuditData').catch(() => []),
+        api.run('api_getUsers').catch(() => []),
+        api.run('api_getWorkorders').catch(() => []),
+        api.run('api_getREPORTS_SOPData').catch(() => []),
         api.run('api_getCustomerComplaints').catch(() => []),
         api.run('api_getZoneMappings').catch(() => [])
       ]);
@@ -577,6 +799,9 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         endline: Array.isArray(endline) ? endline : [],
         aql: Array.isArray(aql) ? aql : [],
         finalAudit: Array.isArray(finalAudit) ? finalAudit : [],
+        users: Array.isArray(users) ? users : [],
+        workorders: Array.isArray(workorders) ? workorders : [],
+        sop: Array.isArray(sop) ? sop : [],
         customerComplaints: Array.isArray(customerComplaints) ? customerComplaints : []
       };
 
@@ -596,7 +821,22 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         endlineData: zoneFilter(logStore.endline),
         aqlData: zoneFilter(logStore.aql),
         finalAuditData: zoneFilter(logStore.finalAudit),
-        customerComplaintData: zoneFilter(logStore.customerComplaints)
+        usersData: logStore.users,
+        workordersData: logStore.workorders,
+        sopData: zoneFilter(logStore.sop),
+        customerComplaintData: zoneFilter(logStore.customerComplaints),
+        // Standardized B1-B10 parameters
+        b1_material: zoneFilter(logStore.material),
+        b2_cutting: zoneFilter(logStore.cutting),
+        b3_inline: zoneFilter(logStore.inline),
+        b4_endline: zoneFilter(logStore.endline),
+        b5_aql: zoneFilter(logStore.aql),
+        b6_finalAudit: zoneFilter(logStore.finalAudit),
+        b7_users: logStore.users,
+        b8_workorders: logStore.workorders,
+        b9_sop: zoneFilter(logStore.sop),
+        b10_customerComplaints: zoneFilter(logStore.customerComplaints),
+        zone: globalZone || 'ALL'
       };
 
       // Generate analytics metrics (defects, units, workers)
@@ -699,11 +939,63 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     doc.text(splitSummary, 14, 83);
     
     let currentY = 95 + (splitSummary.length * 4);
+
+    // Section 2: COMPLETE B1-B10 AUDIT MATRIX
+    if (analysis.moduleBreakdown && analysis.moduleBreakdown.length > 0) {
+      if (currentY > 160) {
+        doc.addPage();
+        currentY = 20;
+      } else {
+        currentY += 6;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text("2. B1 - B10 COMPLETE PRODUCTION QUALITY LIFECYCLE AUDIT", 14, currentY);
+
+      const moduleRows = analysis.moduleBreakdown.map(m => [
+        m.moduleId,
+        m.name,
+        m.totalRecords.toString(),
+        m.defectCount.toString(),
+        m.rate,
+        `${m.score}/100`,
+        m.status,
+        m.actionRequired
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 3,
+        head: [['Code', 'Module', 'Records', 'Defects', 'Rate', 'Score', 'Status', 'Required Action']],
+        body: moduleRows,
+        theme: 'striped',
+        headStyles: { fillColor: [14, 116, 144] },
+        styles: { fontSize: 7, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 12, fontStyle: 'bold' },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 14, halign: 'center' },
+          3: { cellWidth: 14, halign: 'center' },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
+          6: { cellWidth: 18, halign: 'center' },
+          7: { cellWidth: 'auto' }
+        }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 12;
+    }
     
-    // Section 2: VISUAL QUALITY BOTTLENECK PROFILE
+    if (currentY > 210) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    // Section 3: VISUAL QUALITY BOTTLENECK PROFILE
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10.5);
-    doc.text("2. VISUAL QUALITY BOTTLENECK PROFILE", 14, currentY);
+    doc.text("3. VISUAL QUALITY BOTTLENECK PROFILE", 14, currentY);
     
     // Draw a neat bounding box for the visual chart
     doc.setFillColor(248, 250, 252);
@@ -1154,6 +1446,80 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     };
   });
 
+  // 4. B1 - B10 Lifecycle Health Radar & Bar data
+  const b1ToB10RadarData = (result.moduleBreakdown || []).map(m => ({
+    module: `${m.moduleId} ${m.name.split(' ')[0]}`,
+    code: m.moduleId,
+    score: m.score,
+    target: 90,
+    defects: m.defectCount,
+    status: m.status
+  }));
+
+  const b1ToB10BarData = (result.moduleBreakdown || []).map(m => {
+    let barColor = '#10b981'; // OPTIMAL
+    if (m.status === 'STABLE') barColor = '#0284c7';
+    else if (m.status === 'WARNING') barColor = '#f59e0b';
+    else if (m.status === 'CRITICAL') barColor = '#f43f5e';
+    return {
+      code: m.moduleId,
+      name: `${m.moduleId}: ${m.name}`,
+      shortName: m.moduleId,
+      score: m.score,
+      target: 90,
+      defects: m.defectCount,
+      rate: m.rate,
+      barColor
+    };
+  });
+
+  // 5. Pareto 80/20 Defect Analysis Data
+  const sortedDefects = [...activeMetrics.defects].sort((a, b) => b.count - a.count);
+  const totalDefectOccurrences = sortedDefects.reduce((acc, d) => acc + d.count, 0) || 1;
+  let runningDefectSum = 0;
+  const paretoData = sortedDefects.map(d => {
+    runningDefectSum += d.count;
+    const cumulativePct = Math.min(100, Math.round((runningDefectSum / totalDefectOccurrences) * 100));
+    return {
+      name: d.name,
+      count: d.count,
+      cumulativePct,
+      severity: d.severity
+    };
+  });
+
+  // 6. CAPA Progress Metrics
+  const allImmediate = result.capaMatrix?.immediate24h || [];
+  const doneImmediate = allImmediate.filter(a => completedActions.includes(a)).length;
+  const pctImmediate = allImmediate.length > 0 ? Math.round((doneImmediate / allImmediate.length) * 100) : 100;
+
+  const allShortTerm = result.capaMatrix?.shortTerm7d || [];
+  const doneShortTerm = allShortTerm.filter(a => completedActions.includes(a)).length;
+  const pctShortTerm = allShortTerm.length > 0 ? Math.round((doneShortTerm / allShortTerm.length) * 100) : 100;
+
+  const allLongTerm = result.capaMatrix?.longTerm30d || [];
+  const doneLongTerm = allLongTerm.filter(a => completedActions.includes(a)).length;
+  const pctLongTerm = allLongTerm.length > 0 ? Math.round((doneLongTerm / allLongTerm.length) * 100) : 100;
+
+  const totalCapaTasks = allImmediate.length + allShortTerm.length + allLongTerm.length;
+  const totalCapaDone = doneImmediate + doneShortTerm + doneLongTerm;
+  const overallCapaPct = totalCapaTasks > 0 ? Math.round((totalCapaDone / totalCapaTasks) * 100) : 0;
+
+  // 7. Predictive Risk Horizon Data
+  const riskHorizonData = (result.predictions || []).map((p, idx) => {
+    const modCode = p.affectedModule ? p.affectedModule.split(' ')[0] : `P${idx + 1}`;
+    const barColor = p.probability >= 70 ? '#f43f5e' : p.probability >= 50 ? '#f59e0b' : '#10b981';
+    return {
+      name: `${modCode}: ${p.timeline.split(' ')[0] || 'Short-term'}`,
+      fullRisk: p.risk,
+      probability: p.probability,
+      timeline: p.timeline,
+      module: p.affectedModule || 'QC Chain',
+      indicator: p.indicator,
+      barColor
+    };
+  });
+
   const activeColor = scoreColor(result.score);
 
   return (
@@ -1266,20 +1632,20 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 mt-4 border-t border-slate-100 text-center">
             <div className="bg-slate-50 rounded-xl p-2 border border-slate-150">
-              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">Raw Material</span>
-              <span className="text-xs font-black text-slate-700">{dataLogs.material.length} logs</span>
+              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">B1-B2 Material/Cut</span>
+              <span className="text-xs font-black text-slate-700">{dataLogs.material.length + dataLogs.cutting.length} logs</span>
             </div>
             <div className="bg-slate-50 rounded-xl p-2 border border-slate-150">
-              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">Cutting QC</span>
-              <span className="text-xs font-black text-slate-700">{dataLogs.cutting.length} logs</span>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-2 border border-slate-150">
-              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">Sewing QC</span>
+              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">B3-B4 Sewing QC</span>
               <span className="text-xs font-black text-slate-700">{dataLogs.inline.length + dataLogs.endline.length} checks</span>
             </div>
+            <div className="bg-slate-50 rounded-xl p-2 border border-slate-150">
+              <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">B5-B6 Audits/AQL</span>
+              <span className="text-xs font-black text-slate-700">{dataLogs.aql.length + dataLogs.finalAudit.length} audits</span>
+            </div>
             <div className="bg-slate-50 rounded-xl p-2 border border-[#00B4D8]/10 bg-indigo-50/20">
-              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">AQL + Final Auds</span>
-              <span className="text-xs font-black text-[#00B4D8]">{dataLogs.aql.length + dataLogs.finalAudit.length} audits</span>
+              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">B7-B10 Gov & Orders</span>
+              <span className="text-xs font-black text-[#00B4D8]">{dataLogs.users.length + dataLogs.workorders.length + dataLogs.sop.length + dataLogs.customerComplaints.length} records</span>
             </div>
           </div>
         </div>
@@ -1287,149 +1653,831 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto gap-1">
+        <button
+          onClick={() => setActiveTab('modules')}
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'modules'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Icon name="layers" size={13} />
+          B1–B10 Complete Matrix
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-600 font-black">10</span>
+        </button>
         <button
           onClick={() => setActiveTab('briefing')}
-          className={`pb-2.5 px-4 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 cursor-pointer ${
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'briefing'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          AI Forecasts & CAPA
+          <Icon name="file-text" size={13} />
+          Executive Briefing
         </button>
         <button
           onClick={() => setActiveTab('concerns')}
-          className={`pb-2.5 px-4 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 cursor-pointer ${
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'concerns'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          Quality Concerns & Defects ({activeMetrics.defects.length})
+          <Icon name="alert-triangle" size={13} />
+          Defects & Bottlenecks ({activeMetrics.defects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('capa')}
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'capa'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Icon name="check-square" size={13} />
+          CAPA Roadmap
+        </button>
+        <button
+          onClick={() => setActiveTab('predictions')}
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'predictions'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Icon name="orbit" size={13} />
+          Risk Radar ({result.predictions.length})
         </button>
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`pb-2.5 px-4 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 cursor-pointer ${
+          className={`pb-2.5 px-3.5 text-xs font-extrabold uppercase tracking-widest border-b-2 transition duration-150 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'analytics'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          Units & Operator Performance
+          <Icon name="bar-chart-2" size={13} />
+          Units & Operators
         </button>
       </div>
 
-      {/* TAB 1: AI Forecasts & CAPA */}
-      {activeTab === 'briefing' && (
+      {/* TAB 0: B1 - B10 COMPLETE QUALITY CHAIN MATRIX */}
+      {activeTab === 'modules' && (
         <div className="space-y-6 animate-fade-in">
-          {/* Section Predictions */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-rose-50 text-rose-500 rounded-lg">
-                <Icon name="orbit" size={14} />
-              </div>
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Risk Predictor Forecasts (Short Horizon)</h4>
-            </div>
+          
+          {/* Dual B1–B10 Graphical Analytics Panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {result.predictions.length === 0 ? (
-              <div className="bg-slate-50 text-center text-xs text-slate-400 py-6 border border-slate-200 rounded-xl italic">
-                Insufficient QC logs found to output predictive hazard horizons. Feed more entries to prime models.
+            {/* Chart 1: 10-Axis Lifecycle Health Spider Radar */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B10 Factory Lifecycle Spider Radar</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">360° Quality compliance across all 10 industrial nodes</p>
+                </div>
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-wide">
+                  10 Nodes Mapped
+                </span>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {result.predictions.map((pred, i) => (
-                  <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:border-rose-200 hover:shadow-sm transition duration-200 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-xl translate-x-4 -translate-y-4 group-hover:scale-125 transition duration-150" />
-                    
-                    <div className="space-y-2 relative">
-                      <div className="flex justify-between items-center text-[10px]">
-                        <span className="text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                          <Icon name="clock" size={10} />
-                          {pred.timeline}
-                        </span>
-                        <span className="bg-rose-50 text-rose-500 font-black px-1.5 py-0.5 rounded border border-rose-100">
-                          {pred.probability}% Probability
-                        </span>
-                      </div>
 
-                      <h5 className="text-xs font-bold text-slate-800 leading-snug">
-                        {pred.risk}
-                      </h5>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-50 flex items-start gap-1.5 text-[10px] text-slate-500 leading-normal">
-                      <span className="font-extrabold text-rose-500 uppercase flex-shrink-0">Lead Trigger:</span>
-                      <span className="italic">{pred.indicator}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={b1ToB10RadarData} margin={{ top: 10, right: 25, bottom: 10, left: 25 }}>
+                    <PolarGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                    <PolarAngleAxis 
+                      dataKey="module" 
+                      tick={{ fill: '#475569', fontSize: 9, fontWeight: 800 }} 
+                    />
+                    <PolarRadiusAxis 
+                      angle={90} 
+                      domain={[0, 100]} 
+                      tick={{ fill: '#94a3b8', fontSize: 8 }} 
+                      axisLine={false} 
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
+                      formatter={(val: any, name: any) => [`${val}%`, name]}
+                    />
+                    <Radar 
+                      name="Active Health Score" 
+                      dataKey="score" 
+                      stroke="#6366f1" 
+                      fill="#6366f1" 
+                      fillOpacity={0.35} 
+                      strokeWidth={2}
+                    />
+                    <Radar 
+                      name="Target Benchmark" 
+                      dataKey="target" 
+                      stroke="#10b981" 
+                      strokeDasharray="4 4" 
+                      fill="none" 
+                      strokeWidth={1.5}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      wrapperStyle={{ fontSize: '10px', fontWeight: 700, paddingTop: '10px' }} 
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
               </div>
-            )}
+
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium pt-2 border-t border-slate-100">
+                <span>Target Benchmark: <strong className="text-emerald-600 font-black">90% Target Compliance</strong></span>
+                <span>Lagging nodes indicate required CAPA focus</span>
+              </div>
+            </div>
+
+            {/* Chart 2: B1–B10 Comparative Benchmark Bar Chart */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B10 Quality Benchmark Index</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Comparative scoring against the 90% target threshold</p>
+                </div>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-wide">
+                  Target: 90/100
+                </span>
+              </div>
+
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={b1ToB10BarData} margin={{ top: 10, right: 10, left: -25, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="shortName" 
+                      tick={{ fill: '#475569', fontSize: 10, fontWeight: 800 }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      domain={[0, 100]}
+                      tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
+                      labelFormatter={(label, payload) => payload && payload[0]?.payload?.name ? payload[0].payload.name : label}
+                      formatter={(value: any, name: string) => [`${value} / 100`, 'Health Score']}
+                    />
+                    <ReferenceLine 
+                      y={90} 
+                      stroke="#10b981" 
+                      strokeDasharray="4 4" 
+                      strokeWidth={1.5}
+                      label={{ value: 'Target 90%', fill: '#059669', fontSize: 9, fontWeight: 800, position: 'insideTopRight' }} 
+                    />
+                    <ReferenceLine 
+                      y={75} 
+                      stroke="#f59e0b" 
+                      strokeDasharray="2 2" 
+                      strokeWidth={1}
+                      label={{ value: 'Warning 75%', fill: '#d97706', fontSize: 8, fontWeight: 700, position: 'insideTopRight' }} 
+                    />
+                    <Bar dataKey="score" radius={[6, 6, 0, 0]}>
+                      {b1ToB10BarData.map((entry, index) => (
+                        <Cell key={`b1b10-cell-${index}`} fill={entry.barColor} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-3 text-[9px] font-bold uppercase tracking-wider text-slate-400 pt-2 border-t border-slate-100">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-emerald-500" /> Optimal (≥90)</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-sky-500" /> Stable (75-89)</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-500" /> Warning (60-74)</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-rose-500" /> Critical (&lt;60)</span>
+              </div>
+            </div>
+
           </div>
 
-          {/* Corrective and Preventive Action Recommendations */}
+          {/* Quick Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-2">Filter Modules:</span>
+              {(['ALL', 'PROD', 'AUDIT', 'GOV', 'ATTENTION'] as const).map(filterKey => {
+                const labels: Record<string, string> = {
+                  ALL: 'All 10 Modules (B1-B10)',
+                  PROD: 'Production (B1-B4)',
+                  AUDIT: 'Audits & Release (B5-B6)',
+                  GOV: 'Governance (B7-B10)',
+                  ATTENTION: 'Needs Attention'
+                };
+                const isSelected = moduleFilter === filterKey;
+                return (
+                  <button
+                    key={filterKey}
+                    onClick={() => setModuleFilter(filterKey)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition ${
+                      isSelected
+                        ? 'bg-slate-800 text-white shadow-xs'
+                        : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
+                  >
+                    {labels[filterKey]}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[10px] font-bold text-slate-400">
+              Scope: <span className="text-slate-700 font-extrabold">{globalZone || 'ALL ZONES'}</span>
+            </div>
+          </div>
+
+          {/* Module Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {(result.moduleBreakdown || []).filter(mod => {
+              if (moduleFilter === 'PROD') return ['B1', 'B2', 'B3', 'B4'].includes(mod.moduleId);
+              if (moduleFilter === 'AUDIT') return ['B5', 'B6'].includes(mod.moduleId);
+              if (moduleFilter === 'GOV') return ['B7', 'B8', 'B9', 'B10'].includes(mod.moduleId);
+              if (moduleFilter === 'ATTENTION') return mod.status === 'WARNING' || mod.status === 'CRITICAL';
+              return true;
+            }).map((mod, idx) => {
+              const statusPills: Record<string, { bg: string; text: string; border: string; bar: string }> = {
+                OPTIMAL: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', bar: 'bg-emerald-500' },
+                STABLE: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', bar: 'bg-sky-500' },
+                WARNING: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', bar: 'bg-amber-500' },
+                CRITICAL: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200', bar: 'bg-rose-500' }
+              };
+              const sp = statusPills[mod.status] || statusPills.STABLE;
+
+              return (
+                <div 
+                  key={idx} 
+                  className={`bg-white rounded-2xl border ${sp.border} p-4 flex flex-col justify-between hover:shadow-md transition duration-200 relative overflow-hidden`}
+                >
+                  <div className={`absolute top-0 right-0 w-16 h-16 ${sp.bg} rounded-bl-3xl -z-0 opacity-40`} />
+                  
+                  <div className="space-y-3 z-10">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10px] font-black tracking-wider">
+                        {mod.moduleId}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${sp.bg} ${sp.text} ${sp.border}`}>
+                        {mod.status}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 leading-tight">{mod.name}</h4>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{mod.rate}</p>
+                    </div>
+
+                    {/* Score Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-extrabold">
+                        <span className="text-slate-400 uppercase">Health Score</span>
+                        <span className="text-slate-700">{mod.score}/100</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${sp.bar} rounded-full`} style={{ width: `${mod.score}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-1.5 py-1 text-center bg-slate-50 rounded-xl border border-slate-100">
+                      <div>
+                        <span className="block text-[8px] font-extrabold text-slate-400 uppercase">Records</span>
+                        <span className="text-xs font-black text-slate-700">{mod.totalRecords}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[8px] font-extrabold text-slate-400 uppercase">Defects</span>
+                        <span className="text-xs font-black text-slate-700">{mod.defectCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Key Findings */}
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed line-clamp-2">
+                      {mod.keyFindings}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 mt-3 border-t border-slate-100 z-10">
+                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Required Action</span>
+                    <p className="text-[10px] font-bold text-slate-700 leading-snug line-clamp-2">
+                      {mod.actionRequired}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Full B1-B10 Comparative Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1 – B10 Complete Quality Chain Audit Ledger</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Holistic process status across raw material, cutting, sewing, audits, governance, and client feedback</p>
+              </div>
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-wider border border-indigo-150">
+                10 Integrated Nodes
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/60 border-b border-slate-200 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    <th className="py-3 px-3 text-center w-12">Code</th>
+                    <th className="py-3 px-4">Module Name</th>
+                    <th className="py-3 px-3 text-center">Total Logs</th>
+                    <th className="py-3 px-3 text-center">Defects / Issues</th>
+                    <th className="py-3 px-4">Operational Rate</th>
+                    <th className="py-3 px-3 text-center">Health Score</th>
+                    <th className="py-3 px-3 text-center">QC Status</th>
+                    <th className="py-3 px-4">Diagnostic Findings & AI Directives</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(result.moduleBreakdown || []).map((mod, i) => {
+                    const statusColors: Record<string, string> = {
+                      OPTIMAL: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+                      STABLE: 'bg-sky-50 text-sky-600 border-sky-200',
+                      WARNING: 'bg-amber-50 text-amber-600 border-amber-200',
+                      CRITICAL: 'bg-rose-50 text-rose-600 border-rose-200'
+                    };
+
+                    return (
+                      <tr key={i} className="hover:bg-slate-50/50 transition">
+                        <td className="py-3 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10px] font-black tracking-wider">
+                            {mod.moduleId}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-extrabold text-slate-800">
+                          {mod.name}
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">
+                          {mod.totalRecords}
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">
+                          {mod.defectCount}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-semibold text-[11px]">
+                          {mod.rate}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="font-black text-slate-800 text-xs">
+                            {mod.score}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold">/100</span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${statusColors[mod.status] || 'bg-slate-50 text-slate-500'}`}>
+                            {mod.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 space-y-1">
+                          <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                            {mod.keyFindings}
+                          </p>
+                          <p className="text-[10px] text-indigo-600 font-bold leading-tight">
+                            <span className="uppercase text-slate-400 text-[8px] mr-1 font-black">CAPA:</span>
+                            {mod.actionRequired}
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1: EXECUTIVE BRIEFING */}
+      {activeTab === 'briefing' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Quality Health Profile Card */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-[#00B4D8]">Quality Diagnostic Dossier</span>
+                <h3 className="text-base font-black text-slate-800">Factory Quality Equilibrium Analysis</h3>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${activeColor.bg} ${activeColor.text} ${activeColor.border}`}>
+                {getScoreVerdict(result.score)}
+              </span>
+            </div>
+
+            <div className="text-xs text-slate-600 leading-relaxed space-y-3">
+              <p className="font-medium text-sm leading-relaxed text-slate-700">
+                {result.summary}
+              </p>
+            </div>
+
+            {/* High-level status by domain */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Production Stage (B1-B4)</span>
+                <p className="text-xs font-black text-slate-800">
+                  {dataLogs.material.length + dataLogs.cutting.length + dataLogs.inline.length + dataLogs.endline.length} Logs Analyzed
+                </p>
+                <p className="text-[10px] text-slate-500 font-medium">In-line and end-line stitching defect rate within statistical control limit.</p>
+              </div>
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Release Gate (B5-B6)</span>
+                <p className="text-xs font-black text-slate-800">
+                  {dataLogs.aql.length + dataLogs.finalAudit.length} Sampling Audits
+                </p>
+                <p className="text-[10px] text-slate-500 font-medium">Random sampling lots quarantined upon single major defect threshold breach.</p>
+              </div>
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Client Compliance (B7-B10)</span>
+                <p className="text-xs font-black text-slate-800">
+                  {dataLogs.customerComplaints.length} External Complaints
+                </p>
+                <p className="text-[10px] text-slate-500 font-medium">Post-market customer feedback matched to specific assembly workorders.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Recommendations */}
           <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <Icon name="zap" size={14} />
+              </div>
+              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Priority Executive Directives</h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {result.recommendations.map((rec, i) => (
+                <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-300 transition">
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${
+                      rec.priority === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                    }`}>
+                      {rec.priority} PRIORITY
+                    </span>
+                  </div>
+                  <h5 className="text-xs font-black text-slate-800">{rec.title}</h5>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-medium">{rec.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: CAPA ROADMAP */}
+      {activeTab === 'capa' && (
+        <div className="space-y-6 animate-fade-in">
+
+          {/* Visual CAPA Milestone Execution & Health Cockpit */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">CAPA Resolution & Containment Cockpit</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Execution velocity across 24h, 7-day, and 30-day corrective milestones</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-700">{totalCapaDone} of {totalCapaTasks} Actions Cleared</span>
+                <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
+                  overallCapaPct === 100 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                }`}>
+                  {overallCapaPct}% Velocity
+                </span>
+              </div>
+            </div>
+
+            {/* Overall Progress Meter */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                <span>Overall Action Completion</span>
+                <span className="text-slate-800 font-black">{overallCapaPct}%</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-500 rounded-full transition-all duration-500" 
+                  style={{ width: `${overallCapaPct}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 3 Tier Velocity Gauges */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3.5 bg-rose-50/50 rounded-xl border border-rose-100 space-y-2">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-black text-rose-800 uppercase tracking-wider">24h Containment</span>
+                  <span className="font-extrabold text-rose-600">{doneImmediate}/{allImmediate.length} ({pctImmediate}%)</span>
+                </div>
+                <div className="w-full h-1.5 bg-rose-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-rose-500 rounded-full transition-all" style={{ width: `${pctImmediate}%` }} />
+                </div>
+                <p className="text-[9px] text-rose-600 font-medium leading-tight">Floor segregation & immediate needle tension</p>
+              </div>
+
+              <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-100 space-y-2">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-black text-amber-800 uppercase tracking-wider">7d Stabilization</span>
+                  <span className="font-extrabold text-amber-600">{doneShortTerm}/{allShortTerm.length} ({pctShortTerm}%)</span>
+                </div>
+                <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pctShortTerm}%` }} />
+                </div>
+                <p className="text-[9px] text-amber-600 font-medium leading-tight">Operator re-training & raw roll audits</p>
+              </div>
+
+              <div className="p-3.5 bg-sky-50/50 rounded-xl border border-sky-100 space-y-2">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-black text-sky-800 uppercase tracking-wider">30d Engineering</span>
+                  <span className="font-extrabold text-sky-600">{doneLongTerm}/{allLongTerm.length} ({pctLongTerm}%)</span>
+                </div>
+                <div className="w-full h-1.5 bg-sky-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${pctLongTerm}%` }} />
+                </div>
+                <p className="text-[9px] text-sky-600 font-medium leading-tight">Supplier scorecards & automated schedules</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 24-Hour Immediate Actions */}
+          <div className="bg-white p-5 rounded-2xl border border-rose-200/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">24-Hour Immediate Containment (Level 1)</h4>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[9px] font-black uppercase tracking-wide border border-rose-100">
+                Action Mandated
+              </span>
+            </div>
+            <div className="space-y-2">
+              {(result.capaMatrix?.immediate24h || [
+                "Calibrate sewing needle thread tension on high-defect inline machines.",
+                "Quarantine any failed AQL lots and mobilize 100% sorting team.",
+                "Review customer complaint seam specifications with line supervisors."
+              ]).map((act, i) => {
+                const isDone = completedActions.includes(act);
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => toggleActionItem(act)}
+                    className={`p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer select-none ${
+                      isDone ? 'bg-slate-50 border-slate-200 line-through text-slate-400' : 'bg-rose-50/30 border-rose-100 hover:border-rose-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      isDone ? 'bg-rose-500 border-rose-500 text-white' : 'border-slate-300'
+                    }`}>
+                      {isDone && <Icon name="check" size={10} className="stroke-[3]" />}
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-700">{act}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 7-Day Short-Term Stabilization */}
+          <div className="bg-white p-5 rounded-2xl border border-amber-200/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">7-Day Process Stabilization (Level 2)</h4>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-wide border border-amber-100">
+                Short-Term
+              </span>
+            </div>
+            <div className="space-y-2">
+              {(result.capaMatrix?.shortTerm7d || [
+                "Conduct operator posture and seam alignment refresher training for high-rework operations.",
+                "Review supplier fabric stretch test certificates prior to bulk roll layups.",
+                "Update technical specifications in B9 SOP library for any modified seams."
+              ]).map((act, i) => {
+                const isDone = completedActions.includes(act);
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => toggleActionItem(act)}
+                    className={`p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer select-none ${
+                      isDone ? 'bg-slate-50 border-slate-200 line-through text-slate-400' : 'bg-amber-50/30 border-amber-100 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      isDone ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300'
+                    }`}>
+                      {isDone && <Icon name="check" size={10} className="stroke-[3]" />}
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-700">{act}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 30-Day Long-Term Engineering Improvements */}
+          <div className="bg-white p-5 rounded-2xl border border-sky-200/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">30-Day Structural Engineering (Level 3)</h4>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[9px] font-black uppercase tracking-wide border border-sky-100">
+                Structural
+              </span>
+            </div>
+            <div className="space-y-2">
+              {(result.capaMatrix?.longTerm30d || [
+                "Implement automated needle replacement schedules to eliminate needle cut defects.",
+                "Deploy continuous statistical process control (SPC) charts across all zones.",
+                "Conduct vendor quarterly quality reviews with B1 supplier defect scorecards."
+              ]).map((act, i) => {
+                const isDone = completedActions.includes(act);
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => toggleActionItem(act)}
+                    className={`p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer select-none ${
+                      isDone ? 'bg-slate-50 border-slate-200 line-through text-slate-400' : 'bg-sky-50/30 border-sky-100 hover:border-sky-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      isDone ? 'bg-sky-500 border-sky-500 text-white' : 'border-slate-300'
+                    }`}>
+                      {isDone && <Icon name="check" size={10} className="stroke-[3]" />}
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-700">{act}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Interactive CAPA Recommendations */}
+          <div className="space-y-3 pt-2">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-emerald-50 text-emerald-500 rounded-lg">
                 <Icon name="check-square" size={14} />
               </div>
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Corrective and Preventive Action (CAPA) Directive</h4>
+              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Targeted Cross-Module CAPA Tasks</h4>
             </div>
 
-            {result.recommendations.length === 0 ? (
-              <div className="bg-slate-50 text-center text-xs text-slate-400 py-6 border border-slate-200 rounded-xl italic">
-                Zero proactive corrective directives received.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {result.recommendations.map((rec, i) => {
-                  const isDone = completedActions.includes(rec.title);
-                  const isHigh = rec.priority === 'HIGH';
-                  const isMedium = rec.priority === 'MEDIUM';
-                  
-                  const priorityPill = isHigh 
-                    ? 'bg-red-50 text-red-600 border-red-100' 
-                    : isMedium 
-                      ? 'bg-amber-50 text-amber-600 border-amber-100'
-                      : 'bg-blue-50 text-blue-600 border-blue-100';
-
-                  return (
-                    <div 
-                      key={i} 
-                      onClick={() => toggleActionItem(rec.title)}
-                      className={`p-4 rounded-xl border transition-all duration-200 flex gap-3.5 select-none cursor-pointer ${
-                        isDone 
-                          ? 'bg-slate-50/80 border-slate-200 line-through text-slate-400' 
-                          : 'bg-white border-slate-200 hover:border-[#00B4D8]'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-lg border-2 mt-0.5 flex-shrink-0 flex items-center justify-center transition-all duration-150 ${
-                        isDone 
-                          ? 'bg-[#00B4D8] border-[#00B4D8] text-white' 
-                          : 'border-slate-300'
-                      }`}>
-                        {isDone && <Icon name="check" size={12} className="stroke-[3]" />}
-                      </div>
-
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${priorityPill}`}>
-                            {rec.priority} PRIORITY
-                          </span>
-                          <h5 className={`text-xs font-black truncate leading-tight ${isDone ? 'text-slate-400' : 'text-slate-800'}`}>
-                            {rec.title}
-                          </h5>
-                        </div>
-                        <p className={`text-[11px] leading-relaxed ${isDone ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {rec.description}
-                        </p>
-                      </div>
+            <div className="space-y-3">
+              {result.recommendations.map((rec, i) => {
+                const isDone = completedActions.includes(rec.title);
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => toggleActionItem(rec.title)}
+                    className={`p-4 rounded-xl border transition-all duration-200 flex gap-3.5 select-none cursor-pointer ${
+                      isDone 
+                        ? 'bg-slate-50/80 border-slate-200 line-through text-slate-400' 
+                        : 'bg-white border-slate-200 hover:border-[#00B4D8]'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-lg border-2 mt-0.5 flex-shrink-0 flex items-center justify-center transition-all duration-150 ${
+                      isDone ? 'bg-[#00B4D8] border-[#00B4D8] text-white' : 'border-slate-300'
+                    }`}>
+                      {isDone && <Icon name="check" size={12} className="stroke-[3]" />}
                     </div>
-                  );
-                })}
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${
+                          rec.priority === 'HIGH' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                        }`}>
+                          {rec.priority} PRIORITY
+                        </span>
+                        <h5 className={`text-xs font-black truncate leading-tight ${isDone ? 'text-slate-400' : 'text-slate-800'}`}>
+                          {rec.title}
+                        </h5>
+                      </div>
+                      <p className={`text-[11px] leading-relaxed ${isDone ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {rec.description}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: RISK RADAR / PREDICTIONS */}
+      {activeTab === 'predictions' && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Predictive Risk Probability Distribution Chart */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Predictive Hazard Probability Horizon Chart</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Machine-learned forward failure projection index (%)</p>
               </div>
-            )}
+              <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-wide border border-rose-150">
+                Critical Threshold: 70%
+              </span>
+            </div>
+
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={riskHorizonData} margin={{ top: 10, right: 10, left: -25, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    domain={[0, 100]}
+                    tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                    unit="%"
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
+                    formatter={(val: any, name: any, item: any) => [`${val}% Probability`, item?.payload?.module || 'Hazard']}
+                    labelFormatter={(label, payload) => payload && payload[0]?.payload?.fullRisk ? payload[0].payload.fullRisk : label}
+                  />
+                  <ReferenceLine 
+                    y={70} 
+                    stroke="#f43f5e" 
+                    strokeDasharray="4 4" 
+                    strokeWidth={1.5}
+                    label={{ value: 'High Risk 70%', fill: '#f43f5e', fontSize: 9, fontWeight: 800, position: 'insideTopRight' }} 
+                  />
+                  <ReferenceLine 
+                    y={50} 
+                    stroke="#f59e0b" 
+                    strokeDasharray="2 2" 
+                    strokeWidth={1}
+                    label={{ value: 'Watchlist 50%', fill: '#d97706', fontSize: 8, fontWeight: 700, position: 'insideTopRight' }} 
+                  />
+                  <Bar dataKey="probability" radius={[6, 6, 0, 0]}>
+                    {riskHorizonData.map((entry, index) => (
+                      <Cell key={`risk-cell-${index}`} fill={entry.barColor} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 text-[9px] font-bold uppercase tracking-wider text-slate-400 pt-1 border-t border-slate-100">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-rose-500" /> High Hazard (≥70%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-amber-500" /> Watchlist (50-69%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Contained (&lt;50%)</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Predictive Hazard Horizon</h4>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Machine-learned forward hazard projections across B1 through B10 lifecycle</p>
+            </div>
+            <span className="px-2.5 py-1 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-wider border border-rose-100">
+              {result.predictions.length} Active Forecasts
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {result.predictions.map((pred, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:border-rose-200 hover:shadow-md transition duration-200 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-rose-500/5 rounded-full blur-xl translate-x-4 -translate-y-4 group-hover:scale-125 transition duration-150" />
+                
+                <div className="space-y-3 relative">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-500 font-extrabold uppercase tracking-widest flex items-center gap-1">
+                      <Icon name="clock" size={11} />
+                      {pred.timeline}
+                    </span>
+                    <span className="bg-rose-50 text-rose-600 font-black px-2 py-0.5 rounded-lg border border-rose-100">
+                      {pred.probability}% Risk Probability
+                    </span>
+                  </div>
+
+                  {pred.affectedModule && (
+                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-black uppercase tracking-wider">
+                      Module: {pred.affectedModule}
+                    </span>
+                  )}
+
+                  <h5 className="text-sm font-black text-slate-800 leading-snug">
+                    {pred.risk}
+                  </h5>
+
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-rose-500 rounded-full transition-all duration-500" style={{ width: `${pred.probability}%` }} />
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-start gap-1.5 text-[11px] text-slate-500 leading-normal">
+                  <span className="font-extrabold text-rose-500 uppercase flex-shrink-0 text-[10px]">Lead Trigger:</span>
+                  <span className="italic">{pred.indicator}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1440,70 +2488,87 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
           {/* Defect Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Left Card: Bar Chart of Occurrences */}
+            {/* Left Card: Pareto 80/20 Defect Analysis Composed Chart */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Defect Occurrence Chart</h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 font-sans">Top production quality bottlenecks identified</p>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Pareto 80/20 Defect Analysis</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 font-sans">Occurrences (Bars) vs Cumulative Impact (Curve)</p>
                 </div>
-                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-wide">
-                  Total Categories: {activeMetrics.defects.length}
+                <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-wide border border-rose-100">
+                  80/20 Principle
                 </span>
               </div>
 
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={activeMetrics.defects} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
+                  <ComposedChart data={paretoData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis 
                       dataKey="name" 
                       tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }}
                       axisLine={{ stroke: '#cbd5e1' }}
                       tickLine={false}
+                      angle={-15}
+                      textAnchor="end"
+                      height={40}
                     />
                     <YAxis 
+                      yAxisId="left"
                       tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }}
                       axisLine={{ stroke: '#cbd5e1' }}
                       tickLine={false}
+                      label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 8 }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[0, 100]}
+                      tick={{ fill: '#f43f5e', fontSize: 9, fontWeight: 700 }}
+                      axisLine={{ stroke: '#fecdd3' }}
+                      tickLine={false}
+                      unit="%"
                     />
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
                       labelStyle={{ fontWeight: 'bold', color: '#00b4d8' }}
+                      formatter={(val: any, name: string) => [name === 'cumulativePct' ? `${val}%` : val, name === 'cumulativePct' ? 'Cumulative Share' : 'Occurrences']}
                     />
-                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                      {activeMetrics.defects.map((entry, index) => {
+                    <ReferenceLine 
+                      y={80} 
+                      yAxisId="right"
+                      stroke="#f43f5e" 
+                      strokeDasharray="4 4" 
+                      strokeWidth={1.5}
+                      label={{ value: '80% Cutoff', fill: '#f43f5e', fontSize: 9, fontWeight: 800, position: 'insideTopLeft' }} 
+                    />
+                    <Bar yAxisId="left" dataKey="count" radius={[6, 6, 0, 0]}>
+                      {paretoData.map((entry, index) => {
                         const colors: Record<string, string> = {
                           CRITICAL: '#f43f5e',
                           HIGH: '#fb923c',
                           MEDIUM: '#38bdf8',
                           LOW: '#10b981'
                         };
-                        return <Cell key={`cell-${index}`} fill={colors[entry.severity] || '#6366f1'} />;
+                        return <Cell key={`pareto-cell-${index}`} fill={colors[entry.severity] || '#6366f1'} />;
                       })}
                     </Bar>
-                  </BarChart>
+                    <Line 
+                      yAxisId="right" 
+                      type="monotone" 
+                      dataKey="cumulativePct" 
+                      stroke="#f43f5e" 
+                      strokeWidth={2.5} 
+                      dot={{ r: 3, fill: '#f43f5e' }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
               
-              {/* Color indicators legend */}
-              <div className="flex flex-wrap items-center justify-center gap-4 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-[#f43f5e]" />
-                  <span>Critical Severity</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-[#fb923c]" />
-                  <span>High Severity</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-[#38bdf8]" />
-                  <span>Medium Severity</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-[#10b981]" />
-                  <span>Low Severity</span>
-                </div>
+              <div className="flex flex-wrap items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400 pt-1 border-t border-slate-100">
+                <span className="text-slate-500">Bars: Defect Frequency</span>
+                <span className="text-rose-500 font-extrabold">Red Curve: Cumulative Share (80% Cutoff)</span>
               </div>
             </div>
 
@@ -1581,6 +2646,113 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
 
           </div>
 
+          {/* 2D Defect Risk & Frequency Quadrant Matrix */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">2D Defect Risk & Frequency Quadrant Matrix</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Defect segregation by incident volume vs operational severity</p>
+              </div>
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-wider border border-indigo-150">
+                Quality Risk Matrix
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Quadrant 1: Urgent Immediate Stoppage */}
+              <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                    <h5 className="text-[11px] font-black text-rose-800 uppercase tracking-wider">Urgent Intervention (High Freq + Critical)</h5>
+                  </div>
+                  <span className="text-[9px] font-black bg-rose-200/60 text-rose-700 px-2 py-0.5 rounded-full">Zone 1</span>
+                </div>
+                <p className="text-[10px] text-rose-600 font-medium">Critical non-conformances requiring immediate line stop and mechanic calibration</p>
+                <div className="space-y-1.5 pt-1">
+                  {activeMetrics.defects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.count >= 10).map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white border border-rose-150 shadow-2xs">
+                      <span className="text-xs font-black text-slate-800">{d.name}</span>
+                      <span className="text-xs font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{d.count} pcs</span>
+                    </div>
+                  ))}
+                  {activeMetrics.defects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.count >= 10).length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic">No critical defects currently breaching frequency limit.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Quadrant 2: Latent Hazard */}
+              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <h5 className="text-[11px] font-black text-amber-800 uppercase tracking-wider">Latent Hazard (Low Freq + High Severity)</h5>
+                  </div>
+                  <span className="text-[9px] font-black bg-amber-200/60 text-amber-700 px-2 py-0.5 rounded-full">Zone 2</span>
+                </div>
+                <p className="text-[10px] text-amber-600 font-medium">Low occurrence but severe risk of customer rejection if missed at inspection</p>
+                <div className="space-y-1.5 pt-1">
+                  {activeMetrics.defects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.count < 10).map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white border border-amber-150 shadow-2xs">
+                      <span className="text-xs font-black text-slate-800">{d.name}</span>
+                      <span className="text-xs font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100">{d.count} pcs</span>
+                    </div>
+                  ))}
+                  {activeMetrics.defects.filter(d => (d.severity === 'CRITICAL' || d.severity === 'HIGH') && d.count < 10).length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic">No latent high-severity hazards noted.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Quadrant 3: High Volume Friction */}
+              <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                    <h5 className="text-[11px] font-black text-sky-800 uppercase tracking-wider">Process Friction (High Freq + Low Severity)</h5>
+                  </div>
+                  <span className="text-[9px] font-black bg-sky-200/60 text-sky-700 px-2 py-0.5 rounded-full">Zone 3</span>
+                </div>
+                <p className="text-[10px] text-sky-600 font-medium">Repetitive minor deviations creating bottleneck rework load at checkpoints</p>
+                <div className="space-y-1.5 pt-1">
+                  {activeMetrics.defects.filter(d => (d.severity === 'MEDIUM' || d.severity === 'LOW') && d.count >= 6).map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white border border-sky-150 shadow-2xs">
+                      <span className="text-xs font-black text-slate-800">{d.name}</span>
+                      <span className="text-xs font-extrabold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-100">{d.count} pcs</span>
+                    </div>
+                  ))}
+                  {activeMetrics.defects.filter(d => (d.severity === 'MEDIUM' || d.severity === 'LOW') && d.count >= 6).length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic">No repetitive process friction defects recorded.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Quadrant 4: Controlled Drift */}
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <h5 className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">Controlled Variation (Low Freq + Low Severity)</h5>
+                  </div>
+                  <span className="text-[9px] font-black bg-emerald-200/60 text-emerald-700 px-2 py-0.5 rounded-full">Zone 4</span>
+                </div>
+                <p className="text-[10px] text-emerald-600 font-medium">Acceptable manufacturing tolerance variations under statistical control</p>
+                <div className="space-y-1.5 pt-1">
+                  {activeMetrics.defects.filter(d => (d.severity === 'MEDIUM' || d.severity === 'LOW') && d.count < 6).map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white border border-emerald-150 shadow-2xs">
+                      <span className="text-xs font-black text-slate-800">{d.name}</span>
+                      <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">{d.count} pcs</span>
+                    </div>
+                  ))}
+                  {activeMetrics.defects.filter(d => (d.severity === 'MEDIUM' || d.severity === 'LOW') && d.count < 6).length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic">No low-frequency variation detected.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Details Table of defects */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50">
@@ -1640,10 +2812,77 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               </table>
             </div>
           </div>
+
+          {/* Module-Specific Identified Issues */}
+          {result.identifiedProblems && result.identifiedProblems.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Cross-Module Quality Non-Conformances</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Issues detected across B1 to B10 lifecycle stages</p>
+                </div>
+                <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-wide border border-rose-150">
+                  {result.identifiedProblems.length} Detected
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100/60 border-b border-slate-150 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      <th className="py-2.5 px-3 text-center w-16">Module</th>
+                      <th className="py-2.5 px-4">Identified Quality Incident</th>
+                      <th className="py-2.5 px-3 text-center">Occurrences</th>
+                      <th className="py-2.5 px-3 text-center">Severity</th>
+                      <th className="py-2.5 px-4">Preventive Protocol & Mitigation</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {result.identifiedProblems.map((prob, idx) => {
+                      const sevColors: Record<string, string> = {
+                        CRITICAL: 'bg-rose-50 text-rose-600 border-rose-200',
+                        HIGH: 'bg-orange-50 text-orange-600 border-orange-200',
+                        MEDIUM: 'bg-amber-50 text-amber-600 border-amber-200',
+                        LOW: 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                      };
+                      const modCode = prob.affectedModule || (prob.Module ? prob.Module.split(' ')[0] : 'QC');
+                      const incidentText = prob.problem || prob.issue || prob.Area || 'Quality Incident';
+                      const countVal = prob.occurrences ?? (prob.status === 'Critical' ? 6 : 2);
+                      const rawRisk = (prob.risk || prob.status || 'MEDIUM').toUpperCase();
+                      const normRisk = rawRisk.includes('CRIT') ? 'CRITICAL' : rawRisk.includes('HIGH') ? 'HIGH' : rawRisk.includes('WARN') ? 'HIGH' : rawRisk.includes('MED') ? 'MEDIUM' : 'LOW';
+                      const mitigText = prob.mitigation || prob.impact || 'Implement immediate containment inspection and calibrate machinery.';
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/30 transition">
+                          <td className="py-3 px-3 text-center">
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10px] font-black tracking-wider">
+                              {modCode}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-extrabold text-slate-800">
+                            {incidentText}
+                          </td>
+                          <td className="py-3 px-3 text-center text-slate-700 font-bold">
+                            {countVal}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wide border ${sevColors[normRisk] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                              {normRisk}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-medium text-[11px] leading-relaxed">
+                            {mitigText}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* TAB 3: Unit & Operator Analytics */}
+      {/* TAB 5: Unit & Operator Analytics */}
       {activeTab === 'analytics' && (
         <div className="space-y-6 animate-fade-in">
           {/* Unit rankings & chart */}

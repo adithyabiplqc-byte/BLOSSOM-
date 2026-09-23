@@ -77,7 +77,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
   }, [users]);
 
-  const editingUser = React.useMemo(() => users.find(u => u.userCode === editingUserCode), [users, editingUserCode]);
+  const [editingForm, setEditingForm] = useState<any>(null);
+  const originalUserRef = useRef<any>(null);
+
+  React.useEffect(() => {
+    if (editingUserCode) {
+      const u = users.find(x => x.userCode === editingUserCode);
+      if (u) {
+        const copy = { ...u };
+        setEditingForm(copy);
+        originalUserRef.current = { ...copy };
+      } else {
+        setEditingForm(null);
+        originalUserRef.current = null;
+      }
+    } else {
+      setEditingForm(null);
+      originalUserRef.current = null;
+    }
+  }, [editingUserCode, users]);
+
   const restrictingUser = React.useMemo(() => users.find(u => u.userCode === restrictingUserCode), [users, restrictingUserCode]);
   const deletingUser = React.useMemo(() => users.find(u => u.userCode === deletingUserCode), [users, deletingUserCode]);
 
@@ -652,18 +671,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleUpdate = async () => {
-    if (isLocked.current || !editingUser) return;
-    const cleanUsername = editingUser.username.trim();
+    if (isLocked.current || !editingForm) return;
+    const cleanUsername = (editingForm.username || '').trim();
     if (!cleanUsername) return alert("Username is required");
     
     isLocked.current = true;
     setIsSubmitting(true);
     
     try {
-      const serverUsers = await api.run('api_getUsers').catch(() => []) as any[];
-      const currentUsers = Array.isArray(serverUsers) && serverUsers.length > 0 ? serverUsers : users;
-      const exists = currentUsers.some((u: any) => 
-        u?.userCode !== editingUser.userCode && String(u?.username || '').toLowerCase().trim() === cleanUsername.toLowerCase()
+      const orig = originalUserRef.current || {};
+      const exists = users.some((u: any) => 
+        u?.userCode !== editingForm.userCode && String(u?.username || '').toLowerCase().trim() === cleanUsername.toLowerCase()
       );
       if (exists) {
         alert(`Error: Username "${cleanUsername}" is already taken by another user.`);
@@ -672,16 +690,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return;
       }
 
-      const updatedUser = { ...editingUser, username: cleanUsername, password: editingUser.password };
+      const updatedUser = { 
+        ...editingForm, 
+        username: cleanUsername, 
+        password: editingForm.password,
+        oldUsername: orig.username || cleanUsername,
+        oldUserCode: orig.userCode || editingForm.userCode
+      };
+
       if (!api.run) return;
       await api.run('api_updateUser', updatedUser);
+
+      // Instant local state update
+      if (setUsers) {
+        setUsers(prev => prev.map(u => u.userCode === updatedUser.userCode ? { ...u, ...updatedUser } : u));
+      }
+
+      // Sync active session if this was the logged-in user
+      try {
+        const session = JSON.parse(localStorage.getItem('bqos_session') || '{}');
+        if (session && (session.userCode === updatedUser.userCode || session.username === orig.username)) {
+          session.username = updatedUser.username;
+          session.role = updatedUser.role;
+          session.location = updatedUser.location;
+          session.zone = updatedUser.zone;
+          localStorage.setItem('bqos_session', JSON.stringify(session));
+        }
+      } catch (e) {}
+
       if (refreshData) await refreshData();
-      await logActivity('EDIT USER', `Updated user ${updatedUser.userCode}`);
-      if (triggerSuccess) triggerSuccess(`USER UPDATED: ${updatedUser.userCode}`);
+      await logActivity('EDIT USER', `Updated user ${updatedUser.userCode} (${cleanUsername})`);
+      if (triggerSuccess) triggerSuccess(`USER ${updatedUser.userCode} UPDATED SUCCESSFULLY`);
       setEditingUserCode('');
+      setEditingForm(null);
       setTab('list');
-    } catch (err) {
-      alert("Error updating user");
+    } catch (err: any) {
+      alert("Error updating user: " + (err?.message || ''));
     } finally {
       setIsSubmitting(false);
       isLocked.current = false;
@@ -953,23 +997,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ))}
               </SearchableSelect>
 
-              {editingUser && (
+              {editingForm && (
                 <div className="space-y-3 pt-4 border-t border-slate-100 animate-fade-in">
                   <div>
                     <label>Username</label>
                     <div className="relative">
                       <input 
                         type="text" 
-                        value={editingUser.username} 
+                        value={editingForm.username || ''} 
                         onChange={e => {
-                          const updated = { ...editingUser, username: e.target.value };
-                          setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                          setEditingForm((prev: any) => ({ ...prev, username: e.target.value }));
                         }} 
                         className="pr-10"
                       />
-                      {(editingUser.username || '').trim() !== '' && (
+                      {(editingForm.username || '').trim() !== '' && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-                          {users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? (
+                          {users.some(u => u.userCode !== editingForm.userCode && u.username.toLowerCase().trim() === (editingForm.username || '').toLowerCase().trim()) ? (
                             <Icon name="x-circle" size={18} className="text-rose-500" />
                           ) : (
                             <Icon name="check-circle" size={18} className="text-emerald-500" />
@@ -977,39 +1020,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       )}
                     </div>
-                    {(editingUser.username || '').trim() !== '' && (
-                      <p className={`text-[10px] mt-1 font-bold ${users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? 'text-rose-500' : 'text-emerald-600'}`}>
-                        {users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim()) ? '✕ Username already in use' : '✓ Username available'}
+                    {(editingForm.username || '').trim() !== '' && (
+                      <p className={`text-[10px] mt-1 font-bold ${users.some(u => u.userCode !== editingForm.userCode && u.username.toLowerCase().trim() === (editingForm.username || '').toLowerCase().trim()) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                        {users.some(u => u.userCode !== editingForm.userCode && u.username.toLowerCase().trim() === (editingForm.username || '').toLowerCase().trim()) ? '✕ Username already in use' : '✓ Username available'}
                       </p>
                     )}
                   </div>
                   <div>
                     <label>Password</label>
-                    <input type="password" value={editingUser.password} onChange={e => {
-                      const updated = { ...editingUser, password: e.target.value };
-                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                    <input type="password" value={editingForm.password || ''} onChange={e => {
+                      setEditingForm((prev: any) => ({ ...prev, password: e.target.value }));
                     }} />
                   </div>
                   <div>
                     <label>Role</label>
-                    <SearchableSelect value={editingUser.role} onChange={e => {
-                      const updated = { ...editingUser, role: e.target.value };
-                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                    <SearchableSelect value={editingForm.role} onChange={e => {
+                      setEditingForm((prev: any) => ({ ...prev, role: e.target.value }));
                     }}>
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </SearchableSelect>
                   </div>
                   <div>
                     <label>Zone</label>
-                    <SearchableSelect value={editingUser.zone || ''} onChange={e => {
+                    <SearchableSelect value={editingForm.zone || ''} onChange={e => {
                       const nextZone = e.target.value;
                       const units = getUnitsForZone(nextZone);
-                      const updated = { 
-                        ...editingUser, 
-                        zone: nextZone, 
-                        location: units.length > 0 ? units[0] : '' 
-                      };
-                      setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                      setEditingForm((prev: any) => ({
+                        ...prev,
+                        zone: nextZone,
+                        location: units.length > 0 ? units[0] : ''
+                      }));
                     }}>
                       <option value="">Select Zone...</option>
                       <option value="COMMON">COMMON (All Zones)</option>
@@ -1019,21 +1059,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">Location / Unit</label>
                     <SearchableSelect 
-                      value={editingUser.location || ''} 
+                      value={editingForm.location || ''} 
                       onChange={e => {
-                        const updated = { ...editingUser, location: e.target.value };
-                        setUsers && setUsers(prev => prev.map(u => u.userCode === updated.userCode ? updated : u));
+                        setEditingForm((prev: any) => ({ ...prev, location: e.target.value }));
                       }} 
                     >
                       <option value="">Select Unit...</option>
-                      {getUnitsForZone(editingUser.zone || '').map(u => (
+                      {getUnitsForZone(editingForm.zone || '').map(u => (
                         <option key={u} value={u}>{u}</option>
                       ))}
                     </SearchableSelect>
                   </div>
                   <button 
                     onClick={handleUpdate} 
-                    disabled={isSubmitting || !editingUser.username || users.some(u => u.userCode !== editingUser.userCode && u.username.toLowerCase().trim() === (editingUser.username || '').toLowerCase().trim())}
+                    disabled={isSubmitting || !editingForm.username || users.some(u => u.userCode !== editingForm.userCode && u.username.toLowerCase().trim() === (editingForm.username || '').toLowerCase().trim())}
                     className="btn-primary w-full text-xs font-black italic tracking-widest uppercase py-4 shadow-xl shadow-indigo-100 hover:scale-[1.02] disabled:opacity-50"
                   >
                     {isSubmitting ? 'SAVING...' : 'SAVE CHANGES'}

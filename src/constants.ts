@@ -32,6 +32,7 @@ export const SUBMODULES = [
   { id: 'B4', module: 'B', name: 'Endline Report' },
   { id: 'B5', module: 'B', name: 'AQL Report' },
   { id: 'B6', module: 'B', name: 'Final Audit Report' },
+  { id: 'B7', module: 'B', name: 'Quality Inspectors & Users' },
   { id: 'B8', module: 'B', name: 'Workorder Data' },
   { id: 'B9', module: 'B', name: 'SOP & Audit Documents' },
   { id: 'B10', module: 'B', name: 'Customer Complaint Report' },
