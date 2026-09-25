@@ -2543,12 +2543,12 @@ async function startServer() {
 
         const healthySopUrls = sopCandidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthySopUrls.length > 0 ? healthySopUrls : sopCandidateUrls;
+        const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
 
         for (const targetUrl of urlsToTry) {
           try {
             const controller = new AbortController();
-            const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
-            const timeoutDuration = isUpload ? 60000 : 25000;
+            const timeoutDuration = isUpload ? 60000 : 2500;
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
             
             const response = await fetch(targetUrl, {
@@ -2602,6 +2602,33 @@ async function startServer() {
           return res.json(appsScriptResult);
         }
 
+        // If non-upload action didn't return within 2.5s, spawn background sync to Apps Script so it still persists
+        if (!isUpload && ['api_saveCustomerComplaint', 'api_deleteCustomerComplaint', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP'].includes(action)) {
+          (async () => {
+            for (const bgUrl of urlsToTry) {
+              try {
+                const bgController = new AbortController();
+                const bgTimeout = setTimeout(() => bgController.abort(), 45000);
+                const bgRes = await fetch(bgUrl, {
+                  method: "POST",
+                  body: JSON.stringify(bodyPayload),
+                  headers: { "Content-Type": "application/json" },
+                  redirect: 'follow',
+                  signal: bgController.signal as any
+                });
+                clearTimeout(bgTimeout);
+                if (bgRes.ok) {
+                  const bgText = await bgRes.text();
+                  if (!bgText.trim().startsWith("<")) {
+                    markUrlHealth(bgUrl, true);
+                    break;
+                  }
+                }
+              } catch (bgErr: any) {}
+            }
+          })();
+        }
+
         // Instant fallback to local integrated database
         try {
           const localResult = localWriteResult !== null ? localWriteResult : executeLocalAction(action, bodyPayload.params || []);
@@ -2613,7 +2640,7 @@ async function startServer() {
         }
       }
 
-      // For standard write actions: Sync to Google Sheets with 30s timeout and return
+      // For standard write actions: Sync to Google Sheets with fast race (2.5s) and async background continuation
       if (!isReadAction) {
         let appsScriptSuccess = false;
         let appsScriptResult: any = null;
@@ -2621,38 +2648,64 @@ async function startServer() {
         const healthyUrls = candidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
 
-        for (const targetUrl of urlsToTry) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-            const response = await fetch(targetUrl, {
-              method: "POST",
-              body: JSON.stringify(bodyPayload),
-              headers: { "Content-Type": "application/json" },
-              redirect: 'follow',
-              signal: controller.signal as any
-            });
-            clearTimeout(timeoutId);
-            const text = await response.text();
-            if (response.ok && !text.trim().startsWith("<") && !text.includes("Page not found")) {
-              try {
-                const parsed = JSON.parse(text);
-                if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
-                  markUrlHealth(targetUrl, true);
-                  appsScriptSuccess = true;
-                  appsScriptResult = parsed;
-                  break;
-                }
-              } catch (pErr) {}
-            }
-          } catch (writeErr: any) {
-            markUrlHealth(targetUrl, false, writeErr.message);
+        // Fast synchronous attempt (2.5s) so the user gets instant feedback
+        const primaryUrl = urlsToTry[0] || USER_SHEET_URL;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const response = await fetch(primaryUrl, {
+            method: "POST",
+            body: JSON.stringify(bodyPayload),
+            headers: { "Content-Type": "application/json" },
+            redirect: 'follow',
+            signal: controller.signal as any
+          });
+          clearTimeout(timeoutId);
+          const text = await response.text();
+          if (response.ok && !text.trim().startsWith("<") && !text.includes("Page not found")) {
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
+                markUrlHealth(primaryUrl, true);
+                appsScriptSuccess = true;
+                appsScriptResult = parsed;
+              }
+            } catch (pErr) {}
           }
+        } catch (fastErr: any) {
+          // If fast attempt timed out or failed, will continue in background
         }
 
         if (appsScriptSuccess && appsScriptResult) {
           return res.json(appsScriptResult);
         }
+
+        // Spawn background sync to Google Apps Script so the Google Sheet is always updated without holding up the user
+        (async () => {
+          for (const targetUrl of urlsToTry) {
+            try {
+              const bgController = new AbortController();
+              const bgTimeout = setTimeout(() => bgController.abort(), 45000);
+              const bgRes = await fetch(targetUrl, {
+                method: "POST",
+                body: JSON.stringify(bodyPayload),
+                headers: { "Content-Type": "application/json" },
+                redirect: 'follow',
+                signal: bgController.signal as any
+              });
+              clearTimeout(bgTimeout);
+              if (bgRes.ok) {
+                const bgText = await bgRes.text();
+                if (!bgText.trim().startsWith("<")) {
+                  markUrlHealth(targetUrl, true);
+                  break;
+                }
+              }
+            } catch (bgErr: any) {
+              markUrlHealth(targetUrl, false, bgErr.message);
+            }
+          }
+        })();
 
         if (localWriteResult !== null && localWriteResult !== undefined) {
           return res.json({ success: true, ...localWriteResult });

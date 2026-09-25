@@ -4,6 +4,9 @@ let cachedSpreadsheetMetadata: { id: string; timestamp: number; data: any } | nu
 const sheetDataCache = new Map<string, { timestamp: number; data: any[] }>();
 const SHEET_CACHE_TTL = 30000; // 30s read cache for instant multi-device responsiveness
 
+const sheetHeadersCache = new Map<string, { headers: string[]; timestamp: number }>();
+const HEADERS_CACHE_TTL = 300000; // 5 min header cache to avoid redundant row 1 queries
+
 export function areSynonyms(h1: string, h2: string): boolean {
   if (!h1 || !h2) return false;
   const norm1 = h1.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -607,13 +610,28 @@ export const sheetsService = {
           sheetDataCache.delete(key);
         }
       }
+      for (const key of sheetHeadersCache.keys()) {
+        if (key === canonical || key.includes(canonical)) {
+          sheetHeadersCache.delete(key);
+        }
+      }
     } else {
       sheetDataCache.clear();
+      sheetHeadersCache.clear();
     }
   },
 
+  getCachedData(sheetName: string): any[] | null {
+    const canonical = this.getCanonicalBase(sheetName);
+    const cached = sheetDataCache.get(canonical);
+    if (cached && Array.isArray(cached.data) && cached.data.length > 0 && (Date.now() - cached.timestamp < SHEET_CACHE_TTL)) {
+      return cached.data;
+    }
+    return null;
+  },
+
   async getSpreadsheetMetadata(spreadsheetId: string, forceFresh = false): Promise<any> {
-    if (!forceFresh && cachedSpreadsheetMetadata && cachedSpreadsheetMetadata.id === spreadsheetId && (Date.now() - cachedSpreadsheetMetadata.timestamp < 60000)) {
+    if (!forceFresh && cachedSpreadsheetMetadata && cachedSpreadsheetMetadata.id === spreadsheetId && (Date.now() - cachedSpreadsheetMetadata.timestamp < 180000)) {
       return cachedSpreadsheetMetadata.data;
     }
     const data = await this.request(spreadsheetId);
@@ -1164,13 +1182,22 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    const metadata = await this.request(spreadsheetId);
+    const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
     const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || [], record);
 
     await this.ensureSheetExists(resolvedName);
 
-    const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
-    let headers: string[] = (existingRows.values && existingRows.values[0]) || [];
+    let headers: string[] = [];
+    const cachedHeaders = sheetHeadersCache.get(resolvedName);
+    if (cachedHeaders && (Date.now() - cachedHeaders.timestamp < HEADERS_CACHE_TTL) && cachedHeaders.headers.length > 0) {
+      headers = [...cachedHeaders.headers];
+    } else {
+      const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
+      headers = (existingRows.values && existingRows.values[0]) || [];
+      if (headers.length > 0) {
+        sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
+      }
+    }
 
     const normSheet = sheetName.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const normResolved = resolvedName.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1185,6 +1212,7 @@ export const sheetsService = {
       } else {
         headers = Object.keys(record);
       }
+      sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
       await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         body: JSON.stringify({ values: [headers] })
@@ -1215,6 +1243,7 @@ export const sheetsService = {
       }
       
       if (headersChanged) {
+        sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
         await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1?valueInputOption=USER_ENTERED`, {
           method: 'PUT',
           body: JSON.stringify({ values: [headers] })
@@ -1249,13 +1278,22 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    const metadata = await this.request(spreadsheetId);
+    const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
     const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || [], records[0]);
 
     await this.ensureSheetExists(resolvedName);
 
-    const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
-    let headers: string[] = (existingRows.values && existingRows.values[0]) || [];
+    let headers: string[] = [];
+    const cachedHeaders = sheetHeadersCache.get(resolvedName);
+    if (cachedHeaders && (Date.now() - cachedHeaders.timestamp < HEADERS_CACHE_TTL) && cachedHeaders.headers.length > 0) {
+      headers = [...cachedHeaders.headers];
+    } else {
+      const existingRows = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z1`).catch(() => ({ values: [] }));
+      headers = (existingRows.values && existingRows.values[0]) || [];
+      if (headers.length > 0) {
+        sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
+      }
+    }
 
     const normSheet = sheetName.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const normResolved = resolvedName.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1270,6 +1308,7 @@ export const sheetsService = {
       } else {
         headers = Object.keys(records[0]);
       }
+      sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
       await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         body: JSON.stringify({ values: [headers] })
@@ -1278,11 +1317,12 @@ export const sheetsService = {
       const normHeaders = headers.map(h => String(h || '').trim().toLowerCase());
       if (normHeaders.indexOf('zone') === -1) {
         const nextColChar = String.fromCharCode(65 + headers.length);
+        headers.push('zone');
+        sheetHeadersCache.set(resolvedName, { headers: [...headers], timestamp: Date.now() });
         await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!${nextColChar}1?valueInputOption=USER_ENTERED`, {
           method: 'PUT',
           body: JSON.stringify({ values: [['zone']] })
         });
-        headers.push('zone');
       }
     }
 
@@ -1316,7 +1356,7 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    const metadata = await this.request(spreadsheetId);
+    const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
     const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || [], record);
 
     const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z5000`);
@@ -1452,7 +1492,7 @@ export const sheetsService = {
     const spreadsheetId = this.getSpreadsheetId();
     if (!spreadsheetId) throw new Error('SPREADSHEET_NOT_FOUND');
 
-    const metadata = await this.request(spreadsheetId);
+    const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
     const resolvedName = this.resolveSynonymSheetNameClient(sheetName, metadata.sheets || []);
 
     const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(resolvedName)}!A1:Z5000`);
@@ -1517,7 +1557,7 @@ export const sheetsService = {
     if (!spreadsheetId) return { success: true };
 
     try {
-      const metadata = await this.request(spreadsheetId);
+      const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
       const defaultHeaders = ['id', 'dateTime', 'customerName', 'style', 'size', 'complaintDetails', 'pcsCount', 'immediateAction', 'rootCause', 'correctiveAction', 'pendingAction', 'effectiveAfterThreeMonths', 'closedOn', 'images', 'status', 'createdBy', 'zone', 'timestamp'];
 
       for (const sheetObj of (metadata.sheets || [])) {
@@ -1554,7 +1594,7 @@ export const sheetsService = {
       let sheetTitles: string[] = [];
       if (spreadsheetId) {
         try {
-          const metadata = await this.request(spreadsheetId);
+          const metadata = await this.getSpreadsheetMetadata(spreadsheetId);
           sheetTitles = (metadata.sheets || []).map((s: any) => String(s.properties?.title || '').trim().toUpperCase());
         } catch (err) {
           console.error("Failed to get spreadsheet metadata in getSettings:", err);

@@ -256,11 +256,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
         checkingDate: new Date().toISOString().split('T')[0]
       };
 
-      const savePromises: Promise<any>[] = [api.run('api_saveAQLREPORT', payload)];
-      if (selectedWO && isAuditPassed) {
-        savePromises.push(api.run('api_updateWorkorder', { ...selectedWO, status: nextStatus }));
-      }
-      await Promise.all(savePromises);
+      await api.run('api_saveAQLREPORT', payload);
 
       if (refreshData) {
         await refreshData();

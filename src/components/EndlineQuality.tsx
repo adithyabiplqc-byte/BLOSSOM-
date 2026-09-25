@@ -614,8 +614,8 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     const isFullyPassed = totalQty > 0 && (passedSoFar + passQty) >= totalQty;
 
     try {
-      const savePromises = [];
-      const optimisticRecords = [];
+      const allRecordsToSave: any[] = [];
+      const optimisticRecords: any[] = [];
 
       // 1. Log Passed part of the bundle
       if (passQty > 0) {
@@ -646,7 +646,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           timestamp: new Date().toISOString(),
           moveToAQL: isFullyPassed
         };
-        savePromises.push(api.run('api_saveENDLINEQUALITY', passPayload));
+        allRecordsToSave.push(passPayload);
         optimisticRecords.push(passPayload);
       }
 
@@ -683,7 +683,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           moveToAQL: false
         };
 
-        savePromises.push(api.run('api_saveENDLINEQUALITY', defectPayload));
+        allRecordsToSave.push(defectPayload);
         optimisticRecords.push(defectPayload);
 
         queueItemsToAdd.push({
@@ -710,7 +710,12 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
       setDefectCount(0);
       setDefectItems([]);
 
-      await Promise.all(savePromises);
+      // Single optimized network request instead of 11 sequential/parallel requests
+      if (allRecordsToSave.length === 1) {
+        await api.run('api_saveENDLINEQUALITY', allRecordsToSave[0]);
+      } else if (allRecordsToSave.length > 1) {
+        await api.run('api_bulkSave', 'ENDLINE QUALITY', allRecordsToSave);
+      }
 
       const redirected = await checkAndTriggerAQLTransition(passQty);
       if (!redirected) {

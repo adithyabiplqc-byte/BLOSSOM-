@@ -676,14 +676,20 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   // Keep the active round index strictly synchronized with current time and pull the latest reports silently
   useEffect(() => {
-    const interval = setInterval(() => {
+    const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
-      if (form.zone) {
+    }, 1000);
+
+    const syncInterval = setInterval(() => {
+      if (document.visibilityState === 'visible' && form.zone) {
         fetchInlineData(true);
       }
-    }, 5000); // Check every 5 seconds for rapid multi-user synchronization
+    }, 25000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(clockInterval);
+      clearInterval(syncInterval);
+    };
   }, [form.zone, form.checkingDate]);
 
   // Sync with globalZone

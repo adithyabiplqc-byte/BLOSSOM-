@@ -936,7 +936,7 @@ export const api = {
       case 'api_save8ROUNDSYSTEM': {
         const report = args[0];
         try {
-          const existingData = await sheetsService.getData('INLINE');
+          const existingData = sheetsService.getCachedData('INLINE') || await sheetsService.getData('INLINE');
           if (Array.isArray(existingData)) {
             const dupIdx = existingData.findIndex((r: any) => {
               const rWorker = String(r.worker || r.operator || '').trim().toUpperCase();
@@ -1401,8 +1401,19 @@ export const api = {
       case 'api_deleteREPORTS_SOP': return await sheetsService.deleteData('REPORTS_SOP', args[0]);
 
       // Bulk actions
-      case 'api_bulkSave':
-        return await sheetsService.saveBulk(args[0], args[1]);
+      case 'api_bulkSave': {
+        const sheetName = args[0];
+        const records = args[1] || [];
+        const res = await sheetsService.saveBulk(sheetName, records);
+        const normSheet = String(sheetName || '').toUpperCase();
+        if (normSheet.includes('ENDLINE')) {
+          const aqlRecord = records.find((r: any) => r && (r.moveToAQL === true || r.moveToAQL === 'true') && (r.wo || r.workorderNumber));
+          if (aqlRecord) {
+            await updateWorkorderStatus(aqlRecord.wo || aqlRecord.workorderNumber, 'AQL');
+          }
+        }
+        return res;
+      }
 
       case 'api_saveMaterialReportBulk': {
         const data = args[0];

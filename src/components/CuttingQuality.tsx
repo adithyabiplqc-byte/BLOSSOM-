@@ -232,11 +232,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         passAndHold: passAndHold
       };
 
-      const savePromises: Promise<any>[] = [api.run('api_saveCUTTINGQUALITY', payload)];
-      if (selectedWOPre) {
-        savePromises.push(api.run('api_updateWorkorder', { ...selectedWOPre, status: nextStatus }));
-      }
-      await Promise.all(savePromises);
+      await api.run('api_saveCUTTINGQUALITY', payload);
 
       triggerSuccess(passAndHold ? 'PRE-CUTTING DATA SAVED & PASSED (HELD IN PRE-CUTTING)' : 'PRE-CUTTING DATA SAVED & PASSED TO CUTTING');
       if (refreshData) {
@@ -337,11 +333,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         submodule: 'CUTTING'
       };
 
-      const savePromises: Promise<any>[] = [api.run('api_saveCUTTINGQUALITY', payload)];
-      if (selectedWO) {
-        savePromises.push(api.run('api_updateWorkorder', { ...selectedWO, status: nextStatus }));
-      }
-      await Promise.all(savePromises);
+      await api.run('api_saveCUTTINGQUALITY', payload);
       
       triggerSuccess(passAndHold ? 'DATA SAVED & PASSED (HELD IN CUTTING)' : 'DATA SAVED & MOVED TO INLINE & ENDLINE');
       if (refreshData) {

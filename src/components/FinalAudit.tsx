@@ -138,11 +138,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         timestamp: new Date().toISOString() 
       };
 
-      const savePromises: Promise<any>[] = [api.run('api_saveFINALAUDIT', finalAuditPayload)];
-      if (selectedWO && moveToComplete) {
-        savePromises.push(api.run('api_updateWorkorder', { ...selectedWO, status: 'COMPLETED' }));
-      }
-      await Promise.all(savePromises);
+      await api.run('api_saveFINALAUDIT', finalAuditPayload);
 
       if (refreshData) {
         await refreshData();
