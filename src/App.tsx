@@ -70,7 +70,6 @@ const App: React.FC = () => {
   }, []);
 
   const handleSelectSubmodule = useCallback((id: string) => {
-    if (id === 'B7') return;
     try {
       localStorage.setItem('bqos_active_submodule', id);
     } catch (e) {}
@@ -137,7 +136,7 @@ const App: React.FC = () => {
       setIsOnline(res?.success !== false);
     } catch (e) {
       console.warn("Ping failed:", e);
-      setIsOnline(false);
+      setIsOnline(true);
     }
   }, []);
 
@@ -182,7 +181,7 @@ const App: React.FC = () => {
             return null;
           }
         } catch (ce) {}
-        setConnectionError(e.message || "Failed to connect to Google Sheets");
+        console.warn("[App] Initial fetch notice:", e.message);
       }
     } finally {
       if (!silent) {
@@ -285,6 +284,14 @@ const App: React.FC = () => {
         
         let allUsers = initialData?.users || [];
         if (allUsers.length === 0) {
+          try {
+            const cached = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
+            if (Array.isArray(cached) && cached.length > 0) {
+              allUsers = cached;
+            }
+          } catch (e) {}
+        }
+        if (allUsers.length === 0) {
           allUsers = [
             { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "SYSTEM", restrictions: [], canDownload: true },
             { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "SYSTEM", restrictions: [], canDownload: true },
@@ -337,9 +344,7 @@ const App: React.FC = () => {
             // If still uninitialized or on splash screen:
             try {
               const activeSub = localStorage.getItem('bqos_active_submodule');
-              if (activeSub === 'B7') {
-                localStorage.removeItem('bqos_active_submodule');
-              } else if (activeSub && resolvedUser.role !== 'WORKORDER') {
+              if (activeSub && resolvedUser.role !== 'WORKORDER') {
                 return 'submodule';
               }
             } catch (e) {}

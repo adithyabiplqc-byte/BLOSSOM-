@@ -30,19 +30,6 @@ interface SubmoduleContainerProps {
 }
 
 const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, setGlobalZone, onNavigate, refreshData }) => {
-  React.useEffect(() => {
-    if (id === 'B7') {
-      try {
-        localStorage.removeItem('bqos_active_submodule');
-      } catch (e) {}
-      onBack();
-    }
-  }, [id, onBack]);
-
-  if (id === 'B7') {
-    return null;
-  }
-
   const isRestricted = isModuleRestricted(user, id);
 
   const renderSubmodule = () => {
@@ -79,7 +66,7 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
     if (id === 'A6') return <FinalAudit {...commonProps} />;
     if (id === 'A7') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="entry" />;
     if (id === 'A8') return <CustomerComplaintRegister user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} refreshData={refreshData} mode="entry" />;
-    if (id === 'B9') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="view" readOnly={true} />;
+    if (id === 'B8') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="view" readOnly={true} />;
     if (id.startsWith('B')) return <DataView id={id} user={user} globalZone={globalZone} settings={settings} setGlobalZone={setGlobalZone} workorders={workorders} />;
     if (id === 'C7') return <BlossomAIView globalZone={globalZone} user={user} />;
     if (id.startsWith('C')) return <MISView id={id} globalZone={globalZone} />;

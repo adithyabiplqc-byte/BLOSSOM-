@@ -1061,7 +1061,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         </div>
       )}
 
-      {/* 2. VIEWING & READING MODE (Submodule B9 / B8) */}
+      {/* 2. VIEWING & READING MODE (Submodule B8) */}
       {effectiveMode === 'view' && (
         <div className="space-y-4">
           {!selectedReport ? (

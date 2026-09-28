@@ -381,7 +381,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">
-              Module A8 / B10
+              Module A8 / B9
             </span>
             <span className="text-xs text-slate-400 font-bold">• Full Edit Access Enabled</span>
           </div>

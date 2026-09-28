@@ -40,7 +40,7 @@ interface Recommendation {
 }
 
 export interface ModuleAnalysis {
-  moduleId: string; // 'B1' to 'B10'
+  moduleId: string; // 'B1' to 'B9'
   name: string;
   status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL';
   score: number;
@@ -289,7 +289,7 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       actionRequired: b6Rejects > 0 ? "Cross-verify carton barcode label barcodes and polybag hanger tags." : "Continue standard pre-dispatch carton drop and seal testing."
     },
     {
-      moduleId: "B8",
+      moduleId: "B7",
       name: "Workorder Data",
       status: b8Status,
       score: b8Score,
@@ -300,7 +300,7 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       actionRequired: "Sync production milestone completion with physical QC tally to eliminate inventory drift."
     },
     {
-      moduleId: "B9",
+      moduleId: "B8",
       name: "SOP & Audit Documents",
       status: b9Status,
       score: b9Score,
@@ -311,7 +311,7 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       actionRequired: b9Total === 0 ? "Upload foundational bra & panty sewing SOPs and buyer compliance criteria." : "Verify annual revision cycles on technical construction sheets."
     },
     {
-      moduleId: "B10",
+      moduleId: "B9",
       name: "Customer Complaint Report",
       status: b10Status,
       score: b10Score,
@@ -335,9 +335,9 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       description: b5Fails > 0 ? `B5 reports record ${b5Fails} failed lots. Do not release lots to packaging without signed QA manager approval.` : "Maintain standard AQL 2.5 random audit verification on finished workorders."
     },
     {
-      title: "Customer Complaint CAPA Implementation (B10)",
+      title: "Customer Complaint CAPA Implementation (B9)",
       priority: b10Total > 0 ? "HIGH" : "LOW",
-      description: b10Total > 0 ? `Address root causes for registered customer complaints immediately. Update B9 SOP documentation to prevent recurrence.` : "Maintain proactive packaging and labeling checks in B6 Final Audit."
+      description: b10Total > 0 ? `Address root causes for registered customer complaints immediately. Update B8 SOP documentation to prevent recurrence.` : "Maintain proactive packaging and labeling checks in B6 Final Audit."
     },
     {
       title: "Material Receiving Verification & Supplier Quality (B1)",
@@ -372,16 +372,16 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       mitigation: "Quarantine failed lots immediately, mobilize 100% sorting team, and obtain QA sign-off."
     },
     {
-      Area: "B10 Customer Satisfaction",
+      Area: "B9 Customer Satisfaction",
       issue: b10Total > 0 ? `${b10Total} external complaints pending full CAPA closure` : "No external defects logged",
-      Module: "B10 - Customer Complaints",
+      Module: "B9 - Customer Complaints",
       impact: b10Total > 0 ? "Risk to client scorecard and future purchase orders" : "Optimal brand reputation",
       status: b10Total > 0 ? "Critical" : "Open",
-      affectedModule: "B10",
+      affectedModule: "B9",
       problem: b10Total > 0 ? `${b10Total} customer complaint(s) logged (${b10Pieces} pcs)` : "Client return monitoring",
       occurrences: b10Pieces || b10Total || 0,
       risk: b10Total > 1 ? "CRITICAL" : b10Total === 1 ? "HIGH" : "LOW",
-      mitigation: "Follow 8D CAPA procedure and link corrective actions back to B9 standard operating procedures."
+      mitigation: "Follow 8D CAPA procedure and link corrective actions back to B8 standard operating procedures."
     },
     {
       Area: "B1 Material Receiving",
@@ -445,7 +445,7 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
     aiGenerated: false,
     overallScore: score,
     qualityVerdict,
-    summary: `Blossom AI completed industrial diagnostic auditing across all 10 operational modules (B1 through B10) for ${zoneName}. Total quality records tracked: ${totalRecords}. Active quality health profile indexes at ${score}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
+    summary: `Blossom AI completed industrial diagnostic auditing across all 9 operational modules (B1 through B9) for ${zoneName}. Total quality records tracked: ${totalRecords}. Active quality health profile indexes at ${score}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
     moduleBreakdown,
     recommendations,
     identifiedProblems,
@@ -934,7 +934,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10.5);
       doc.setTextColor(30, 41, 59);
-      doc.text("2. B1 - B10 COMPLETE PRODUCTION QUALITY LIFECYCLE AUDIT", 14, currentY);
+      doc.text("2. B1 - B9 COMPLETE PRODUCTION QUALITY LIFECYCLE AUDIT", 14, currentY);
 
       const moduleRows = analysis.moduleBreakdown.map(m => [
         m.moduleId,
@@ -1626,7 +1626,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               <span className="text-xs font-black text-slate-700">{dataLogs.aql.length + dataLogs.finalAudit.length} audits</span>
             </div>
             <div className="bg-slate-50 rounded-xl p-2 border border-[#00B4D8]/10 bg-indigo-50/20">
-              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">B8-B10 Gov & Orders</span>
+              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">B7-B9 Gov & Orders</span>
               <span className="text-xs font-black text-[#00B4D8]">{dataLogs.workorders.length + dataLogs.sop.length + dataLogs.customerComplaints.length} records</span>
             </div>
           </div>
@@ -1645,7 +1645,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
           }`}
         >
           <Icon name="layers" size={13} />
-          B1–B10 Complete Matrix
+          B1–B9 Complete Matrix
           <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-600 font-black">9</span>
         </button>
         <button
@@ -1705,22 +1705,22 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         </button>
       </div>
 
-      {/* TAB 0: B1 - B10 COMPLETE QUALITY CHAIN MATRIX */}
+      {/* TAB 0: B1 - B9 COMPLETE QUALITY CHAIN MATRIX */}
       {activeTab === 'modules' && (
         <div className="space-y-6 animate-fade-in">
           
-          {/* Dual B1–B10 Graphical Analytics Panel */}
+          {/* Dual B1–B9 Graphical Analytics Panel */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Chart 1: 10-Axis Lifecycle Health Spider Radar */}
+            {/* Chart 1: 9-Axis Lifecycle Health Spider Radar */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B10 Factory Lifecycle Spider Radar</h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">360° Quality compliance across all 10 industrial nodes</p>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B9 Factory Lifecycle Spider Radar</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">360° Quality compliance across all 9 industrial nodes</p>
                 </div>
                 <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-wide">
-                  10 Nodes Mapped
+                  9 Nodes Mapped
                 </span>
               </div>
 
@@ -1772,11 +1772,11 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               </div>
             </div>
 
-            {/* Chart 2: B1–B10 Comparative Benchmark Bar Chart */}
+            {/* Chart 2: B1–B9 Comparative Benchmark Bar Chart */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B10 Quality Benchmark Index</h4>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1–B9 Quality Benchmark Index</h4>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Comparative scoring against the 90% target threshold</p>
                 </div>
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-wide">
@@ -1795,7 +1795,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
                       tickLine={false}
                     />
                     <YAxis 
-                      domain={[0, 100]}
+                      domain={[0, 100]} 
                       tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }}
                       axisLine={{ stroke: '#cbd5e1' }}
                       tickLine={false}
@@ -1821,7 +1821,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
                     />
                     <Bar dataKey="score" radius={[6, 6, 0, 0]}>
                       {b1ToB10BarData.map((entry, index) => (
-                        <Cell key={`b1b10-cell-${index}`} fill={entry.barColor} />
+                        <Cell key={`b1b9-cell-${index}`} fill={entry.barColor} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -1844,10 +1844,10 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-2">Filter Modules:</span>
               {(['ALL', 'PROD', 'AUDIT', 'GOV', 'ATTENTION'] as const).map(filterKey => {
                 const labels: Record<string, string> = {
-                  ALL: 'All 9 Modules (B1-B10)',
+                  ALL: 'All 9 Modules (B1-B9)',
                   PROD: 'Production (B1-B4)',
                   AUDIT: 'Audits & Release (B5-B6)',
-                  GOV: 'Governance & SOPs (B8-B10)',
+                  GOV: 'Governance & SOPs (B7-B9)',
                   ATTENTION: 'Needs Attention'
                 };
                 const isSelected = moduleFilter === filterKey;
@@ -1876,7 +1876,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
             {(result.moduleBreakdown || []).filter(mod => {
               if (moduleFilter === 'PROD') return ['B1', 'B2', 'B3', 'B4'].includes(mod.moduleId);
               if (moduleFilter === 'AUDIT') return ['B5', 'B6'].includes(mod.moduleId);
-              if (moduleFilter === 'GOV') return ['B8', 'B9', 'B10'].includes(mod.moduleId);
+              if (moduleFilter === 'GOV') return ['B7', 'B8', 'B9'].includes(mod.moduleId);
               if (moduleFilter === 'ATTENTION') return mod.status === 'WARNING' || mod.status === 'CRITICAL';
               return true;
             }).map((mod, idx) => {
@@ -1950,15 +1950,15 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
             })}
           </div>
 
-          {/* Full B1-B10 Comparative Table */}
+          {/* Full B1-B9 Comparative Table */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1 – B10 Complete Quality Chain Audit Ledger</h4>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B1 – B9 Complete Quality Chain Audit Ledger</h4>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Holistic process status across raw material, cutting, sewing, audits, governance, and client feedback</p>
               </div>
               <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-wider border border-indigo-150">
-                10 Integrated Nodes
+                9 Integrated Nodes
               </span>
             </div>
 
@@ -2072,7 +2072,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
                 <p className="text-[10px] text-slate-500 font-medium">Random sampling lots quarantined upon single major defect threshold breach.</p>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Client Compliance (B8-B10)</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Client Compliance (B7-B9)</span>
                 <p className="text-xs font-black text-slate-800">
                   {dataLogs.customerComplaints.length} External Complaints
                 </p>
@@ -2234,7 +2234,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               {(result.capaMatrix?.shortTerm7d || [
                 "Conduct operator posture and seam alignment refresher training for high-rework operations.",
                 "Review supplier fabric stretch test certificates prior to bulk roll layups.",
-                "Update technical specifications in B9 SOP library for any modified seams."
+                "Update technical specifications in B8 SOP library for any modified seams."
               ]).map((act, i) => {
                 const isDone = completedActions.includes(act);
                 return (
@@ -2416,7 +2416,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Predictive Hazard Horizon</h4>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Machine-learned forward hazard projections across B1 through B10 lifecycle</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Machine-learned forward hazard projections across B1 through B9 lifecycle</p>
             </div>
             <span className="px-2.5 py-1 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-wider border border-rose-100">
               {result.predictions.length} Active Forecasts
@@ -2801,7 +2801,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Cross-Module Quality Non-Conformances</h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Issues detected across B1 to B10 lifecycle stages</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Issues detected across B1 to B9 lifecycle stages</p>
                 </div>
                 <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-wide border border-rose-150">
                   {result.identifiedProblems.length} Detected

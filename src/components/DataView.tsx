@@ -250,8 +250,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       'B4': 'api_getEndlineData',
       'B5': 'api_getAQLData',
       'B6': 'api_getFinalAuditData',
-      'B8': 'api_getWorkorders',
-      'B10': 'api_getCustomerComplaints',
+      'B7': 'api_getWorkorders',
+      'B9': 'api_getCustomerComplaints',
     };
 
     if (!sheetMapping[id]) {
@@ -299,8 +299,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       'B4': 'api_deleteEndlineData',
       'B5': 'api_deleteAQLData',
       'B6': 'api_deleteFinalAuditData',
-      'B8': 'api_deleteWorkorder',
-      'B10': 'api_deleteCustomerComplaint',
+      'B7': 'api_deleteWorkorder',
+      'B9': 'api_deleteCustomerComplaint',
     };
     
     if (!sheetMapping[id]) {
@@ -494,8 +494,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         }
       }
 
-      // Consolidate B8 fields so duplicate synonym columns (e.g. style vs styleName, color vs colour) do not appear
-      if (id === 'B8') {
+      // Consolidate B7 fields so duplicate synonym columns (e.g. style vs styleName, color vs colour) do not appear
+      if (id === 'B7') {
         const finalWo = row.workorderNumber || row.wo || row.workorderNo || row.workorder || '';
         row.workorderNumber = finalWo;
         row.wo = finalWo;
@@ -812,7 +812,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'inspector',
         'zone'
       ],
-      'B10': [
+      'B9': [
         'dateTime',
         'customerName',
         'style',
@@ -831,7 +831,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         'zone',
         'timestamp'
       ],
-      'B8': [
+      'B7': [
         'workorderNumber',
         'style',
         'colour',
@@ -861,14 +861,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         if (!hiddenColumns.includes(key)) allKeys.add(key);
       });
       // Virtual column for rework %
-      if (!hiddenColumns.includes('reworkPercent') && id !== 'B10' && id !== 'A8' && id !== 'B8') {
+      if (!hiddenColumns.includes('reworkPercent') && id !== 'B9' && id !== 'A8' && id !== 'B7') {
         allKeys.add('reworkPercent');
       }
     });
     
     if (targetOrder) {
       const filteredTarget = targetOrder.filter(k => !hiddenColumns.includes(k));
-      if (id === 'B2' || id === 'B1' || id === 'B8') {
+      if (id === 'B2' || id === 'B1' || id === 'B7') {
         return filteredTarget;
       }
       const remainingHeaders = Array.from(allKeys).filter(k => !targetOrder.includes(k));
@@ -934,7 +934,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       cupsize: 'CUP SIZE',
       quantity: 'QUANTITY',
       orderQty: 'ORDER QTY',
-      totalQty: id === 'B1' ? 'TOTAL QTY' : (id === 'B8' ? 'QUANTITY' : 'ORDER QTY'),
+      totalQty: id === 'B1' ? 'TOTAL QTY' : (id === 'B7' ? 'QUANTITY' : 'ORDER QTY'),
       status: 'STATUS',
       createdAt: 'CREATED DATE',
       remarks: 'REMARKS',
@@ -1488,12 +1488,12 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
               {headers.map(h => <th key={h} className="p-3 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest">{formatHeaderLabel(h)}</th>)}
-              {(id === 'B10' || user.role === 'ADMIN') && <th className="p-3 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest text-right">Action</th>}
+              {(id === 'B9' || user.role === 'ADMIN') && <th className="p-3 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest text-right">Action</th>}
             </tr>
           </thead>
           <tbody>
             {displayData.length === 0 ? (
-              <tr><td colSpan={headers.length + (id === 'B10' || user.role === 'ADMIN' ? 1 : 0)} className="p-10 text-center text-slate-400 italic text-sm">No data matches your filters.</td></tr>
+              <tr><td colSpan={headers.length + (id === 'B9' || user.role === 'ADMIN' ? 1 : 0)} className="p-10 text-center text-slate-400 italic text-sm">No data matches your filters.</td></tr>
             ) : (
               displayData.map((row, i) => (
                 <tr key={i} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
@@ -1502,9 +1502,9 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                       {renderCellContent(h, row[h], row)}
                     </td>
                   ))}
-                  {(id === 'B10' || user.role === 'ADMIN') && (
+                  {(id === 'B9' || user.role === 'ADMIN') && (
                     <td className="p-3 text-right whitespace-nowrap space-x-1.5">
-                      {id === 'B10' && (
+                      {id === 'B9' && (
                         <button
                           type="button"
                           onClick={() => setSelectedComplaintDetail(row)}
@@ -1815,7 +1815,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
           );
         })()}
 
-        {/* Customer Complaint Detailed View Modal (For B10) */}
+        {/* Customer Complaint Detailed View Modal (For B9) */}
         {selectedComplaintDetail && (() => {
           const compImgs = parseAndNormalizeImages(
             selectedComplaintDetail.images ||
@@ -1842,7 +1842,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="px-2.5 py-0.5 bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 rounded-full text-[10px] font-black uppercase tracking-wider">
-                        B10 Customer Complaint Record
+                        B9 Customer Complaint Record
                       </span>
                       {selectedComplaintDetail.status ? (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${

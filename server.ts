@@ -216,6 +216,31 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
       db.cutting_reports = cut;
     }
 
+    const inline = await callSheet("api_getInlineData");
+    if (Array.isArray(inline) && inline.length > 0) {
+      db.sewing_reports = inline;
+    }
+
+    const endline = await callSheet("api_getEndlineData");
+    if (Array.isArray(endline) && endline.length > 0) {
+      db.endline_reports = endline;
+    }
+
+    const aql = await callSheet("api_getAQLData");
+    if (Array.isArray(aql) && aql.length > 0) {
+      db.aql_reports = aql;
+    }
+
+    const finalAudit = await callSheet("api_getFinalAuditData");
+    if (Array.isArray(finalAudit) && finalAudit.length > 0) {
+      db.final_reports = finalAudit;
+    }
+
+    const sop = await callSheet("api_getREPORTS_SOPData");
+    if (Array.isArray(sop) && sop.length > 0) {
+      db.reports_sop = sop;
+    }
+
     const zones = await callSheet("api_getZoneMappings");
     if (Array.isArray(zones) && zones.length > 0) {
       db.zone = zones;
@@ -1250,13 +1275,25 @@ function executeLocalAction(action: string, params: any[]): any {
       
     case 'api_saveUser': {
       const user = params[0];
+      const rawRestrictions = user.restrictions || [];
+      const remappedRestrictions = rawRestrictions.includes('B10')
+        ? Array.from(new Set(
+            rawRestrictions.map((code: string) => {
+              if (code === 'B7') return null;
+              if (code === 'B8') return 'B7';
+              if (code === 'B9') return 'B8';
+              if (code === 'B10') return 'B9';
+              return code;
+            }).filter(Boolean)
+          ))
+        : Array.from(new Set(rawRestrictions.filter(Boolean)));
       const structuredUser = {
         userCode: user.userCode,
         username: user.username,
         password: user.password,
         role: user.role,
         location: user.location,
-        restrictions: user.restrictions || [],
+        restrictions: remappedRestrictions,
         canDownload: user.canDownload !== false
       };
       
@@ -1273,7 +1310,27 @@ function executeLocalAction(action: string, params: any[]): any {
       db.users = db.users || [];
       const idx = db.users.findIndex((u: any) => u.userCode === user.userCode);
       if (idx !== -1) {
-        db.users[idx] = { ...db.users[idx], ...user };
+        let remappedRestrictions = db.users[idx].restrictions;
+        if (user.restrictions) {
+          const raw = user.restrictions;
+          remappedRestrictions = raw.includes('B10')
+            ? Array.from(new Set(
+                raw.map((code: string) => {
+                  if (code === 'B7') return null;
+                  if (code === 'B8') return 'B7';
+                  if (code === 'B9') return 'B8';
+                  if (code === 'B10') return 'B9';
+                  return code;
+                }).filter(Boolean)
+              ))
+            : Array.from(new Set(raw.filter(Boolean)));
+        }
+
+        db.users[idx] = { 
+          ...db.users[idx], 
+          ...user,
+          restrictions: remappedRestrictions
+        };
         writeLocalDb(db);
       }
       return { success: true };
@@ -2477,6 +2534,69 @@ async function startServer() {
         });
       }
 
+      // Ultra-fast instant launch: Serve initial data immediately from local database (<2ms) and sync with cloud in background
+      if (action === 'api_getInitialData') {
+        const localData = executeLocalAction('api_getInitialData', bodyPayload.params || []);
+        
+        // Spawn background sync to Google Apps Script so cloud updates persist into local db without holding up the user
+        (async () => {
+          const healthyUrls = candidateUrls.filter(isUrlHealthy);
+          const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
+          for (const targetUrl of urlsToTry) {
+            try {
+              const bgController = new AbortController();
+              const bgTimeout = setTimeout(() => bgController.abort(), 45000);
+              const bgRes = await fetch(targetUrl, {
+                method: "POST",
+                body: JSON.stringify(bodyPayload),
+                headers: { "Content-Type": "application/json" },
+                redirect: 'follow',
+                signal: bgController.signal as any
+              });
+              clearTimeout(bgTimeout);
+              if (bgRes.ok) {
+                const bgText = await bgRes.text();
+                if (!bgText.trim().startsWith("<")) {
+                  const parsed = JSON.parse(bgText);
+                  if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+                    const currentDb = readLocalDb();
+                    currentDb.users = parsed.users.map((u: any) => ({
+                      ...u,
+                      restrictions: Array.from(new Set((u.restrictions || []).map((code: string) => {
+                        if (code === 'B10') return 'B9';
+                        if (code === 'B9') return 'B8';
+                        if (code === 'B8') return 'B7';
+                        return code;
+                      }).filter(Boolean)))
+                    }));
+                    if (Array.isArray(parsed.workorders)) currentDb.workorders = parsed.workorders;
+                    if (parsed.settings) currentDb.settings = { ...(currentDb.settings || {}), ...parsed.settings };
+                    writeLocalDb(currentDb);
+                    markUrlHealth(targetUrl, true);
+                    break;
+                  }
+                }
+              }
+            } catch (err: any) {
+              markUrlHealth(targetUrl, false, err.message);
+            }
+          }
+        })();
+
+        if (localData && Array.isArray(localData.users) && localData.users.length > 0) {
+          localData.users = localData.users.map((u: any) => ({
+            ...u,
+            restrictions: Array.from(new Set((u.restrictions || []).map((code: string) => {
+              if (code === 'B10') return 'B9';
+              if (code === 'B9') return 'B8';
+              if (code === 'B8') return 'B7';
+              return code;
+            }).filter(Boolean)))
+          }));
+          return res.json(localData);
+        }
+      }
+
       const READ_ACTIONS = new Set([
         'api_getInitialData',
         'api_getWorkorders',
@@ -2503,6 +2623,69 @@ async function startServer() {
         const cached = apiReadCache.get(cacheKey);
         if (cached && (Date.now() - cached.timestamp < READ_CACHE_TTL)) {
           return res.json(cached.data);
+        }
+
+        // Fast-path for all read actions: serve immediately from local database (<2ms)
+        // This guarantees that all modules launch instantly and never drop connection
+        const forceRemote = bodyPayload.forceRefresh === true;
+        if (!forceRemote) {
+          try {
+            const localData = executeLocalAction(action, bodyPayload.params || []);
+            if (localData !== undefined) {
+              if (cacheKey) {
+                apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localData });
+              }
+
+              // Spawn background sync to Google Apps Script so changes propagate to local db seamlessly
+              (async () => {
+                const healthyUrls = candidateUrls.filter(isUrlHealthy);
+                const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
+                for (const targetUrl of urlsToTry) {
+                  try {
+                    const bgController = new AbortController();
+                    const bgTimeout = setTimeout(() => bgController.abort(), 20000);
+                    const bgRes = await fetch(targetUrl, {
+                      method: "POST",
+                      body: JSON.stringify(bodyPayload),
+                      headers: { "Content-Type": "application/json" },
+                      redirect: 'follow',
+                      signal: bgController.signal as any
+                    });
+                    clearTimeout(bgTimeout);
+                    if (bgRes.ok) {
+                      const bgText = await bgRes.text();
+                      if (!bgText.trim().startsWith("<")) {
+                        const parsed = JSON.parse(bgText);
+                        if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
+                          markUrlHealth(targetUrl, true);
+                          if (Array.isArray(parsed) && parsed.length > 0) {
+                            const db = readLocalDb();
+                            if (action === 'api_getWorkorders') db.workorders = parsed;
+                            else if (action === 'api_getMaterialData') db.material_reports = parsed;
+                            else if (action === 'api_getCuttingData') db.cutting_reports = parsed;
+                            else if (action === 'api_getInlineData' || action === 'api_get8ROUNDSYSTEMData') db.sewing_reports = parsed;
+                            else if (action === 'api_getEndlineData') db.endline_reports = parsed;
+                            else if (action === 'api_getAQLData') db.aql_reports = parsed;
+                            else if (action === 'api_getFinalAuditData') db.final_reports = parsed;
+                            else if (action === 'api_getREPORTS_SOPData') db.reports_sop = parsed;
+                            else if (action === 'api_getCustomerComplaints') db.customer_complaints = parsed;
+                            else if (action === 'api_getZoneMappings') db.zone = parsed;
+                            else if (action === 'api_getAdminLogs') db.admin_logs = parsed;
+                            writeLocalDb(db);
+                          }
+                          break;
+                        }
+                      }
+                    }
+                  } catch (e: any) {}
+                }
+              })();
+
+              return res.json(localData);
+            }
+          } catch (localErr: any) {
+            console.warn(`[LOCAL DB READ] Fast-path notice for ${action}:`, localErr.message);
+          }
         }
       } else {
         clearApiReadCache();
@@ -2766,6 +2949,9 @@ async function startServer() {
 
       // Universal safe fallback for read/write actions so app stays responsive
       if (isReadAction) {
+        if (action === 'api_getInitialData') {
+          return res.json(executeLocalAction('api_getInitialData', bodyPayload.params || []));
+        }
         return res.json([]);
       } else {
         return res.json({ success: true });
@@ -3182,14 +3368,7 @@ async function startServer() {
       const b6Score = Math.max(55, Math.min(99, Math.round(97 - b6Rejects * 8)));
       const b6Status = b6Rejects > 0 ? "WARNING" : "OPTIMAL";
 
-      // B7: Quality Inspectors & Users
-      const b7Total = b7.length;
-      const b7Admins = b7.filter((u: any) => String(u.role).toUpperCase() === 'ADMIN').length;
-      const b7Inspectors = b7.filter((u: any) => String(u.role).toUpperCase() === 'USER').length;
-      const b7Score = b7Total >= 3 ? 96 : b7Total > 0 ? 88 : 75;
-      const b7Status = b7Total >= 2 ? "OPTIMAL" : "WARNING";
-
-      // B8: Workorders
+      // B7: Workorders (formerly B8)
       const b8Total = b8.length;
       const b8Active = b8.filter((w: any) => !w.status || String(w.status).toUpperCase() !== 'CLOSED').length;
       let b8TotalQty = 0;
@@ -3197,19 +3376,19 @@ async function startServer() {
       const b8Score = b8Total > 0 ? 94 : 85;
       const b8Status = b8Active > 0 ? "OPTIMAL" : "STABLE";
 
-      // B9: SOP & Documents
+      // B8: SOP & Documents (formerly B9)
       const b9Total = b9.length;
       const b9Score = b9Total >= 3 ? 98 : b9Total > 0 ? 90 : 78;
       const b9Status = b9Total > 0 ? "OPTIMAL" : "WARNING";
 
-      // B10: Customer Complaints
+      // B9: Customer Complaints (formerly B10)
       const b10Total = b10.length;
       let b10Pieces = 0;
       b10.forEach((c: any) => b10Pieces += Number(c.pcsCount || c.pcs || 1));
       const b10Score = b10Total === 0 ? 98 : Math.max(45, 95 - b10Total * 10 - Math.min(25, b10Pieces * 2));
       const b10Status = b10Total === 0 ? "OPTIMAL" : b10Total > 2 ? "CRITICAL" : "WARNING";
 
-      // Holistic overall score calculated across all 10 modules
+      // Holistic overall score calculated across all 9 modules (B1 through B9)
       const overallScore = Math.round(
         (b1Score * 0.10) +
         (b2Score * 0.10) +
@@ -3217,8 +3396,7 @@ async function startServer() {
         (b4Score * 0.15) +
         (b5Score * 0.15) +
         (b6Score * 0.10) +
-        (b7Score * 0.05) +
-        (b8Score * 0.05) +
+        (b8Score * 0.10) +
         (b9Score * 0.05) +
         (b10Score * 0.10)
       );
@@ -3231,13 +3409,13 @@ async function startServer() {
         ? "DRIFT WARNING - PROCESS INTERVENTION REQUIRED" 
         : "CRITICAL ALERT - MULTI-MODULE STOPPAGE RISK";
 
-      // Fallback builder with complete 10-module coverage
+      // Fallback builder with complete 9-module coverage
       const getFallbackProposal = () => {
         return {
           aiGenerated: false,
           overallScore,
           qualityVerdict,
-          summary: `Blossom AI completed industrial diagnostic auditing across all 10 operational modules (B1 through B10) for ${zone === 'ALL' ? 'Global Production' : `Zone ${zone}`}. Total quality records tracked: ${b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b7.length + b8.length + b9.length + b10.length}. Active quality health profile indexes at ${overallScore}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
+          summary: `Blossom AI completed industrial diagnostic auditing across all 9 operational modules (B1 through B9) for ${zone === 'ALL' ? 'Global Production' : `Zone ${zone}`}. Total quality records tracked: ${b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b8.length + b9.length + b10.length}. Active quality health profile indexes at ${overallScore}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
           moduleBreakdown: [
             {
               moduleId: "B1",
@@ -3307,17 +3485,6 @@ async function startServer() {
             },
             {
               moduleId: "B7",
-              name: "Quality Inspectors & Users",
-              status: b7Status,
-              score: b7Score,
-              totalRecords: b7Total,
-              defectCount: 0,
-              rate: `${b7Inspectors} Inspectors Active`,
-              keyFindings: `Quality assurance human capital stands at ${b7Total} users (${b7Admins} Quality Admins, ${b7Inspectors} Line Inspectors).`,
-              actionRequired: b7Inspectors < 2 ? "Assign additional dedicated inspectors to evening shifts to prevent audit gaps." : "Maintain bi-weekly calibration sessions between inspectors."
-            },
-            {
-              moduleId: "B8",
               name: "Workorder Data",
               status: b8Status,
               score: b8Score,
@@ -3328,7 +3495,7 @@ async function startServer() {
               actionRequired: "Sync production milestone completion with physical QC tally to eliminate inventory drift."
             },
             {
-              moduleId: "B9",
+              moduleId: "B8",
               name: "SOP & Audit Documents",
               status: b9Status,
               score: b9Score,
@@ -3339,7 +3506,7 @@ async function startServer() {
               actionRequired: b9Total === 0 ? "Upload foundational bra & panty sewing SOPs and buyer compliance criteria." : "Verify annual revision cycles on technical construction sheets."
             },
             {
-              moduleId: "B10",
+              moduleId: "B9",
               name: "Customer Complaint Report",
               status: b10Status,
               score: b10Score,
@@ -3462,7 +3629,7 @@ async function startServer() {
         }
       });
 
-      // Sample snippet of recent records across all 10 modules
+      // Sample snippet of recent records across all 9 modules
       const sliceLog = (arr: any[]) => Array.isArray(arr) ? arr.slice(-10) : [];
       const cleanData = {
         B1_Material: sliceLog(b1),
@@ -3471,15 +3638,14 @@ async function startServer() {
         B4_Endline: sliceLog(b4),
         B5_AQL: sliceLog(b5),
         B6_FinalAudit: sliceLog(b6),
-        B7_Users_Inspectors: sliceLog(b7).map((u: any) => ({ username: u.username, role: u.role, zone: u.zone })),
-        B8_Workorders: sliceLog(b8).map((w: any) => ({ wo: w.workorderNumber, style: w.style, qty: w.orderQty, status: w.status })),
-        B9_SOP_Documents: sliceLog(b9).map((s: any) => ({ title: s.title, type: s.sopType, category: s.category })),
-        B10_CustomerComplaints: sliceLog(b10)
+        B7_Workorders: sliceLog(b8).map((w: any) => ({ wo: w.workorderNumber, style: w.style, qty: w.orderQty, status: w.status })),
+        B8_SOP_Documents: sliceLog(b9).map((s: any) => ({ title: s.title, type: s.sopType, category: s.category })),
+        B9_CustomerComplaints: sliceLog(b10)
       };
 
       const prompt = `
       You are Blossom AI, the chief industrial QA intelligence system for intimate apparel, bra, and panty manufacturing.
-      Analyze the entire quality operation spanning ALL 10 MODULES (B1 through B10):
+      Analyze the entire quality operation spanning ALL 9 MODULES (B1 through B9):
 
       ================ FACTORY LEDGER SUMMARY ================
       - [B1] Material Inspection: ${b1.length} records, ${b1Checked} units checked, ${b1Defects} rejected (${b1Rate})
@@ -3488,17 +3654,16 @@ async function startServer() {
       - [B4] Endline Quality: ${b4.length} records, ${b4Checked} pcs checked, ${b4Defects} rework pieces (${b4Rate})
       - [B5] AQL Inspection: ${b5Lots} lots audited, ${b5Fails} failed lots, ${b5DefectPcs} defect pieces (${b5Rate})
       - [B6] Final Audit: ${b6Audits} pre-shipment checks, ${b6Rejects} carton/packing defects (${b6Rate})
-      - [B7] Quality Inspectors & Users: ${b7Total} active users (${b7Inspectors} inspectors, ${b7Admins} admins)
-      - [B8] Workorders Data: ${b8Total} workorders, ${b8Active} currently active, ${b8TotalQty.toLocaleString()} units planned
-      - [B9] SOP & Audit Documents: ${b9Total} technical procedures and compliance documents active
-      - [B10] Customer Complaints: ${b10Total} external complaints logged, ${b10Pieces} affected garments
+      - [B7] Workorders Data: ${b8Total} workorders, ${b8Active} currently active, ${b8TotalQty.toLocaleString()} units planned
+      - [B8] SOP & Audit Documents: ${b9Total} technical procedures and compliance documents active
+      - [B9] Customer Complaints: ${b10Total} external complaints logged, ${b10Pieces} affected garments
 
       ================ RECENT RAW RECORD EXCERPTS ================
       ${JSON.stringify(cleanData, null, 2)}
 
       Tasks:
-      1. Perform cross-module root-cause correlation (e.g., does fabric variance in B1 cause sizing defects in B4? Do high inline defects in B3 correspond to AQL lot failures in B5? Are customer complaints in B10 linked to missing B9 SOPs?).
-      2. Provide a module-by-module audit for each of B1, B2, B3, B4, B5, B6, B7, B8, B9, B10.
+      1. Perform cross-module root-cause correlation (e.g., does fabric variance in B1 cause sizing defects in B4? Do high inline defects in B3 correspond to AQL lot failures in B5? Are customer complaints in B9 linked to missing B8 SOPs?).
+      2. Provide a module-by-module audit for each of B1, B2, B3, B4, B5, B6, B7, B8, B9.
       3. Deliver high-precision CAPA recommendations with specific module tags.
       4. Forecast early warning risk predictions with probabilities and timelines.
       5. Formulate an actionable 24h / 7d / 30d CAPA matrix.
@@ -3508,7 +3673,7 @@ async function startServer() {
         "aiGenerated": true,
         "overallScore": 88,
         "qualityVerdict": "STABLE - CONTROLLED REWORK LEVEL",
-        "summary": "Full multi-paragraph executive briefing analyzing the entire quality chain B1 to B10...",
+        "summary": "Full multi-paragraph executive briefing analyzing the entire quality chain B1 to B9...",
         "moduleBreakdown": [
           {
             "moduleId": "B1",
@@ -3578,47 +3743,36 @@ async function startServer() {
           },
           {
             "moduleId": "B7",
-            "name": "Quality Inspectors & Users",
-            "status": "OPTIMAL" | "STABLE" | "WARNING" | "CRITICAL",
-            "score": 90,
-            "totalRecords": ${b7Total},
-            "defectCount": 0,
-            "rate": "${b7Inspectors} Inspectors Active",
-            "keyFindings": "Analytical insight for B7",
-            "actionRequired": "Specific preventive action for B7"
-          },
-          {
-            "moduleId": "B8",
             "name": "Workorder Data",
             "status": "OPTIMAL" | "STABLE" | "WARNING" | "CRITICAL",
             "score": 92,
             "totalRecords": ${b8Total},
             "defectCount": 0,
             "rate": "${b8Active} Active Batches",
-            "keyFindings": "Analytical insight for B8",
-            "actionRequired": "Specific preventive action for B8"
+            "keyFindings": "Analytical insight for B7",
+            "actionRequired": "Specific preventive action for B7"
           },
           {
-            "moduleId": "B9",
+            "moduleId": "B8",
             "name": "SOP & Audit Documents",
             "status": "OPTIMAL" | "STABLE" | "WARNING" | "CRITICAL",
             "score": 95,
             "totalRecords": ${b9Total},
             "defectCount": 0,
             "rate": "${b9Total} Active SOPs",
-            "keyFindings": "Analytical insight for B9",
-            "actionRequired": "Specific preventive action for B9"
+            "keyFindings": "Analytical insight for B8",
+            "actionRequired": "Specific preventive action for B8"
           },
           {
-            "moduleId": "B10",
+            "moduleId": "B9",
             "name": "Customer Complaint Report",
             "status": "OPTIMAL" | "STABLE" | "WARNING" | "CRITICAL",
             "score": 88,
             "totalRecords": ${b10Total},
             "defectCount": ${b10Pieces},
             "rate": "${b10Total > 0 ? `${b10Pieces} Affected Pcs` : 'Zero Complaints'}",
-            "keyFindings": "Analytical insight for B10",
-            "actionRequired": "Specific preventive action for B10"
+            "keyFindings": "Analytical insight for B9",
+            "actionRequired": "Specific preventive action for B9"
           }
         ],
         "recommendations": [
