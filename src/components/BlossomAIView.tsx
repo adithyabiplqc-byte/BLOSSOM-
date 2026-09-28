@@ -188,12 +188,6 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
   const b6Score = Math.max(55, Math.min(99, Math.round(97 - b6Rejects * 8)));
   const b6Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b6Rejects > 0 ? 'WARNING' : 'OPTIMAL';
 
-  // B7 Users
-  const b7Total = b7.length;
-  const b7Inspectors = b7.filter((u: any) => String(u.role).toUpperCase() === 'USER').length;
-  const b7Score = b7Total >= 3 ? 96 : b7Total > 0 ? 88 : 75;
-  const b7Status: 'OPTIMAL' | 'STABLE' | 'WARNING' | 'CRITICAL' = b7Total >= 2 ? 'OPTIMAL' : 'WARNING';
-
   // B8 Workorders
   const b8Total = b8.length;
   const b8Active = b8.filter((w: any) => !w.status || String(w.status).toUpperCase() !== 'CLOSED').length;
@@ -219,14 +213,13 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
     (b4Score * 0.15) +
     (b5Score * 0.15) +
     (b6Score * 0.10) +
-    (b7Score * 0.05) +
-    (b8Score * 0.05) +
+    (b8Score * 0.10) +
     (b9Score * 0.05) +
     (b10Score * 0.10)
   );
 
   const zoneName = activeZone && activeZone !== 'ALL' ? `Zone ${activeZone}` : 'Global Production';
-  const totalRecords = b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b7.length + b8.length + b9.length + b10.length;
+  const totalRecords = b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b8.length + b9.length + b10.length;
 
   const moduleBreakdown: ModuleAnalysis[] = [
     {
@@ -294,17 +287,6 @@ const generateLocalAnalysis = (payload: any, activeZone: string): AIAnalysisResu
       rate: b6Audits > 0 ? (((b6Audits - (b6Rejects > 0 ? 1 : 0)) / b6Audits) * 100).toFixed(1) + "% Acceptance" : "100% Release",
       keyFindings: `Pre-shipment audit logs track ${b6Audits} releases with ${b6Rejects} carton/packaging infractions.`,
       actionRequired: b6Rejects > 0 ? "Cross-verify carton barcode label barcodes and polybag hanger tags." : "Continue standard pre-dispatch carton drop and seal testing."
-    },
-    {
-      moduleId: "B7",
-      name: "Quality Inspectors & Users",
-      status: b7Status,
-      score: b7Score,
-      totalRecords: b7Total,
-      defectCount: 0,
-      rate: `${b7Inspectors} Inspectors Active`,
-      keyFindings: `Quality assurance human capital stands at ${b7Total} users with ${b7Inspectors} active line inspectors deployed.`,
-      actionRequired: b7Inspectors < 2 ? "Assign additional dedicated inspectors to evening shifts to prevent audit gaps." : "Maintain bi-weekly calibration sessions between inspectors."
     },
     {
       moduleId: "B8",
@@ -1644,8 +1626,8 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               <span className="text-xs font-black text-slate-700">{dataLogs.aql.length + dataLogs.finalAudit.length} audits</span>
             </div>
             <div className="bg-slate-50 rounded-xl p-2 border border-[#00B4D8]/10 bg-indigo-50/20">
-              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">B7-B10 Gov & Orders</span>
-              <span className="text-xs font-black text-[#00B4D8]">{dataLogs.users.length + dataLogs.workorders.length + dataLogs.sop.length + dataLogs.customerComplaints.length} records</span>
+              <span className="block text-[8px] font-black text-[#00B4D8] uppercase tracking-wider">B8-B10 Gov & Orders</span>
+              <span className="text-xs font-black text-[#00B4D8]">{dataLogs.workorders.length + dataLogs.sop.length + dataLogs.customerComplaints.length} records</span>
             </div>
           </div>
         </div>
@@ -1664,7 +1646,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
         >
           <Icon name="layers" size={13} />
           B1–B10 Complete Matrix
-          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-600 font-black">10</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-600 font-black">9</span>
         </button>
         <button
           onClick={() => setActiveTab('briefing')}
@@ -1862,10 +1844,10 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-2">Filter Modules:</span>
               {(['ALL', 'PROD', 'AUDIT', 'GOV', 'ATTENTION'] as const).map(filterKey => {
                 const labels: Record<string, string> = {
-                  ALL: 'All 10 Modules (B1-B10)',
+                  ALL: 'All 9 Modules (B1-B10)',
                   PROD: 'Production (B1-B4)',
                   AUDIT: 'Audits & Release (B5-B6)',
-                  GOV: 'Governance (B7-B10)',
+                  GOV: 'Governance & SOPs (B8-B10)',
                   ATTENTION: 'Needs Attention'
                 };
                 const isSelected = moduleFilter === filterKey;
@@ -1894,7 +1876,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
             {(result.moduleBreakdown || []).filter(mod => {
               if (moduleFilter === 'PROD') return ['B1', 'B2', 'B3', 'B4'].includes(mod.moduleId);
               if (moduleFilter === 'AUDIT') return ['B5', 'B6'].includes(mod.moduleId);
-              if (moduleFilter === 'GOV') return ['B7', 'B8', 'B9', 'B10'].includes(mod.moduleId);
+              if (moduleFilter === 'GOV') return ['B8', 'B9', 'B10'].includes(mod.moduleId);
               if (moduleFilter === 'ATTENTION') return mod.status === 'WARNING' || mod.status === 'CRITICAL';
               return true;
             }).map((mod, idx) => {
@@ -2090,7 +2072,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
                 <p className="text-[10px] text-slate-500 font-medium">Random sampling lots quarantined upon single major defect threshold breach.</p>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Client Compliance (B7-B10)</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Client Compliance (B8-B10)</span>
                 <p className="text-xs font-black text-slate-800">
                   {dataLogs.customerComplaints.length} External Complaints
                 </p>

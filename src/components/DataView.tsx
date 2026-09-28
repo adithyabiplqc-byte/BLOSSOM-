@@ -250,7 +250,6 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       'B4': 'api_getEndlineData',
       'B5': 'api_getAQLData',
       'B6': 'api_getFinalAuditData',
-      'B7': 'api_getUsers',
       'B8': 'api_getWorkorders',
       'B10': 'api_getCustomerComplaints',
     };

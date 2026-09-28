@@ -70,6 +70,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleSelectSubmodule = useCallback((id: string) => {
+    if (id === 'B7') return;
     try {
       localStorage.setItem('bqos_active_submodule', id);
     } catch (e) {}
@@ -173,6 +174,14 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.warn("Fetch Data Notice:", e);
       if (!silent && !user) {
+        try {
+          const cachedUsers = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
+          if (cachedUsers.length > 0) {
+            setUsers(cachedUsers);
+            setLoading(false);
+            return null;
+          }
+        } catch (ce) {}
         setConnectionError(e.message || "Failed to connect to Google Sheets");
       }
     } finally {
@@ -328,7 +337,11 @@ const App: React.FC = () => {
             // If still uninitialized or on splash screen:
             try {
               const activeSub = localStorage.getItem('bqos_active_submodule');
-              if (activeSub && resolvedUser.role !== 'WORKORDER') return 'submodule';
+              if (activeSub === 'B7') {
+                localStorage.removeItem('bqos_active_submodule');
+              } else if (activeSub && resolvedUser.role !== 'WORKORDER') {
+                return 'submodule';
+              }
             } catch (e) {}
             if (resolvedUser.role === 'ADMIN') return 'admin';
             if (resolvedUser.role === 'WORKORDER') return 'workorder';
@@ -438,8 +451,19 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex flex-col gap-2">
                   <button 
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                      setConnectionError(null);
+                      setLoading(false);
+                      setView('login');
+                    }}
                     className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-md shadow-indigo-100"
+                  >
+                    <Icon name="log-in" size={14} />
+                    Continue to Login
+                  </button>
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 flex items-center justify-center gap-2"
                   >
                     <Icon name="refresh-cw" size={14} />
                     Retry Connection
@@ -448,9 +472,9 @@ const App: React.FC = () => {
                     onClick={async () => {
                        await api.disconnect();
                     }}
-                    className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 flex items-center justify-center gap-2"
+                    className="w-full text-slate-400 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest hover:text-slate-600 flex items-center justify-center gap-1.5"
                   >
-                    <Icon name="settings" size={14} />
+                    <Icon name="settings" size={12} />
                     Reset & Setup Again
                   </button>
                 </div>

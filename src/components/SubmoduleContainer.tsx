@@ -30,6 +30,19 @@ interface SubmoduleContainerProps {
 }
 
 const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, settings, workorders, onBack, users, triggerSuccess, globalZone, setGlobalZone, onNavigate, refreshData }) => {
+  React.useEffect(() => {
+    if (id === 'B7') {
+      try {
+        localStorage.removeItem('bqos_active_submodule');
+      } catch (e) {}
+      onBack();
+    }
+  }, [id, onBack]);
+
+  if (id === 'B7') {
+    return null;
+  }
+
   const isRestricted = isModuleRestricted(user, id);
 
   const renderSubmodule = () => {

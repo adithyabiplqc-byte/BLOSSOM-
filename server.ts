@@ -2467,8 +2467,17 @@ async function startServer() {
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
 
+      // Ultra-fast instant response for heartbeat connectivity pings
+      if (action === 'api_ping') {
+        return res.json({ 
+          success: true, 
+          status: "Connected", 
+          timestamp: new Date().toISOString(),
+          serverTime: new Date().toISOString()
+        });
+      }
+
       const READ_ACTIONS = new Set([
-        'api_ping',
         'api_getInitialData',
         'api_getWorkorders',
         'api_getUsers',
@@ -2513,6 +2522,45 @@ async function startServer() {
       if (['api_uploadSOPFile', 'api_uploadComplaintImage', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData', 'api_getCustomerComplaints', 'api_saveCustomerComplaint', 'api_deleteCustomerComplaint', 'api_clearCustomerComplaints', 'api_clearAllCustomerComplaints'].includes(action)) {
         console.log(`[API PROXY] Routing action "${action}" with cloud and local fallback...`);
         
+        // Fast path for non-upload SOP and Complaint write actions: persist locally and sync to cloud in background
+        const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
+        const isSopRead = action === 'api_getREPORTS_SOPData' || action === 'api_getCustomerComplaints';
+
+        if (!isUpload && !isSopRead) {
+          try {
+            executeLocalAction(action, bodyPayload.params || []);
+          } catch (e) {}
+
+          // Spawn background sync to Apps Script so changes propagate to Google Sheets without delaying the user
+          (async () => {
+            const sopUrls = candidateUrls.filter(isUrlHealthy);
+            const urlsToTry = sopUrls.length > 0 ? sopUrls : candidateUrls;
+            for (const bgUrl of urlsToTry) {
+              try {
+                const bgController = new AbortController();
+                const bgTimeout = setTimeout(() => bgController.abort(), 45000);
+                const bgRes = await fetch(bgUrl, {
+                  method: "POST",
+                  body: JSON.stringify(bodyPayload),
+                  headers: { "Content-Type": "application/json" },
+                  redirect: 'follow',
+                  signal: bgController.signal as any
+                });
+                clearTimeout(bgTimeout);
+                if (bgRes.ok) {
+                  const bgText = await bgRes.text();
+                  if (!bgText.trim().startsWith("<")) {
+                    markUrlHealth(bgUrl, true);
+                    break;
+                  }
+                }
+              } catch (bgErr: any) {}
+            }
+          })();
+
+          return res.json({ success: true, id: bodyPayload.params?.[0]?.id || `loc-${Date.now()}` });
+        }
+
         let appsScriptSuccess = false;
         let appsScriptResult: any = null;
 
@@ -2543,12 +2591,11 @@ async function startServer() {
 
         const healthySopUrls = sopCandidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthySopUrls.length > 0 ? healthySopUrls : sopCandidateUrls;
-        const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
 
         for (const targetUrl of urlsToTry) {
           try {
             const controller = new AbortController();
-            const timeoutDuration = isUpload ? 60000 : 2500;
+            const timeoutDuration = isUpload ? 60000 : 8000;
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
             
             const response = await fetch(targetUrl, {
@@ -2586,12 +2633,6 @@ async function startServer() {
         }
 
         if (appsScriptSuccess && appsScriptResult) {
-          if (action === 'api_deleteREPORTS_SOP' || action === 'api_saveREPORTS_SOP' || action === 'api_saveCustomerComplaint' || action === 'api_deleteCustomerComplaint' || action === 'api_clearCustomerComplaints' || action === 'api_clearAllCustomerComplaints') {
-            try {
-              executeLocalAction(action, bodyPayload.params || []);
-            } catch (err) {}
-          }
-          
           if (action === 'api_getREPORTS_SOPData' && Array.isArray(appsScriptResult)) {
             const db = readLocalDb();
             const deletedList = db.deleted_sop_ids || [];
@@ -2600,33 +2641,6 @@ async function startServer() {
             return res.json(cleanResult);
           }
           return res.json(appsScriptResult);
-        }
-
-        // If non-upload action didn't return within 2.5s, spawn background sync to Apps Script so it still persists
-        if (!isUpload && ['api_saveCustomerComplaint', 'api_deleteCustomerComplaint', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP'].includes(action)) {
-          (async () => {
-            for (const bgUrl of urlsToTry) {
-              try {
-                const bgController = new AbortController();
-                const bgTimeout = setTimeout(() => bgController.abort(), 45000);
-                const bgRes = await fetch(bgUrl, {
-                  method: "POST",
-                  body: JSON.stringify(bodyPayload),
-                  headers: { "Content-Type": "application/json" },
-                  redirect: 'follow',
-                  signal: bgController.signal as any
-                });
-                clearTimeout(bgTimeout);
-                if (bgRes.ok) {
-                  const bgText = await bgRes.text();
-                  if (!bgText.trim().startsWith("<")) {
-                    markUrlHealth(bgUrl, true);
-                    break;
-                  }
-                }
-              } catch (bgErr: any) {}
-            }
-          })();
         }
 
         // Instant fallback to local integrated database
@@ -2640,45 +2654,10 @@ async function startServer() {
         }
       }
 
-      // For standard write actions: Sync to Google Sheets with fast race (2.5s) and async background continuation
+      // For standard write actions: Persist locally instantly, spawn background sync to Google Sheets, and return immediately (<5ms)
       if (!isReadAction) {
-        let appsScriptSuccess = false;
-        let appsScriptResult: any = null;
-
         const healthyUrls = candidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
-
-        // Fast synchronous attempt (2.5s) so the user gets instant feedback
-        const primaryUrl = urlsToTry[0] || USER_SHEET_URL;
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2500);
-          const response = await fetch(primaryUrl, {
-            method: "POST",
-            body: JSON.stringify(bodyPayload),
-            headers: { "Content-Type": "application/json" },
-            redirect: 'follow',
-            signal: controller.signal as any
-          });
-          clearTimeout(timeoutId);
-          const text = await response.text();
-          if (response.ok && !text.trim().startsWith("<") && !text.includes("Page not found")) {
-            try {
-              const parsed = JSON.parse(text);
-              if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
-                markUrlHealth(primaryUrl, true);
-                appsScriptSuccess = true;
-                appsScriptResult = parsed;
-              }
-            } catch (pErr) {}
-          }
-        } catch (fastErr: any) {
-          // If fast attempt timed out or failed, will continue in background
-        }
-
-        if (appsScriptSuccess && appsScriptResult) {
-          return res.json(appsScriptResult);
-        }
 
         // Spawn background sync to Google Apps Script so the Google Sheet is always updated without holding up the user
         (async () => {
