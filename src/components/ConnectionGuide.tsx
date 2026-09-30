@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { api } from '../services/api';
+import { api, DEFAULT_SHEETS_URL, DEFAULT_DRIVE_URL } from '../services/api';
 import { sheetsService } from '../services/sheetsService';
 import { googleSignIn, logout, getAccessToken, auth } from '../services/auth';
 import Icon from './Icon';
@@ -12,8 +12,8 @@ interface ConnectionGuideProps {
 }
 
 export default function ConnectionGuide({ error, onClose, isPermanentlyConnected }: ConnectionGuideProps) {
-  const [inputUrl, setInputUrl] = React.useState(localStorage.getItem('VITE_GAS_URL') || '');
-  const [driveInputUrl, setDriveInputUrl] = React.useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
+  const [inputUrl, setInputUrl] = React.useState(localStorage.getItem('VITE_GAS_URL') || DEFAULT_SHEETS_URL);
+  const [driveInputUrl, setDriveInputUrl] = React.useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || DEFAULT_DRIVE_URL);
   const [spreadsheetInput, setSpreadsheetInput] = React.useState(sheetsService.getSpreadsheetId() || '');
   const [pinging, setPinging] = React.useState(false);
   const [pingingDrive, setPingingDrive] = React.useState(false);

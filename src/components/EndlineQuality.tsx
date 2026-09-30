@@ -297,11 +297,20 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   // Fetch zone logs for stats & completeness queries
   const fetchEndlineRecords = async () => {
-    if (!form.zone) return;
     try {
-      const data = await api.run('api_getEndlineData', { zone: form.zone }) as any[];
+      // Query ALL records so that active workorder passed count is 100% accurate regardless of zone variations
+      const data = await api.run('api_getEndlineData', { zone: 'ALL' }) as any[];
       if (Array.isArray(data)) {
-        setEndlineRecords(data);
+        setEndlineRecords(prev => {
+          const map = new Map<string, any>();
+          data.forEach(r => { if (r && r.id) map.set(String(r.id), r); });
+          prev.forEach(r => {
+            if (r && r.id && !map.has(String(r.id))) {
+              map.set(String(r.id), r);
+            }
+          });
+          return Array.from(map.values());
+        });
       }
     } catch (e) {
       console.error("Failed to load endline log database:", e);
@@ -310,7 +319,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   useEffect(() => {
     fetchEndlineRecords();
-  }, [form.zone]);
+  }, [form.zone, form.wo]);
 
   // Derive chosen workorder record
   const selectedWO = useMemo(() => {
@@ -348,20 +357,36 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     }
   }, [form.wo, selectedWO, currentCupSizes, currentSizes, currentColors, woCupOptions]);
 
-  // Computed metrics
-  const totalQuantity = Number(selectedWO?.quantity || 0);
+  // Computed metrics with robust quantity resolution
+  const totalQuantity = useMemo(() => {
+    if (!selectedWO) return 0;
+    const val = selectedWO.quantity ?? selectedWO.orderQty ?? selectedWO.qty ?? selectedWO.ORDER_QTY ?? selectedWO.ORDERQTY ?? selectedWO.QUANTITY ?? selectedWO.order_quantity ?? 0;
+    return Number(val) || 0;
+  }, [selectedWO]);
 
   const passedSoFar = useMemo(() => {
-    if (!form.wo) return 0;
-    return endlineRecords
-      .filter(r => String(r.wo || r.workorderNumber) === String(form.wo))
+    if (!form.wo && !selectedWO) return 0;
+    const woNum = String(selectedWO?.workorderNumber || form.wo || '').trim().toUpperCase();
+    const woId = String(selectedWO?.id || form.wo || '').trim().toUpperCase();
+    const sum = endlineRecords
+      .filter(r => {
+        const rWo = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
+        return rWo && (rWo === woNum || rWo === woId);
+      })
       .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
-  }, [endlineRecords, form.wo]);
+    // Strict cap: passed pieces can NEVER exceed totalQuantity! (prevents 140 pcs bug)
+    return totalQuantity > 0 ? Math.min(totalQuantity, sum) : sum;
+  }, [endlineRecords, form.wo, selectedWO, totalQuantity]);
 
   const checkedSoFar = useMemo(() => {
-    if (!form.wo) return 0;
-    return endlineRecords
-      .filter(r => String(r.wo || r.workorderNumber) === String(form.wo))
+    if (!form.wo && !selectedWO) return 0;
+    const woNum = String(selectedWO?.workorderNumber || form.wo || '').trim().toUpperCase();
+    const woId = String(selectedWO?.id || form.wo || '').trim().toUpperCase();
+    const sum = endlineRecords
+      .filter(r => {
+        const rWo = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
+        return rWo && (rWo === woNum || rWo === woId);
+      })
       .filter(r => {
         const isResolution = r.remarks && r.remarks.includes("Rework pieces declared as:");
         const isResId = r.id && String(r.id).startsWith("endline_rework_resolution_");
@@ -371,11 +396,22 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
         const valStr = r.checkedQty !== undefined ? r.checkedQty : r.passQty;
         return sum + (Number(valStr) || 0);
       }, 0);
-  }, [endlineRecords, form.wo]);
+    return totalQuantity > 0 ? Math.min(totalQuantity, sum) : sum;
+  }, [endlineRecords, form.wo, selectedWO, totalQuantity]);
 
   const openQuantity = useMemo(() => {
-    return Math.max(0, totalQuantity - checkedSoFar);
-  }, [totalQuantity, checkedSoFar]);
+    if (totalQuantity <= 0) return 0;
+    return Math.max(0, totalQuantity - passedSoFar);
+  }, [totalQuantity, passedSoFar]);
+
+  const isWorkorderCompleted = useMemo(() => {
+    return totalQuantity > 0 && passedSoFar >= totalQuantity;
+  }, [totalQuantity, passedSoFar]);
+
+  const currentBundleCap = useMemo(() => {
+    if (totalQuantity <= 0) return 10;
+    return Math.max(0, Math.min(10, openQuantity));
+  }, [totalQuantity, openQuantity]);
 
   const nextBundleNo = useMemo(() => {
     if (!form.wo) return 'B1';
@@ -521,25 +557,34 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   // Route to AQL when fully completed
   const checkAndTriggerAQLTransition = async (addedPassQty: number) => {
-    const totalQty = Number(selectedWO?.quantity || selectedWO?.orderQty || 0);
+    const totalQty = totalQuantity;
     const newPassedTotal = passedSoFar + addedPassQty;
     if (totalQty > 0 && newPassedTotal >= totalQty) {
       setIsSubmitting(true);
       try {
+        const woTarget = selectedWO?.workorderNumber || form.wo;
         if (selectedWO) {
-          await api.run('api_updateWorkorder', { ...selectedWO, status: 'AQL' });
+          selectedWO.status = 'AQL';
         }
+        await api.run('api_updateWorkorder', { 
+          ...(selectedWO || {}), 
+          id: selectedWO?.id || form.wo,
+          wo: woTarget,
+          workorderNumber: woTarget,
+          status: 'AQL' 
+        });
+        setForm(prev => ({ ...prev, wo: '' }));
         if (refreshData) {
           await refreshData();
         }
+        triggerSuccess(`WORKORDER ${woTarget} FULLY PASSED (${totalQty}/${totalQty} PCS)! AUTOMATICALLY MOVED TO AQL.`);
         if (onNavigate) {
-          triggerSuccess("WORKORDER FULLY PASSED FROM ENDLINE! MOVED TO AQL.");
-          onNavigate('A5');
-        } else {
-          triggerSuccess("WORKORDER FULLY PASSED TO AQL.");
+          setTimeout(() => {
+            onNavigate('A5');
+          }, 800);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to update workorder to AQL:", e);
       } finally {
         setIsSubmitting(false);
       }
@@ -550,6 +595,11 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
   // Submit Bundle is the primary driver
   const handleFinalBundleSubmit = async () => {
+    if (isWorkorderCompleted || openQuantity <= 0) {
+      setLocalError(`Workorder is already 100% completed (${passedSoFar}/${totalQuantity} pcs passed). No further pieces can be inspected. This workorder has moved to AQL.`);
+      return;
+    }
+
     // Explicit comprehensive validation for all boxes, dropboxes, date selection and remarks
     if (!form.zone) {
       setLocalError("Please select a Zone.");
@@ -580,8 +630,16 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
       return;
     }
 
+    const remainingAllowed = totalQuantity > 0 ? Math.max(0, totalQuantity - passedSoFar) : 10;
+    if (totalQuantity > 0 && remainingAllowed <= 0) {
+      setLocalError(`Workorder ${selectedWO?.workorderNumber || form.wo} has already reached 100% pass target (${passedSoFar}/${totalQuantity} pcs). This workorder is moved to AQL.`);
+      return;
+    }
+
+    const bundleCapacity = totalQuantity > 0 ? Math.min(10, remainingAllowed) : 10;
+
     if (defectCount > 0) {
-      const targetLength = defectCount === 10 ? 1 : defectCount;
+      const targetLength = defectCount === 10 ? 1 : Math.min(defectCount, bundleCapacity);
       for (let i = 0; i < targetLength; i++) {
         const item = defectItems[i];
         if (!item || !item.worker) {
@@ -607,10 +665,12 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     setIsSubmitting(true);
 
     const activeBundleNo = nextBundleNo;
-    const D = defectCount;
-    const passQty = 10 - D;
+    const D = Math.min(defectCount, bundleCapacity);
+    const calculatedPass = Math.max(0, bundleCapacity - D);
+    // Strict cap: can never exceed remainingAllowed (eliminates 140 pcs bug)
+    const passQty = totalQuantity > 0 ? Math.min(calculatedPass, remainingAllowed) : calculatedPass;
 
-    const totalQty = Number(selectedWO?.quantity || selectedWO?.orderQty || 0);
+    const totalQty = totalQuantity;
     const isFullyPassed = totalQty > 0 && (passedSoFar + passQty) >= totalQty;
 
     try {
@@ -640,7 +700,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           defect: '',
           machine: '',
           totalQty: String(totalQuantity),
-          openQty: String(Math.max(0, openQuantity - passQty)),
+          openQty: String(Math.max(0, totalQuantity - (passedSoFar + passQty))),
           remarks: form.remarks || `Passed pieces from Bundle ${activeBundleNo}`,
           inspector: activeInspector,
           timestamp: new Date().toISOString(),
@@ -676,7 +736,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           defect: item.defect,
           machine: item.machine,
           totalQty: String(totalQuantity),
-          openQty: String(openQuantity),
+          openQty: String(Math.max(0, totalQuantity - (passedSoFar + passQty))),
           remarks: `Rework queued: ${item.defect} assigned to ${item.worker}`,
           inspector: activeInspector,
           timestamp: new Date().toISOString(),
@@ -719,7 +779,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
 
       const redirected = await checkAndTriggerAQLTransition(passQty);
       if (!redirected) {
-        triggerSuccess(`BUNDLE ${activeBundleNo} COMMITTED: ${passQty} PASS WITH ${D} REWORKS ADDED!`);
+        triggerSuccess(`BUNDLE ${activeBundleNo} COMMITTED: ${passQty} PASS WITH ${D} REWORKS ADDED! (${passedSoFar + passQty}/${totalQuantity} PCS)`);
         fetchEndlineRecords();
       }
     } catch (e) {
@@ -735,12 +795,17 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     const targetItem = reworkQueue.find(r => r.id === id);
     if (!targetItem) return;
 
+    if (verdict === 'PASS' && (isWorkorderCompleted || openQuantity <= 0)) {
+      setLocalError(`Workorder is already 100% completed (${passedSoFar}/${totalQuantity} pcs passed). Cannot pass more pieces.`);
+      return;
+    }
+
     setIsSubmitting(true);
     setLocalError(null);
 
     const activeBundleNo = targetItem.bundleNo || nextBundleNo;
-    const totalQty = Number(selectedWO?.quantity || selectedWO?.orderQty || 0);
-    const passDelta = verdict === 'PASS' ? 1 : 0;
+    const totalQty = totalQuantity;
+    const passDelta = verdict === 'PASS' ? (totalQty > 0 && (passedSoFar >= totalQty || openQuantity <= 0) ? 0 : 1) : 0;
     const isFullyPassed = totalQty > 0 && (passedSoFar + passDelta) >= totalQty;
 
     try {
@@ -882,9 +947,14 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     return false;
                   }
 
-                  const targetQty = Number(w.quantity || w.orderQty || 0);
+                  const targetQty = Number(w.quantity || w.orderQty || w.qty || w.ORDER_QTY || 0);
                   const passedQty = endlineRecords
-                    .filter(r => String(r.wo || r.workorderNumber) === String(w.workorderNumber))
+                    .filter(r => {
+                      const rWo = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
+                      const wWo = String(w.workorderNumber || '').trim().toUpperCase();
+                      const wId = String(w.id || '').trim().toUpperCase();
+                      return rWo && (rWo === wWo || rWo === wId);
+                    })
                     .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
 
                   if (targetQty > 0 && passedQty >= targetQty) {
@@ -1005,29 +1075,35 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
               {/* Progress Gauges */}
               <div className="grid grid-cols-3 gap-3 pt-1">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-center">
-                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Full Target</div>
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Order Target</div>
                   <div className="font-mono font-black text-base mt-0.5 text-slate-800">{totalQuantity}</div>
                 </div>
                 <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-center">
-                  <div className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Checked</div>
-                  <div className="font-mono font-black text-base mt-0.5 text-emerald-700">{checkedSoFar}</div>
+                  <div className="text-[8px] font-bold text-emerald-600 uppercase tracking-widest">Passed</div>
+                  <div className="font-mono font-black text-base mt-0.5 text-emerald-700">{passedSoFar}</div>
                 </div>
-                <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 text-center">
-                  <div className="text-[8px] font-bold text-amber-500 uppercase tracking-widest">Open Remaining</div>
-                  <div className="font-mono font-black text-base mt-0.5 text-amber-700">{openQuantity}</div>
+                <div className={`p-3 rounded-xl border text-center ${isWorkorderCompleted ? 'bg-emerald-100/60 border-emerald-300' : 'bg-amber-50 border-amber-100'}`}>
+                  <div className={`text-[8px] font-bold uppercase tracking-widest ${isWorkorderCompleted ? 'text-emerald-700' : 'text-amber-500'}`}>
+                    {isWorkorderCompleted ? 'Status' : 'Open Remaining'}
+                  </div>
+                  <div className={`font-mono font-black text-base mt-0.5 ${isWorkorderCompleted ? 'text-emerald-800 text-xs font-black' : 'text-amber-700'}`}>
+                    {isWorkorderCompleted ? '100% (AQL)' : openQuantity}
+                  </div>
                 </div>
               </div>
 
               {/* Visual meter */}
               <div className="space-y-1 pl-0.5">
                 <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400">
-                  <span>Batch completeness</span>
-                  <span>{totalQuantity > 0 ? Math.round((checkedSoFar / totalQuantity) * 100) : 0}%</span>
+                  <span>Pass completion</span>
+                  <span className={isWorkorderCompleted ? 'text-emerald-600 font-black' : ''}>
+                    {totalQuantity > 0 ? Math.min(100, Math.round((passedSoFar / totalQuantity) * 100)) : 0}%
+                  </span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
                   <div 
-                    className="bg-gradient-to-r from-emerald-400 to-indigo-500 h-full rounded-full transition-all duration-300" 
-                    style={{ width: `${totalQuantity > 0 ? Math.min(100, (checkedSoFar / totalQuantity) * 100) : 0}%` }}
+                    className={`h-full rounded-full transition-all duration-300 ${isWorkorderCompleted ? 'bg-emerald-500' : 'bg-gradient-to-r from-emerald-400 to-indigo-500'}`} 
+                    style={{ width: `${totalQuantity > 0 ? Math.min(100, (passedSoFar / totalQuantity) * 100) : 0}%` }}
                   />
                 </div>
               </div>
@@ -1110,26 +1186,30 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
               <div className="space-y-1.5">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block pl-0.5 font-bold">Passed pieces status</span>
                 <div
-                  className="w-full py-4 bg-[#4CAF50] text-white rounded-xl font-black text-sm tracking-widest text-center select-none shadow-sm flex items-center justify-center gap-2"
+                  className={`w-full py-4 rounded-xl font-black text-sm tracking-widest text-center select-none shadow-sm flex items-center justify-center gap-2 ${
+                    isWorkorderCompleted ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-[#4CAF50] text-white'
+                  }`}
                 >
                   <Icon name="check" size={16} />
-                  PASS ({10 - defectCount} PCS)
+                  PASS ({isWorkorderCompleted ? 0 : Math.max(0, currentBundleCap - defectCount)} PCS)
                 </div>
               </div>
 
               {/* 4. orange ADD DEFECT block (reactive counter) */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block pl-0.5">Flag defects in bundle</span>
-                <div className="w-full bg-[#FF9800] text-white rounded-xl py-3 px-4 flex items-center justify-between shadow-sm select-none font-bold">
+                <div className={`w-full text-white rounded-xl py-3 px-4 flex items-center justify-between shadow-sm select-none font-bold ${
+                  isWorkorderCompleted ? 'bg-slate-400 opacity-60' : 'bg-[#FF9800]'
+                }`}>
                   <span className="font-extrabold text-xs uppercase tracking-wider pl-1 flex items-center gap-1.5">
                     <Icon name="alert-triangle" size={14} />
                     ADD DEFECTIVE PIECES
                   </span>
-                  <div className="flex items-center gap-5 bg-[#E68A00] px-3.5 py-1 rounded-lg">
+                  <div className="flex items-center gap-5 bg-black/20 px-3.5 py-1 rounded-lg">
                     <button
                       type="button"
                       onClick={() => setDefectCount(prev => Math.max(0, prev - 1))}
-                      disabled={isSubmitting || defectCount === 0}
+                      disabled={isSubmitting || defectCount === 0 || isWorkorderCompleted}
                       className="font-black text-lg hover:scale-125 transition-transform px-1.5 focus:outline-none disabled:opacity-40"
                     >
                       -
@@ -1139,8 +1219,8 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     </span>
                     <button
                       type="button"
-                      onClick={() => setDefectCount(prev => Math.min(10, prev + 1))}
-                      disabled={isSubmitting || defectCount >= 10}
+                      onClick={() => setDefectCount(prev => Math.min(currentBundleCap, prev + 1))}
+                      disabled={isSubmitting || defectCount >= currentBundleCap || isWorkorderCompleted}
                       className="font-black text-lg hover:scale-125 transition-transform px-1.5 focus:outline-none disabled:opacity-40"
                     >
                       +
@@ -1254,6 +1334,33 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                 </div>
               )}
 
+              {/* COMPLETION BANNER IF WORKORDER REACHED 100% */}
+              {isWorkorderCompleted && (
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-emerald-800 shadow-sm animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                      <Icon name="check-circle" size={24} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm uppercase tracking-wide">Workorder 100% Completed!</h4>
+                      <p className="text-xs font-semibold text-emerald-700">
+                        All {totalQuantity} of {totalQuantity} pieces have passed Endline Quality. This workorder has moved to AQL.
+                      </p>
+                    </div>
+                  </div>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('A5')}
+                      className="shrink-0 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Proceed to AQL (A5)</span>
+                      <Icon name="arrow-right" size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* ACTION SUBMIT BLOCK (Stacked vertical rows as requested for full length buttons) */}
               <div className="flex flex-col gap-3 pt-2">
                 
@@ -1261,28 +1368,41 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                 <button
                   type="button"
                   onClick={handleFinalBundleSubmit}
-                  disabled={isSubmitting}
-                  className="w-full py-4 bg-[#2C3E50] hover:bg-[#1A252F] active:translate-y-0.5 text-white rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow transition-all text-center focus:outline-none disabled:opacity-50 cursor-pointer"
+                  disabled={isSubmitting || isWorkorderCompleted}
+                  className={`w-full py-4 rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow transition-all text-center focus:outline-none cursor-pointer ${
+                    isWorkorderCompleted 
+                      ? 'bg-emerald-600 text-white opacity-90 cursor-not-allowed' 
+                      : 'bg-[#2C3E50] hover:bg-[#1A252F] active:translate-y-0.5 text-white disabled:opacity-50'
+                  }`}
                 >
                   {isSubmitting ? (
                     <Icon name="refresh-cw" className="animate-spin" size={16} />
+                  ) : isWorkorderCompleted ? (
+                    <>
+                      <Icon name="check-circle" size={16} className="text-white" />
+                      WORKORDER 100% PASSED (MOVED TO AQL)
+                    </>
                   ) : (
                     <>
                       <Icon name="check-circle" size={15} />
-                      FINAL BUNDLE SUBMIT
+                      FINAL BUNDLE SUBMIT {openQuantity < 10 && openQuantity > 0 ? `(${openQuantity} PCS)` : ''}
                     </>
                   )}
                 </button>
 
-                {/* Bundle Rework (10 pcs) block */}
+                {/* Bundle Rework block */}
                 <button
                   type="button"
-                  onClick={() => setDefectCount(10)}
-                  disabled={isSubmitting}
-                  className="w-full py-4 bg-[#E53E3E] hover:bg-[#C53030] active:translate-y-0.5 text-white rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow transition-all text-center focus:outline-none disabled:opacity-50 cursor-pointer"
+                  onClick={() => setDefectCount(currentBundleCap)}
+                  disabled={isSubmitting || isWorkorderCompleted || currentBundleCap <= 0}
+                  className={`w-full py-4 rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow transition-all text-center focus:outline-none cursor-pointer ${
+                    isWorkorderCompleted || currentBundleCap <= 0
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-[#E53E3E] hover:bg-[#C53030] active:translate-y-0.5 text-white disabled:opacity-50'
+                  }`}
                 >
                   <Icon name="rotate-ccw" size={15} />
-                  Bundle Rework (10 pcs)
+                  Bundle Rework ({currentBundleCap} pcs)
                 </button>
                 
               </div>

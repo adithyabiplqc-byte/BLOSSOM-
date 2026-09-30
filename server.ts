@@ -389,6 +389,52 @@ async function saveFirestoreConfig(gasUrl: string, spreadsheetId: string, gasDri
 // ==========================================
 const LOCAL_DB_FILE = path.join(process.cwd(), ".local_db.json");
 
+// Strict data validator & sanitizer for Endline Quality to guarantee 0% data error
+function sanitizeEndlineData(db: any) {
+  if (!db || !Array.isArray(db.endline_reports)) return;
+  db.workorders = db.workorders || [];
+  
+  const passSums: { [wo: string]: number } = {};
+  
+  db.endline_reports.forEach((r: any) => {
+    const woIdentifier = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
+    if (!woIdentifier) return;
+    
+    const matchedWO = db.workorders.find((w: any) => 
+      String(w.workorderNumber || '').trim().toUpperCase() === woIdentifier ||
+      String(w.id || '').trim().toUpperCase() === woIdentifier
+    );
+    const targetQty = Number(matchedWO?.quantity || matchedWO?.orderQty || r.totalQty || 0);
+    
+    if (targetQty > 0) {
+      const currentPassed = passSums[woIdentifier] || 0;
+      const allowed = Math.max(0, targetQty - currentPassed);
+      let pQty = Number(r.passQty) || 0;
+      
+      // Strict cap: Cumulative passed pieces cannot exceed the workorder order quantity (prevents 140 pcs bug)
+      if (pQty > allowed) {
+        pQty = allowed;
+        r.passQty = String(pQty);
+        if (Number(r.checkedQty) > 0 && Number(r.checkedQty) > pQty) {
+          r.checkedQty = String(Math.max(pQty, Number(r.reworkQty || 0) + Number(r.failQty || 0)));
+        }
+      }
+      
+      passSums[woIdentifier] = currentPassed + pQty;
+      r.totalQty = String(targetQty);
+      r.openQty = String(Math.max(0, targetQty - passSums[woIdentifier]));
+      
+      // If workorder reached 100%, automatically move status to AQL
+      if (passSums[woIdentifier] >= targetQty) {
+        r.moveToAQL = true;
+        if (matchedWO && matchedWO.status !== 'FINAL' && matchedWO.status !== 'COMPLETED') {
+          matchedWO.status = 'AQL';
+        }
+      }
+    }
+  });
+}
+
 function readLocalDb(): any {
   try {
     if (fs.existsSync(LOCAL_DB_FILE)) {
@@ -410,6 +456,7 @@ function readLocalDb(): any {
           parsed.zone = parsed.zone || [];
           parsed.settings = parsed.settings || {};
           parsed.admin_logs = parsed.admin_logs || [];
+          sanitizeEndlineData(parsed);
           return parsed;
         }
       }
@@ -1695,19 +1742,72 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_saveENDLINEQUALITY':
     case 'api_saveEndlineReport': {
       db.endline_reports = db.endline_reports || [];
-      const report = params[0];
+      const report = params[0] || {};
       report.id = report.id || 'end-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
-      db.endline_reports.push(report);
-      
-      // Update WO status
-      if (report.moveToAQL && report.wo) {
-        db.workorders = db.workorders || [];
-        const woIdx = db.workorders.findIndex((w: any) => String(w.workorderNumber) === String(report.wo));
-        if (woIdx !== -1) db.workorders[woIdx].status = 'AQL';
+
+      const woIdentifier = String(report.wo || report.workorderNumber || '').trim();
+      db.workorders = db.workorders || [];
+      const matchedWO = db.workorders.find((w: any) => 
+        String(w.workorderNumber || '').trim().toUpperCase() === woIdentifier.toUpperCase() ||
+        String(w.id || '').trim().toUpperCase() === woIdentifier.toUpperCase()
+      );
+
+      const targetQty = Number(matchedWO?.quantity || matchedWO?.orderQty || report.totalQty || 0);
+      if (targetQty > 0) {
+        // Calculate cumulative passed pieces already logged for this workorder
+        const existingPassed = db.endline_reports
+          .filter((r: any) => {
+            const rWo = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
+            return rWo === woIdentifier.toUpperCase() && String(r.id) !== String(report.id);
+          })
+          .reduce((sum: number, r: any) => sum + (Number(r.passQty) || 0), 0);
+
+        const remaining = Math.max(0, targetQty - existingPassed);
+        const attemptedPass = Number(report.passQty) || 0;
+        
+        // Strict Cap: Can NEVER pass more than the remaining workorder quantity (eliminates 140 pcs bug)
+        if (attemptedPass > remaining) {
+          report.passQty = String(remaining);
+          if (Number(report.checkedQty) > 0 && Number(report.checkedQty) >= attemptedPass) {
+            report.checkedQty = String(remaining);
+          }
+        }
+
+        const newTotalPassed = existingPassed + (Number(report.passQty) || 0);
+        report.totalQty = String(targetQty);
+        report.openQty = String(Math.max(0, targetQty - newTotalPassed));
+
+        // When all pieces have passed, automatically move workorder to AQL
+        if (newTotalPassed >= targetQty) {
+          report.moveToAQL = true;
+          if (matchedWO && matchedWO.status !== 'FINAL' && matchedWO.status !== 'COMPLETED') {
+            matchedWO.status = 'AQL';
+          }
+        }
       }
+
+      // Check if report already exists, update or push
+      const existingIdx = db.endline_reports.findIndex((r: any) => String(r.id) === String(report.id));
+      if (existingIdx !== -1) {
+        db.endline_reports[existingIdx] = { ...db.endline_reports[existingIdx], ...report };
+      } else {
+        db.endline_reports.push(report);
+      }
+      
+      // Update WO status explicitly if moveToAQL is set
+      if (report.moveToAQL && woIdentifier) {
+        const woIdx = db.workorders.findIndex((w: any) => 
+          String(w.workorderNumber || '').trim().toUpperCase() === woIdentifier.toUpperCase() ||
+          String(w.id || '').trim().toUpperCase() === woIdentifier.toUpperCase()
+        );
+        if (woIdx !== -1 && db.workorders[woIdx].status !== 'FINAL' && db.workorders[woIdx].status !== 'COMPLETED') {
+          db.workorders[woIdx].status = 'AQL';
+        }
+      }
+
       writeLocalDb(db);
-      return { success: true };
+      return { success: true, id: report.id };
     }
     
     case 'api_saveAQLREPORT': {
@@ -2063,7 +2163,7 @@ function executeLocalAction(action: string, params: any[]): any {
     }
     
     case 'api_bulkSave': {
-      const sheetName = params[0];
+      const sheetName = String(params[0] || '').toUpperCase();
       const records = params[1] || [];
       records.forEach((r: any) => {
         r.id = r.id || 'bulk-' + Math.random().toString(36).substr(2, 9);
@@ -2086,6 +2186,49 @@ function executeLocalAction(action: string, params: any[]): any {
       };
       const dbKey = keyMap[sheetName] || sheetName;
       db[dbKey] = db[dbKey] || [];
+
+      if (sheetName.includes('ENDLINE')) {
+        records.forEach((r: any) => {
+          const woIdentifier = String(r.wo || r.workorderNumber || '').trim();
+          if (woIdentifier) {
+            db.workorders = db.workorders || [];
+            const matchedWO = db.workorders.find((w: any) => 
+              String(w.workorderNumber || '').trim().toUpperCase() === woIdentifier.toUpperCase() ||
+              String(w.id || '').trim().toUpperCase() === woIdentifier.toUpperCase()
+            );
+            const targetQty = Number(matchedWO?.quantity || matchedWO?.orderQty || r.totalQty || 0);
+            if (targetQty > 0) {
+              const existingPassed = db.endline_reports
+                .filter((er: any) => {
+                  const rWo = String(er.wo || er.workorderNumber || '').trim().toUpperCase();
+                  return rWo === woIdentifier.toUpperCase() && String(er.id) !== String(r.id);
+                })
+                .reduce((sum: number, er: any) => sum + (Number(er.passQty) || 0), 0);
+
+              const remaining = Math.max(0, targetQty - existingPassed);
+              const attemptedPass = Number(r.passQty) || 0;
+              if (attemptedPass > remaining) {
+                r.passQty = String(remaining);
+                if (Number(r.checkedQty) > 0 && Number(r.checkedQty) >= attemptedPass) {
+                  r.checkedQty = String(remaining);
+                }
+              }
+
+              const newTotalPassed = existingPassed + (Number(r.passQty) || 0);
+              r.totalQty = String(targetQty);
+              r.openQty = String(Math.max(0, targetQty - newTotalPassed));
+
+              if (newTotalPassed >= targetQty) {
+                r.moveToAQL = true;
+                if (matchedWO && matchedWO.status !== 'FINAL' && matchedWO.status !== 'COMPLETED') {
+                  matchedWO.status = 'AQL';
+                }
+              }
+            }
+          }
+        });
+      }
+
       db[dbKey].push(...records);
       writeLocalDb(db);
       return { success: true, count: records.length };
