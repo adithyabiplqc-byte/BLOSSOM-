@@ -185,7 +185,6 @@
         "B6",
         "B7",
         "B8",
-        "B9",
         "B3",
         "B2",
         "C4",
@@ -197,7 +196,7 @@
         "A3",
         "A2",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -509,14 +508,13 @@
         "B3",
         "B4",
         "B5",
-        "B9",
         "B8",
         "B7",
         "B6",
         "B2",
         "B",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -551,8 +549,8 @@
         "B4",
         "B5",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "C",
         "C1",
         "C2",
@@ -562,7 +560,7 @@
         "C6",
         "C7",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -701,8 +699,8 @@
       "restrictions": [
         "B2",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "B5",
         "B4",
         "B3",
@@ -719,9 +717,11 @@
         "C4",
         "C5",
         "C6",
-        "C7"
+        "C7",
+        "A8",
+        "B9"
       ],
-      "canDownload": false,
+      "canDownload": true,
       "zone": "TIRUPUR",
       "userSettings": {}
     },
@@ -743,8 +743,8 @@
         "B4",
         "B5",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "C",
         "C1",
         "C2",
@@ -754,10 +754,55 @@
         "C3",
         "C4",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": true,
       "zone": "BANGALORE",
+      "userSettings": {}
+    },
+    {
+      "userCode": "A001",
+      "username": "admin",
+      "password": "admin123",
+      "role": "ADMIN",
+      "location": "SYSTEM",
+      "restrictions": [],
+      "canDownload": true,
+      "zone": "",
+      "userSettings": {}
+    },
+    {
+      "userCode": "U017",
+      "username": "ANAMIKA",
+      "password": 123,
+      "role": "USER",
+      "location": "RAW MATERIAL STORE - TUP",
+      "restrictions": [
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "B8",
+        "B9",
+        "C",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6"
+      ],
+      "canDownload": false,
+      "zone": "TIRUPUR",
       "userSettings": {}
     }
   ],
@@ -1070,6 +1115,424 @@
     }
   ],
   "material_reports": [
+    {
+      "timestamp": "2026-09-29T06:55:38.011Z",
+      "receivedDate": "2026-09-28T18:30:00.000Z",
+      "checkingDate": "2026-09-28T18:30:00.000Z",
+      "date": "2026-09-28T18:30:00.000Z",
+      "grn": 11293,
+      "billNo": "U/1840",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN 70%NYLON 30%SPNDX 08MM MF08 BL LPP 102",
+      "receivedQuantity": 6060,
+      "checkedQuantity": 2000,
+      "passQuantity": 6060,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "TIRUPUR",
+      "location": "TIRUPUR",
+      "inspector": "VISHNUKUMAR",
+      "id": "ed31b7ad-c5cd-4bf1-af64-e8d2c47f98e4"
+    },
+    {
+      "timestamp": "2026-09-29T06:55:38.011Z",
+      "receivedDate": "2026-09-28T18:30:00.000Z",
+      "checkingDate": "2026-09-28T18:30:00.000Z",
+      "date": "2026-09-28T18:30:00.000Z",
+      "grn": 11293,
+      "billNo": "U/1840",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN 70%NYLON 30%SPNDX 08MM MF08 BL LPP 94",
+      "receivedQuantity": 5140,
+      "checkedQuantity": 1500,
+      "passQuantity": 5140,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "TIRUPUR",
+      "location": "TIRUPUR",
+      "inspector": "VISHNUKUMAR",
+      "id": "1b38613b-ccf8-42cf-906c-0aef1566babc"
+    },
+    {
+      "timestamp": "2026-09-29T03:49:21.909Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-28T18:30:00.000Z",
+      "date": "2026-09-28T18:30:00.000Z",
+      "grn": 1379,
+      "billNo": "SHE/E/2627/00165",
+      "supplierName": "GINZA INDUSTRIES LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ACC DRAW CORD 100%CTN 10MM ROPE",
+      "receivedQuantity": 8400,
+      "checkedQuantity": 2520,
+      "passQuantity": 8400,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "PRATHEEKSHA",
+      "id": "97d98329-a5da-4883-9ce6-c9a9e664cb11"
+    },
+    {
+      "timestamp": "2026-09-29T03:47:12.135Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-28T18:30:00.000Z",
+      "date": "2026-09-28T18:30:00.000Z",
+      "grn": 1394,
+      "billNo": 1858,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM MAROON",
+      "receivedQuantity": 19000,
+      "checkedQuantity": 5700,
+      "passQuantity": 19000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "PRATHEEKSHA",
+      "id": "53eaf193-8afc-460e-ba8c-c9cf44afb831"
+    },
+    {
+      "timestamp": "2026-09-29T03:26:51.760Z",
+      "receivedDate": "2026-09-25T18:30:00.000Z",
+      "checkingDate": "2026-09-28T18:30:00.000Z",
+      "date": "2026-09-28T18:30:00.000Z",
+      "grn": 11284,
+      "billNo": "u/1825",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN FOLDING 77%NYLON 23%SPNDX 20MM SN312-20 NAVY BLUE",
+      "receivedQuantity": 5000,
+      "checkedQuantity": 1500,
+      "passQuantity": 5000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "pass",
+      "generalRemarks": "pass",
+      "zone": "TIRUPUR",
+      "location": "TIRUPUR",
+      "inspector": "VISHNUKUMAR",
+      "id": "97598498-dbac-4e6a-876e-6bc97f5efee9"
+    },
+    {
+      "timestamp": "2026-09-28T08:55:33.836Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1382,
+      "billNo": "2026-27/00699",
+      "supplierName": "BTA ELASTICS",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "TAPE PLSTR JULIE LACE 10MM SEPLA ROSE",
+      "receivedQuantity": 5000,
+      "checkedQuantity": 1500,
+      "passQuantity": 5000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "31312f46-2b67-4630-96b2-597baae19ec7"
+    },
+    {
+      "timestamp": "2026-09-28T08:55:33.836Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1382,
+      "billNo": "2026-27/00699",
+      "supplierName": "BTA ELASTICS",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "TAPE PLSTR JULIE LACE 10MM CORONET BLUE",
+      "receivedQuantity": 5000,
+      "checkedQuantity": 1500,
+      "passQuantity": 5000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "b30ed0c1-7ab2-4ad7-8364-758b8e7224c4"
+    },
+    {
+      "timestamp": "2026-09-28T08:55:33.836Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1382,
+      "billNo": "2026-27/00699",
+      "supplierName": "BTA ELASTICS",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "TAPE PLSTR JULIE LACE 10MM SLATE",
+      "receivedQuantity": 2500,
+      "checkedQuantity": 750,
+      "passQuantity": 2500,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "6f85340b-d32c-4a8b-9baf-963e83b3ac75"
+    },
+    {
+      "timestamp": "2026-09-28T08:52:08.956Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1378,
+      "billNo": "U/1790",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM  DEEP TAPUE",
+      "receivedQuantity": 4620,
+      "checkedQuantity": 1386,
+      "passQuantity": 4620,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "04a8eda3-e126-44b3-a447-4d06e4fdf9a4"
+    },
+    {
+      "timestamp": "2026-09-28T08:52:08.956Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1378,
+      "billNo": "U/1790",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM SLATE",
+      "receivedQuantity": 9850,
+      "checkedQuantity": 2955,
+      "passQuantity": 9850,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "8fe34056-5aba-411f-b202-2e91bfba9812"
+    },
+    {
+      "timestamp": "2026-09-28T08:52:08.956Z",
+      "receivedDate": "2026-09-24T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1378,
+      "billNo": "U/1790",
+      "supplierName": "POLYELASTIC P LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM  QUIAL",
+      "receivedQuantity": 980,
+      "checkedQuantity": 294,
+      "passQuantity": 980,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "4d29310e-950f-4a6f-bde2-0eeb19a7544f"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX WHITE",
+      "receivedQuantity": 24100,
+      "checkedQuantity": 7230,
+      "passQuantity": 24100,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "06c8d2a9-5658-4e53-8f64-e71569bdff96"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX MAROON",
+      "receivedQuantity": 13500,
+      "checkedQuantity": 4050,
+      "passQuantity": 13500,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "c9b511e0-bd24-46a7-aef6-0b96549829c7"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX DEEP TAUPE",
+      "receivedQuantity": 12300,
+      "checkedQuantity": 3690,
+      "passQuantity": 12300,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "74d7d482-5c61-4c78-b85f-d36ad9ef4383"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX QUIAL",
+      "receivedQuantity": 12500,
+      "checkedQuantity": 3750,
+      "passQuantity": 12500,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "6f76b4e2-cd43-4860-a0a5-573f9966e181"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX CORONET BLUE",
+      "receivedQuantity": 12600,
+      "checkedQuantity": 3780,
+      "passQuantity": 12600,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "dd49413a-dd07-413e-a424-1c1377552b39"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX SLATE",
+      "receivedQuantity": 12300,
+      "checkedQuantity": 3690,
+      "passQuantity": 12300,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "67898984-54b6-417e-9e47-ca87acc81d15"
+    },
+    {
+      "timestamp": "2026-09-28T08:48:06.421Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1350,
+      "billNo": "JSF/2049/26-27",
+      "supplierName": "J S FASHION ACCESSORIES",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX SEPLA ROSE",
+      "receivedQuantity": 12100,
+      "checkedQuantity": 3630,
+      "passQuantity": 12100,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "b3199aec-cf50-4a08-9b04-b8fb099a0159"
+    },
+    {
+      "timestamp": "2026-09-28T08:31:21.710Z",
+      "receivedDate": "2026-09-21T18:30:00.000Z",
+      "checkingDate": "2026-09-27T18:30:00.000Z",
+      "date": "2026-09-27T18:30:00.000Z",
+      "grn": 1341,
+      "billNo": "FFA/2026-27/907",
+      "supplierName": "FRESH FEEL APPARELS",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "HOOK-EYE 2x3 MICRO FIBER NYLON-SS 32-60MM NON BRUSHED-RELUX BLACK",
+      "receivedQuantity": 5920,
+      "checkedQuantity": 1776,
+      "passQuantity": 5920,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "66d68bc4-1134-4c8d-8587-11ab6228eb63"
+    },
     {
       "timestamp": "2026-09-26T11:18:06.197Z",
       "receivedDate": "2026-09-21T18:30:00.000Z",
@@ -8688,203 +9151,303 @@
   "rework_reports": [],
   "reports_sop": [
     {
-      "id": "sop-1788951264640",
-      "title": "SPEC SHEET   WOVEN FABRIC 100% CTN",
-      "category": "Specifications",
-      "description": "100% CTN SPEC SHEET",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US/view?usp=drivesdk\", \"https://drive.google.com/file/d/1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US/view?usp=drivesdk\")",
-      "attachmentName": "SPEC SHEET - WOVEN FABRIC 100% CTN.pdf",
+      "id": "sop-1790586637008",
+      "title": "BONDING SOP",
+      "category": "SOP",
+      "description": "BONDING SOP",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1X04XgzjV286OyA9YydsniBkU84hY5IhA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1X04XgzjV286OyA9YydsniBkU84hY5IhA/view?usp=drivesdk\")",
+      "attachmentName": "BONDING SOP.pdf",
       "creator": "ADITHYA",
       "creatorCode": "U011",
       "zone": "COMMON",
       "location": "COMMON",
-      "timestamp": "2026-09-09T10:54:24.640Z",
+      "timestamp": "2026-09-28T09:10:37.008Z",
       "googleDriveEmail": "",
       "department": "Quality",
       "version": 1,
-      "remarks": "KERALA SPEC SHEET",
-      "driveFileId": "1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US/view?usp=drivesdk\", \"https://drive.google.com/file/d/1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US\", \"https://drive.google.com/uc?export=download&id=1DCMxfkz1cEVIwTTzYnk7oICUQL9Ch_US\")",
-      "fileSize": "195 KB",
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1X04XgzjV286OyA9YydsniBkU84hY5IhA",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1X04XgzjV286OyA9YydsniBkU84hY5IhA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1X04XgzjV286OyA9YydsniBkU84hY5IhA/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1X04XgzjV286OyA9YydsniBkU84hY5IhA\", \"https://drive.google.com/uc?export=download&id=1X04XgzjV286OyA9YydsniBkU84hY5IhA\")",
+      "fileSize": "328.07 KB",
       "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-08T18:30:00.000Z",
-      "lastModified": "2026-09-09T10:54:24.640Z",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:10:37.008Z",
       "status": "ACTIVE"
     },
     {
-      "id": "sop-1790158903912",
-      "title": "QMS CROSS FUNCTIONAL    BANGLORE   SEP 2026",
-      "category": "Audit Report",
-      "description": "Audited by Adithya S Menon",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu/view?usp=drivesdk\", \"https://drive.google.com/file/d/1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu/view?usp=drivesdk\")",
-      "attachmentName": "QMS CROSS FUNCTIONAL  - BANGLORE - SEP 2026.pdf",
+      "id": "sop-1790586694680",
+      "title": "SOP   PEST CONTROL IN WARE HOUSE",
+      "category": "SOP",
+      "description": "SOP FOR PEST CONTROL",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s/view?usp=drivesdk\", \"https://drive.google.com/file/d/13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s/view?usp=drivesdk\")",
+      "attachmentName": "SOP - PEST CONTROL IN WARE HOUSE.pdf",
       "creator": "ADITHYA",
       "creatorCode": "U011",
       "zone": "COMMON",
       "location": "COMMON",
-      "timestamp": "2026-09-23T10:21:43.912Z",
+      "timestamp": "2026-09-28T09:11:34.680Z",
       "googleDriveEmail": "",
       "department": "Quality",
       "version": 1,
-      "remarks": "17.09.2026 - 18.09.2026",
-      "driveFileId": "1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu/view?usp=drivesdk\", \"https://drive.google.com/file/d/1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu\", \"https://drive.google.com/uc?export=download&id=1ROBAha68ZNJbWy-fwUGcblot2D0KPFgu\")",
-      "fileSize": "3.54 MB",
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s/view?usp=drivesdk\", \"https://drive.google.com/file/d/13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s\", \"https://drive.google.com/uc?export=download&id=13GWTIKVzzLVUf7br_z8xIz6WFxWPjz-s\")",
+      "fileSize": "235.14 KB",
       "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:21:43.912Z",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:11:34.680Z",
       "status": "ACTIVE"
     },
     {
-      "id": "sop-1790159099256",
+      "id": "sop-1790586821903",
       "title": "K N TRADERS VISIT REPORT",
       "category": "Audit Report",
-      "description": "VISITED BY ADITHYA S MENON",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5/view?usp=drivesdk\", \"https://drive.google.com/file/d/1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5/view?usp=drivesdk\")",
+      "description": "VISITED BY ADITHYA",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8/view?usp=drivesdk\", \"https://drive.google.com/file/d/19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8/view?usp=drivesdk\")",
       "attachmentName": "K N TRADERS VISIT REPORT.pdf",
       "creator": "ADITHYA",
       "creatorCode": "U011",
       "zone": "COMMON",
       "location": "COMMON",
-      "timestamp": "2026-09-23T10:24:59.256Z",
-      "googleDriveEmail": "",
-      "department": "Quality",
-      "version": 1,
-      "remarks": "14.09.2026",
-      "driveFileId": "1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5/view?usp=drivesdk\", \"https://drive.google.com/file/d/1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5\", \"https://drive.google.com/uc?export=download&id=1HlmtiEYqyPf7gJUHo0AbsHG8teJqk0A5\")",
-      "fileSize": "860.72 KB",
-      "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:24:59.256Z",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "sop-1790159166074",
-      "title": "EBO   KANNUR VISIT REPORT",
-      "category": "Audit Report",
-      "description": "VISITED BY ADITHYA S MENON",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2/view?usp=drivesdk\", \"https://drive.google.com/file/d/1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2/view?usp=drivesdk\")",
-      "attachmentName": "EBO - KANNUR VISIT REPORT.pdf",
-      "creator": "ADITHYA",
-      "creatorCode": "U011",
-      "zone": "COMMON",
-      "location": "COMMON",
-      "timestamp": "2026-09-23T10:26:06.074Z",
-      "googleDriveEmail": "",
-      "department": "Quality",
-      "version": 1,
-      "remarks": "19.09.2026",
-      "driveFileId": "1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2/view?usp=drivesdk\", \"https://drive.google.com/file/d/1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2\", \"https://drive.google.com/uc?export=download&id=1SRMlBSJG8Xdmmja101M4LiWGgi2eXoI2\")",
-      "fileSize": "864.28 KB",
-      "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:26:06.074Z",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "sop-1790159332159",
-      "title": "SPEC SHEET   KNITTED FABRIC 100% CTN",
-      "category": "SOP",
-      "description": "KERALA SPEC SHEET",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1odItI5G5_7YJxVtoX4UcUerg05grrdcI/view?usp=drivesdk\", \"https://drive.google.com/file/d/1odItI5G5_7YJxVtoX4UcUerg05grrdcI/view?usp=drivesdk\")",
-      "attachmentName": "SPEC SHEET - KNITTED FABRIC 100% CTN.pdf",
-      "creator": "ADITHYA",
-      "creatorCode": "U011",
-      "zone": "COMMON",
-      "location": "COMMON",
-      "timestamp": "2026-09-23T10:28:52.159Z",
+      "timestamp": "2026-09-28T09:13:41.903Z",
       "googleDriveEmail": "",
       "department": "Quality",
       "version": 1,
       "remarks": "",
-      "driveFileId": "1odItI5G5_7YJxVtoX4UcUerg05grrdcI",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1odItI5G5_7YJxVtoX4UcUerg05grrdcI/view?usp=drivesdk\", \"https://drive.google.com/file/d/1odItI5G5_7YJxVtoX4UcUerg05grrdcI/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1odItI5G5_7YJxVtoX4UcUerg05grrdcI\", \"https://drive.google.com/uc?export=download&id=1odItI5G5_7YJxVtoX4UcUerg05grrdcI\")",
-      "fileSize": "195.14 KB",
+      "driveFileId": "19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8/view?usp=drivesdk\", \"https://drive.google.com/file/d/19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8\", \"https://drive.google.com/uc?export=download&id=19t_8twWhqMaQrWpLHqzPFfVh7N8wLoY8\")",
+      "fileSize": "814.42 KB",
       "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:28:52.159Z",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:13:41.903Z",
       "status": "ACTIVE"
     },
     {
-      "id": "sop-1790160101226",
-      "title": "SPEC SHEET   TOP & BOTTOM LARGE",
-      "category": "Specifications",
-      "description": "KERALA SPEC SHEET",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq/view?usp=drivesdk\", \"https://drive.google.com/file/d/1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq/view?usp=drivesdk\")",
-      "attachmentName": "SPEC SHEET - TOP & BOTTOM LARGE.pdf",
-      "creator": "ADITHYA",
-      "creatorCode": "U011",
-      "zone": "COMMON",
-      "location": "COMMON",
-      "timestamp": "2026-09-23T10:41:41.226Z",
-      "googleDriveEmail": "",
-      "department": "Quality",
-      "version": 1,
-      "remarks": "APPROVED BY MANAGER",
-      "driveFileId": "1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq/view?usp=drivesdk\", \"https://drive.google.com/file/d/1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq\", \"https://drive.google.com/uc?export=download&id=1rYRDeZ7kQg97iHerwteUgI1WGBtNBByq\")",
-      "fileSize": "191.83 KB",
-      "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:41:41.226Z",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "sop-1790160182897",
-      "title": "SPEC SHEET   SIDE ELASTIC",
-      "category": "SOP",
-      "description": "KERALA SPEC SHEET",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l/view?usp=drivesdk\", \"https://drive.google.com/file/d/1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l/view?usp=drivesdk\")",
-      "attachmentName": "SPEC SHEET - SIDE ELASTIC.pdf",
-      "creator": "ADITHYA",
-      "creatorCode": "U011",
-      "zone": "COMMON",
-      "location": "COMMON",
-      "timestamp": "2026-09-23T10:43:02.897Z",
-      "googleDriveEmail": "",
-      "department": "Quality",
-      "version": 1,
-      "remarks": "APPROVED BY MANAGER",
-      "driveFileId": "1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l/view?usp=drivesdk\", \"https://drive.google.com/file/d/1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l\", \"https://drive.google.com/uc?export=download&id=1Zm7aRU6s_KrAYuoyOg2VZEDlUwjrAE0l\")",
-      "fileSize": "194.67 KB",
-      "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-22T18:30:00.000Z",
-      "lastModified": "2026-09-23T10:43:02.897Z",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "sop-1790323276278",
+      "id": "sop-1790586857044",
       "title": "DISTRIBUTOR VISIT REPORT   PERUMBAVOOR",
       "category": "Audit Report",
-      "description": "VISITED ON 24.09.2026",
-      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt/view?usp=drivesdk\", \"https://drive.google.com/file/d/1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt/view?usp=drivesdk\")",
+      "description": "VISITED BY ADITHYA",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1/view?usp=drivesdk\", \"https://drive.google.com/file/d/1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1/view?usp=drivesdk\")",
       "attachmentName": "DISTRIBUTOR VISIT REPORT - PERUMBAVOOR.pdf",
       "creator": "ADITHYA",
       "creatorCode": "U011",
       "zone": "COMMON",
       "location": "COMMON",
-      "timestamp": "2026-09-25T08:01:16.278Z",
+      "timestamp": "2026-09-28T09:14:17.044Z",
       "googleDriveEmail": "",
       "department": "Quality",
       "version": 1,
-      "remarks": "VISITED BY ADITHYA S MENON",
-      "driveFileId": "1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt",
-      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt/view?usp=drivesdk\", \"https://drive.google.com/file/d/1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt/view?usp=drivesdk\")",
-      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt\", \"https://drive.google.com/uc?export=download&id=1kEb0CGk3RcoynMVmzaHCVh9eqpPn78Dt\")",
+      "remarks": "",
+      "driveFileId": "1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1/view?usp=drivesdk\", \"https://drive.google.com/file/d/1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1\", \"https://drive.google.com/uc?export=download&id=1JaxhmOzDZyM8iVzMz24WLKfJiba4gYR1\")",
       "fileSize": "833.86 KB",
       "uploadedBy": "ADITHYA",
-      "uploadDate": "2026-09-24T18:30:00.000Z",
-      "lastModified": "2026-09-25T08:01:16.278Z",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:14:17.044Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790586921813",
+      "title": "QMS CROSS FUNCTIONAL    BANGLORE   SEP 2026",
+      "category": "Audit Report",
+      "description": "AUDITED BY ADITHYA",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA/view?usp=drivesdk\")",
+      "attachmentName": "QMS CROSS FUNCTIONAL  - BANGLORE - SEP 2026.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:15:21.813Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "",
+      "driveFileId": "1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA\", \"https://drive.google.com/uc?export=download&id=1fMrtXrTfQOv_LliLY53phYd2pl3EOEhA\")",
+      "fileSize": "3.54 MB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:15:21.813Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790586966642",
+      "title": "EBO   KANNUR VISIT REPORT",
+      "category": "Audit Report",
+      "description": "VISITED BY ADITHYA",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6/view?usp=drivesdk\", \"https://drive.google.com/file/d/11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6/view?usp=drivesdk\")",
+      "attachmentName": "EBO - KANNUR VISIT REPORT.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:16:06.642Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "",
+      "driveFileId": "11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6/view?usp=drivesdk\", \"https://drive.google.com/file/d/11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6\", \"https://drive.google.com/uc?export=download&id=11Yi7hkDMIZ8VFcU-nwkS6cuE6k6VG2G6\")",
+      "fileSize": "864.28 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:16:06.642Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790587033286",
+      "title": "SPEC SHEET   WOVEN FABRIC 100% CTN",
+      "category": "Specifications",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N/view?usp=drivesdk\", \"https://drive.google.com/file/d/1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - WOVEN FABRIC 100% CTN.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:17:13.286Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N/view?usp=drivesdk\", \"https://drive.google.com/file/d/1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N\", \"https://drive.google.com/uc?export=download&id=1a40O9d0jk3mHKH-2hhC0vOGDS0KNJ85N\")",
+      "fileSize": "195 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:17:13.286Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790587101031",
+      "title": "SPEC SHEET   TOP & BOTTOM LARGE",
+      "category": "Specifications",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1Bxg5SntadEM3drej-1oU25ChJK07T2fV/view?usp=drivesdk\", \"https://drive.google.com/file/d/1Bxg5SntadEM3drej-1oU25ChJK07T2fV/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - TOP & BOTTOM LARGE.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:18:21.031Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1Bxg5SntadEM3drej-1oU25ChJK07T2fV",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1Bxg5SntadEM3drej-1oU25ChJK07T2fV/view?usp=drivesdk\", \"https://drive.google.com/file/d/1Bxg5SntadEM3drej-1oU25ChJK07T2fV/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1Bxg5SntadEM3drej-1oU25ChJK07T2fV\", \"https://drive.google.com/uc?export=download&id=1Bxg5SntadEM3drej-1oU25ChJK07T2fV\")",
+      "fileSize": "191.83 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:18:21.031Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790587133446",
+      "title": "SPEC SHEET   SIDE ELASTIC",
+      "category": "Specifications",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - SIDE ELASTIC.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:18:53.446Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA/view?usp=drivesdk\", \"https://drive.google.com/file/d/1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA\", \"https://drive.google.com/uc?export=download&id=1xYrrqTaKjjaCm-Q78vP9GXCFuw-t1FsA\")",
+      "fileSize": "194.67 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:18:53.446Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790588047507",
+      "title": "SPEC SHEET   SHINING ELASTIC",
+      "category": "Specifications",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT/view?usp=drivesdk\", \"https://drive.google.com/file/d/1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - SHINING ELASTIC.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:34:07.507Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT/view?usp=drivesdk\", \"https://drive.google.com/file/d/1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT\", \"https://drive.google.com/uc?export=download&id=1BNSCYm8TADfHaQ4aW5h067b0WuznTaiT\")",
+      "fileSize": "193.45 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:34:07.507Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790588279399",
+      "title": "SPEC SHEET   PU FOAM",
+      "category": "Specifications",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU/view?usp=drivesdk\", \"https://drive.google.com/file/d/18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - PU FOAM.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:37:59.399Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU/view?usp=drivesdk\", \"https://drive.google.com/file/d/18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU\", \"https://drive.google.com/uc?export=download&id=18JVYI1yWMh_T9uEvd0m9fOgLgW9vGvAU\")",
+      "fileSize": "202.8 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:37:59.399Z",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790588373003",
+      "title": "SPEC SHEET   MICROFIBER BUFF ELASTIC",
+      "category": "SOP",
+      "description": "KERALA SPEC SHEET",
+      "attachmentUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL/view?usp=drivesdk\", \"https://drive.google.com/file/d/1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL/view?usp=drivesdk\")",
+      "attachmentName": "SPEC SHEET - MICROFIBER BUFF ELASTIC .pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-28T09:39:33.003Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "APPROVED BY MANAGER",
+      "driveFileId": "1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL",
+      "viewUrl": "=HYPERLINK(\"https://drive.google.com/file/d/1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL/view?usp=drivesdk\", \"https://drive.google.com/file/d/1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL/view?usp=drivesdk\")",
+      "downloadUrl": "=HYPERLINK(\"https://drive.google.com/uc?export=download&id=1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL\", \"https://drive.google.com/uc?export=download&id=1mR_6EX9hqlUIEswNcKvg6WaRYiqie1yL\")",
+      "fileSize": "193.63 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-27T18:30:00.000Z",
+      "lastModified": "2026-09-28T09:39:33.003Z",
       "status": "ACTIVE"
     }
   ],
@@ -8943,725 +9506,725 @@
       "timestamp": "2026-07-06T15:23:35.197Z"
     },
     {
-      "id": "zmap-7025180",
+      "id": "zmap-9976733",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "101 - SUSAN V C",
-      "timestamp": "2026-09-28T07:40:18.202Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-1316875",
+      "id": "zmap-4580624",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "102 - SYAMALA K K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-1632747",
+      "id": "zmap-5293637",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "106 - SHEELA N K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-5572017",
+      "id": "zmap-4774443",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "108 - SUJATHA K O",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-6987315",
+      "id": "zmap-2276743",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "112 - PREETHA VINODKUMAR",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-5902046",
+      "id": "zmap-5657731",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1128 - AJITHA M V",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-8773040",
+      "id": "zmap-4568881",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1129 - VIMALA N C",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-5774485",
+      "id": "zmap-751539",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "113 - KRISHNA GIREESH",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-7444215",
+      "id": "zmap-2976480",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1132 - SABITHA K M",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-3445054",
+      "id": "zmap-9076019",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "115 - JANCY GEORGE",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-9438453",
+      "id": "zmap-9472109",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1152 - BINDU P K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.341Z"
     },
     {
-      "id": "zmap-2415297",
+      "id": "zmap-320676",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "121 - VIJAYAMMA JAYAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2147274",
+      "id": "zmap-2963199",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1240 - VINITHA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8920080",
+      "id": "zmap-9670028",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1245 - SANDHYA SUBHASH",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3511206",
+      "id": "zmap-3588010",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1246 - GINIMOL",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-4489381",
+      "id": "zmap-8332007",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1247 - DEEPA K M",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2435250",
+      "id": "zmap-6443840",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "126 - SANTHA SHAJI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-771720",
+      "id": "zmap-6831017",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "128 - SAJITHA V K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3099862",
+      "id": "zmap-8418787",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "130 - SOBHANA VIJAYAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5470250",
+      "id": "zmap-5922161",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "136 - JULI SUNNY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3759278",
+      "id": "zmap-8044364",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1367 - RAMESH KARAKARIA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-842913",
+      "id": "zmap-8876141",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "137 - P K LATHA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1084701",
+      "id": "zmap-2775565",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1398 - SANITHA SUNIL",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-64814",
+      "id": "zmap-7257737",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "14 - SUNIL K V",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-9847917",
+      "id": "zmap-1426969",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1435 - NEETHU ANTONY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7935192",
+      "id": "zmap-8304842",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1459 - SOUMYA RAJAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8726120",
+      "id": "zmap-105079",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "147 - SHIJI SAJU",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2638769",
+      "id": "zmap-325911",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1490 - MINI JOHN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-6820628",
+      "id": "zmap-1711927",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1541 - JOLLY THOMAS",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7411235",
+      "id": "zmap-4354126",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1553 - BINILA P K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2726006",
+      "id": "zmap-5405837",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1675 - SALINI A B",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3080125",
+      "id": "zmap-848260",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1676 - LAYA UMESH",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2898173",
+      "id": "zmap-1832368",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1795 - SOBINI SOMAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-9008012",
+      "id": "zmap-7378132",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1860 - REMYA SHINO",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1591280",
+      "id": "zmap-6164278",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "189 - SONIYA BABY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7651044",
+      "id": "zmap-5598253",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "195 - LIJIMOLE C V",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5002002",
+      "id": "zmap-6004378",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1972 - SANJU KUMAR HANSDA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2669592",
+      "id": "zmap-6270884",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "214 - SUDHA VIJAYAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5359603",
+      "id": "zmap-6084397",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "225 - VINEETHA M D",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-6516760",
+      "id": "zmap-3750453",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2274 - AJIMOL K A",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-414135",
+      "id": "zmap-5198182",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "228 - JAYA M A",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5142555",
+      "id": "zmap-603760",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "229 - SHEELA SURESH",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7032232",
+      "id": "zmap-826097",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2317 - REJITHA SAJEEV",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5226301",
+      "id": "zmap-8787298",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2318 - BINDU T T",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2912479",
+      "id": "zmap-6103124",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "232 - SARITHA BIJU",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1695079",
+      "id": "zmap-8950651",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2334 - BEENA SREERAJ",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7180870",
+      "id": "zmap-4942270",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2339 - PRIYA GIBI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8976368",
+      "id": "zmap-7950429",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2354 - SHAIJA KRISHNANKUTTY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8798601",
+      "id": "zmap-9122619",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2427 - SINDHU GEORGE",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8755423",
+      "id": "zmap-7116858",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2532 - PRIYA K THANKAPPAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8314547",
+      "id": "zmap-5323039",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2535 - PREEJA JEEMON",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8528676",
+      "id": "zmap-9799393",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2536 - AJITHA BIJU",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1716458",
+      "id": "zmap-2883568",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "260 - LATHA K B",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1173049",
+      "id": "zmap-5153513",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2630 - JALAJA KRISHNAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1633848",
+      "id": "zmap-2906289",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2631 - SURAMYA PK",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-4824401",
+      "id": "zmap-5063383",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2640 - SUJATHA PRAKASAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8651377",
+      "id": "zmap-1854026",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2645 - SUKANYA KUMAR CK",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7134824",
+      "id": "zmap-2473810",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2650 - AMRITHA RAJAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7391073",
+      "id": "zmap-8980511",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2659 - SABITHA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2676536",
+      "id": "zmap-224784",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "267 - NITHA C V",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3624831",
+      "id": "zmap-8067320",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2704 - RAMYA SREE MOHANAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-4990993",
+      "id": "zmap-5766126",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2705 - SHIJI PR",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-4581233",
+      "id": "zmap-4687194",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2765 - NISHA CP",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-4632415",
+      "id": "zmap-6421976",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2767 - KALEESWARI A",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2809513",
+      "id": "zmap-784594",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2774 - BINAYA PRADHAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7306084",
+      "id": "zmap-7311800",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2811 - RATHEESHKUMAR R",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-106463",
+      "id": "zmap-2553511",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "308 - RADHA M N",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1893127",
+      "id": "zmap-6253574",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "31 - USHA BABY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-316531",
+      "id": "zmap-8278665",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "321 - SWAPNA SANTHOSH",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2418048",
+      "id": "zmap-8686626",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "322 - SOUMYA KRISHNAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1476158",
+      "id": "zmap-4801208",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "333 - MANJU SAJI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-813389",
+      "id": "zmap-981077",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "351 - SANDHYA KRISHNAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8396602",
+      "id": "zmap-8861597",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "371 - SUNIMOL A K",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1886079",
+      "id": "zmap-6095339",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "384 - ANITHA SIVAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7366635",
+      "id": "zmap-9459481",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "42 - SIJI VARGHESE",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2111267",
+      "id": "zmap-6101886",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "511 - BINDU GOPALAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-9622593",
+      "id": "zmap-8417671",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "6 - PAILYKUNJU T P",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-61682",
+      "id": "zmap-423534",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "644 - DHANYA REVI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1518781",
+      "id": "zmap-7335119",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "654 - SUJATHA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-140581",
+      "id": "zmap-4365271",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "681 - SINI N M",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5851271",
+      "id": "zmap-8624900",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "69 - SINDHU GIGI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2732463",
+      "id": "zmap-3170291",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "70 - GEETHA S",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1863514",
+      "id": "zmap-5347269",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "72 - SANI BABY",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-7023605",
+      "id": "zmap-383817",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "73 - SALY JOHN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-6611175",
+      "id": "zmap-9833329",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "74 - SUSEELA SHIBU",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-9277149",
+      "id": "zmap-1153017",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "79 - RAJANI N",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3654947",
+      "id": "zmap-9768407",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "84 - LATHIKA VISWANATHAN",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-3167299",
+      "id": "zmap-5030464",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "86 - GEETHA V U",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-2331780",
+      "id": "zmap-4812938",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "87 - OMANA E A",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1443077",
+      "id": "zmap-4837335",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "92 - PAUL N J",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-858291",
+      "id": "zmap-3771899",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "934 - SIJO VARGHESE",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-642885",
+      "id": "zmap-995869",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "94 - P K SHEELA",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-1604903",
+      "id": "zmap-3623664",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "95 - SHAINY K J",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-5301445",
+      "id": "zmap-2736874",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "97 - SINDHU JOJI",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-8817597",
+      "id": "zmap-3729891",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "98 - SINI K N",
-      "timestamp": "2026-09-28T07:40:18.203Z"
+      "timestamp": "2026-09-30T06:18:23.342Z"
     },
     {
-      "id": "zmap-6760880",
+      "id": "zmap-614968",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ADITHYA",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-8814136",
+      "id": "zmap-1904159",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "GOPAKUMAR",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-7499321",
+      "id": "zmap-3926939",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHOK",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-4042827",
+      "id": "zmap-5015458",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHIR",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-1426906",
+      "id": "zmap-7398188",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SREEJITH",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-2425167",
+      "id": "zmap-4699310",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SHARATH",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-8590804",
+      "id": "zmap-6374232",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "CHRISTY",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
-      "id": "zmap-8487585",
+      "id": "zmap-8374828",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "MIDHUN",
-      "timestamp": "2026-09-28T07:40:18.292Z"
+      "timestamp": "2026-09-30T06:18:23.371Z"
     },
     {
       "id": "zmap-177980",
@@ -14396,6 +14959,510 @@
       "action": "EDIT USER",
       "details": "Updated user U016 (VARALAKSHMI)",
       "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-29T05:42:22.952Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T05:42:31.771Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T05:42:39.128Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:48:34.039Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for U015: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:48:36.689Z",
+      "module": "SYSTEM",
+      "action": "DROPDOWN SETTINGS",
+      "details": "Updated settings for U015",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:30.806Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U015 (VISHNUKUMAR)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:32.809Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U015 (VISHNUKUMAR)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:33.773Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U015 (VISHNUKUMAR)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:35.180Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U015 (VISHNUKUMAR)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:42.085Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U015",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:42.608Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U015",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:43.118Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B7 for U015",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-29T06:56:47.080Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B10 for U015",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T05:59:14.748Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T05:59:30.732Z",
+      "module": "SYSTEM",
+      "action": "ADD USER",
+      "details": "Created user U017 (ANAMIKA)",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:12:37.174Z",
+      "module": "USER_MGMT",
+      "action": "DELETE USER",
+      "details": "Deleted User W001. Reason: NOT NEEDED ",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:12:42.679Z",
+      "module": "SYSTEM",
+      "action": "DELETE USER",
+      "details": "Deleted user W001. Reason: NOT NEEDED ",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:13:21.113Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for U017: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:13:23.434Z",
+      "module": "SYSTEM",
+      "action": "DROPDOWN SETTINGS",
+      "details": "Updated settings for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:14:15.036Z",
+      "module": "USER_MGMT",
+      "action": "DELETE USER",
+      "details": "Deleted User U001. Reason: NOT NEEDED",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:14:21.187Z",
+      "module": "SYSTEM",
+      "action": "DELETE USER",
+      "details": "Deleted user U001. Reason: NOT NEEDED",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:14:51.098Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U012 (PRATHEEKSHA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:14:59.431Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B7 for U012",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:00.841Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:01.635Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:02.689Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:03.017Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:04.377Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:04.903Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:05.516Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:05.907Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:07.966Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:07.949Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:08.973Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:09.828Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:10.211Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:10.342Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:10.744Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:11.705Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:10.966Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:13.766Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:13.714Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:16.361Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:15.979Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:17.066Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:17.517Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B3 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:17.559Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:18.061Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:17.918Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:18.730Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:18.463Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:19.110Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:19.189Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A4 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:19.429Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:20.229Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B6 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:19.665Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:21.241Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U017 (ANAMIKA)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:21.716Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B5 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:23.719Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B2 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:24.638Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B9 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:24.832Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C1 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:24.981Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B4 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:25.058Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B10 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:25.100Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B8 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:24.011Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B7 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:27.470Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:28.533Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C2 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:29.839Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C3 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:31.236Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C6 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:33.355Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C5 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:33.838Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C4 for U017",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-09-30T06:15:36.793Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C7 for U017",
+      "admin": "ADITHYA S MENON"
     }
   ],
   "settings": {
@@ -14476,6 +15543,73 @@
         "RAW MATERIAL STORE - TUP",
         "RAW MATERIAL STORE - BNGLR"
       ]
-    }
+    },
+    "ZONE": [
+      "KERALA",
+      "TIRUPUR",
+      "BANGALORE"
+    ],
+    "SUPPLIER": [
+      "SUPPLIER A",
+      "SUPPLIER B"
+    ],
+    "ITEMS": [
+      "ITEM 1",
+      "ITEM 2"
+    ],
+    "COLOR": [
+      "BLACK",
+      "WHITE",
+      "NAVY"
+    ],
+    "DEFECTS": [
+      "STAIN",
+      "HOLE",
+      "SHADING"
+    ],
+    "WORKERS": [
+      "WORKER 1",
+      "WORKER 2"
+    ],
+    "MACHINE": [
+      "M001",
+      "M002"
+    ],
+    "OPERATION": [
+      "OP 1",
+      "OP 2"
+    ],
+    "SIZE": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "CUPSIZE": [
+      "A",
+      "B",
+      "C"
+    ],
+    "UNIT": [
+      "MUVATTUPUZHA",
+      "ANGAMALY",
+      "RAW MATERIAL STORE"
+    ],
+    "LINE": [
+      "LINE 1",
+      "LINE 2"
+    ],
+    "STYLE_NAME": [
+      "STYLE A",
+      "STYLE B",
+      "STYLE C",
+      "STYLE 1",
+      "STYLE 2"
+    ],
+    "ZONES": [
+      "KERALA",
+      "TIRUPUR",
+      "BANGALORE"
+    ]
   }
 }

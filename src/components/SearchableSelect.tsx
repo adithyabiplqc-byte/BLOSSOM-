@@ -32,19 +32,26 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const optionsListRef = useRef<HTMLDivElement>(null);
 
-  // Parse children options
-  const options = React.Children.toArray(children)
-    .map(child => {
-      if (React.isValidElement(child) && child.type === 'option') {
-        return {
-          value: child.props.value !== undefined ? String(child.props.value) : String(child.props.children || ''),
-          label: String(child.props.children || ''),
-          disabled: !!child.props.disabled,
-        };
+  // Parse children options recursively unwrapping React Fragments
+  const extractOptions = (nodes: React.ReactNode): { value: string; label: string; disabled: boolean }[] => {
+    const list: { value: string; label: string; disabled: boolean }[] = [];
+    React.Children.forEach(nodes, child => {
+      if (!React.isValidElement(child)) return;
+      if (child.type === React.Fragment) {
+        list.push(...extractOptions((child.props as any)?.children));
+      } else if (child.type === 'option') {
+        const props = child.props as any;
+        list.push({
+          value: props.value !== undefined ? String(props.value) : String(props.children || ''),
+          label: String(props.children || ''),
+          disabled: !!props.disabled,
+        });
       }
-      return null;
-    })
-    .filter((opt): opt is { value: string; label: string; disabled: boolean } => opt !== null);
+    });
+    return list;
+  };
+
+  const options = extractOptions(children);
 
   // Close dropdown on click outside
   useEffect(() => {

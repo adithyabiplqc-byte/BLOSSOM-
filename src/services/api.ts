@@ -2,9 +2,111 @@ import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
+import { INITIAL_DB } from '../data/initialDb';
 
 export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
 export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
+
+// Fallback helper to query embedded initial database by zone when proxy is offline (e.g. Netlify / GitHub Pages)
+function getLocalFallbackData(method: string, args: any[]): any {
+  const arg0 = args[0] || {};
+  const zone = typeof arg0 === 'string' ? arg0 : (arg0.zone || arg0.location || 'ALL');
+  const zTarget = String(zone).trim().toUpperCase();
+
+  const filterByZone = (list: any[]) => {
+    if (!Array.isArray(list)) return [];
+    if (!zTarget || zTarget === 'ALL' || zTarget === 'WORKORDER' || zTarget === 'SYSTEM' || zTarget === 'COMMON') {
+      return list;
+    }
+    return list.filter((r: any) => {
+      const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+      const rUnit = String(r.unit || '').trim().toUpperCase();
+      if (rZone === zTarget || rUnit === zTarget) return true;
+      const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+      const cTarget = clean(zTarget);
+      if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+      return rZone.includes(zTarget) || zTarget.includes(rZone);
+    });
+  };
+
+  switch (method) {
+    case 'api_getInitialData': {
+      let users = INITIAL_DB?.users || [];
+      try {
+        const cachedU = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
+        if (Array.isArray(cachedU) && cachedU.length > 0) users = cachedU;
+      } catch (e) {}
+      let wos = filterByZone(INITIAL_DB?.workorders || []);
+      try {
+        const cachedW = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
+        if (Array.isArray(cachedW) && cachedW.length > 0) wos = filterByZone(cachedW);
+      } catch (e) {}
+      let settings = INITIAL_DB?.settings || {};
+      try {
+        const cachedS = JSON.parse(localStorage.getItem('bqos_cache_settings') || '{}');
+        if (cachedS && Object.keys(cachedS).length > 0) settings = cachedS;
+      } catch (e) {}
+
+      return {
+        users,
+        workorders: wos,
+        settings,
+        serverTime: new Date().toISOString(),
+        success: true
+      };
+    }
+    case 'api_getUsers': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (e) {}
+      return INITIAL_DB?.users || [];
+    }
+    case 'api_getWorkorders': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
+      return filterByZone(INITIAL_DB?.workorders || []);
+    }
+    case 'api_getMaterialData':
+      return filterByZone(INITIAL_DB?.material_reports || []);
+    case 'api_getCuttingData':
+      return filterByZone(INITIAL_DB?.cutting_reports || []);
+    case 'api_getInlineData':
+    case 'api_get8ROUNDSYSTEMData':
+      return filterByZone(INITIAL_DB?.sewing_reports || []);
+    case 'api_getEndlineData':
+      return filterByZone(INITIAL_DB?.endline_reports || []);
+    case 'api_getAQLData':
+      return filterByZone(INITIAL_DB?.aql_reports || []);
+    case 'api_getFinalAuditData':
+      return filterByZone(INITIAL_DB?.final_reports || []);
+    case 'api_getREPORTS_SOPData':
+      return INITIAL_DB?.reports_sop || [];
+    case 'api_getCustomerComplaints':
+      return INITIAL_DB?.customer_complaints || [];
+    case 'api_getZoneMappings': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_zm') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (e) {}
+      return INITIAL_DB?.zone || [];
+    }
+    case 'api_getUserSettings':
+    case 'api_getGlobalSettings': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_settings') || '{}');
+        if (cached && Object.keys(cached).length > 0) return cached;
+      } catch (e) {}
+      return INITIAL_DB?.settings || {};
+    }
+    case 'api_getAdminLogs':
+      return INITIAL_DB?.admin_logs || [];
+    default:
+      return [];
+  }
+}
 
 // Helper to generate UUIDs client-side
 function generateUuid() {
@@ -1571,13 +1673,13 @@ export const api = {
       // Resilient proxy execution with automatic retries and local fallback
       let result: any = null;
       let lastProxyError: any = null;
-      const MAX_RETRIES = 2;
+      const MAX_RETRIES = 1;
 
       try {
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           try {
             const controller = new AbortController();
-            const timeoutDuration = (method.includes('upload') || method.includes('Upload')) ? 60000 : 30000;
+            const timeoutDuration = (method.includes('upload') || method.includes('Upload')) ? 60000 : 8000;
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
             const proxyHeaders: any = { 'Content-Type': 'application/json' };
@@ -1592,13 +1694,29 @@ export const api = {
 
             clearTimeout(timeoutId);
 
-            if (response.status === 404) {
-              throw new Error("Proxy Not Found");
-            }
+            if (response.status === 404 || !response.ok) {
+              // Node proxy /api/gas is not available (e.g. static hosting on Netlify or GitHub Pages)
+              // Attempt direct browser fetch to Google Apps Script Web App
+              try {
+                const directRes = await fetch(DEFAULT_SHEETS_URL, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                  body: JSON.stringify({ action: gasMethod, params: gasArgs }),
+                  redirect: 'follow'
+                });
+                if (directRes.ok) {
+                  const directText = await directRes.text();
+                  if (!directText.trim().startsWith('<')) {
+                    const parsedDirect = JSON.parse(directText);
+                    if (parsedDirect && (parsedDirect.success === true || (parsedDirect.success !== false && !parsedDirect.error))) {
+                      result = parsedDirect;
+                      break;
+                    }
+                  }
+                }
+              } catch (directErr) {}
 
-            if ([502, 503, 504].includes(response.status) && attempt < MAX_RETRIES) {
-              await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
-              continue;
+              throw new Error(`Proxy status ${response.status}`);
             }
 
             const parsedResult = await response.json();
@@ -1613,8 +1731,7 @@ export const api = {
             lastProxyError = attemptErr;
             if (attemptErr.message === "CONFIGURATION_REQUIRED") throw attemptErr;
             if (attempt < MAX_RETRIES) {
-              // Wait briefly before retrying in case of server restart or temporary packet loss
-              await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+              await new Promise(r => setTimeout(r, 200));
             }
           }
         }
@@ -1628,72 +1745,25 @@ export const api = {
           return result;
         }
 
-        // If proxy attempts exhausted without throwing CONFIGURATION_REQUIRED, gracefully fall back
-        console.warn(`[API RESILIENCE] All proxy attempts failed for ${method}:`, lastProxyError?.message);
+        // If proxy attempts exhausted, gracefully fall back to integrated initial database!
+        console.warn(`[API RESILIENCE] Falling back to embedded local data for ${method}:`, lastProxyError?.message);
 
         // 1. Heartbeat ping: always return connected status
         if (method === 'api_ping') {
           return { success: true, status: "Connected (Offline Resilient)", timestamp: new Date().toISOString() };
         }
 
-        // 2. Read operations: check in-memory cache and localStorage backups
+        // 2. Read operations: check in-memory cache, then embedded INITIAL_DB & client localStorage
         if (isCacheable) {
           if (cacheKey && clientReadCache.has(cacheKey)) {
             return clientReadCache.get(cacheKey)!.data;
           }
 
-          if (method === 'api_getInitialData') {
-            try {
-              const cachedUsers = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
-              const cachedWOs = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
-              const cachedSettings = JSON.parse(localStorage.getItem('bqos_cache_settings') || '{}');
-              if (cachedUsers.length > 0) {
-                console.log("[API Local Cache] Serving initial data from client cache during network interruption.");
-                return {
-                  users: cachedUsers,
-                  workorders: cachedWOs,
-                  settings: cachedSettings,
-                  serverTime: new Date().toISOString(),
-                  success: true
-                };
-              }
-            } catch (e) {}
+          const fallbackData = getLocalFallbackData(method, sanitizedArgs);
+          if (cacheKey && fallbackData !== undefined) {
+            clientReadCache.set(cacheKey, { timestamp: Date.now(), data: fallbackData });
           }
-
-          if (method === 'api_getUsers') {
-            try {
-              const u = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
-              if (u.length > 0) return u;
-            } catch (e) {}
-            return [];
-          }
-
-          if (method === 'api_getWorkorders') {
-            try {
-              const wo = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
-              if (wo.length > 0) return wo;
-            } catch (e) {}
-            return [];
-          }
-
-          if (method === 'api_getZoneMappings') {
-            try {
-              const zm = JSON.parse(localStorage.getItem('bqos_cache_zm') || '[]');
-              if (zm.length > 0) return zm;
-            } catch (e) {}
-            return [];
-          }
-
-          if (method === 'api_getUserSettings' || method === 'api_getGlobalSettings') {
-            try {
-              const s = JSON.parse(localStorage.getItem('bqos_cache_settings') || '{}');
-              if (Object.keys(s).length > 0) return s;
-            } catch (e) {}
-            return {};
-          }
-
-          // Generic list queries: return empty array rather than crashing the UI
-          return [];
+          return fallbackData;
         }
 
         // 3. Write operations: queue mutation locally so no user inputs are lost
@@ -1727,7 +1797,7 @@ export const api = {
           return { success: true, status: "Connected", timestamp: new Date().toISOString() };
         }
         if (isCacheable) {
-          return [];
+          return getLocalFallbackData(method, sanitizedArgs);
         }
         return { success: true, offline: true, id: args[0]?.id || `mock-${Date.now()}` };
       }

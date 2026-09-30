@@ -11,6 +11,7 @@ import SubmoduleContainer from './components/SubmoduleContainer';
 
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
+import { INITIAL_DB } from './data/initialDb';
 
 const getSavedSession = () => {
   try {
@@ -292,14 +293,17 @@ const App: React.FC = () => {
           } catch (e) {}
         }
         if (allUsers.length === 0) {
-          allUsers = [
-            { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "SYSTEM", restrictions: [], canDownload: true },
-            { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "SYSTEM", restrictions: [], canDownload: true },
-            { userCode: "W001", username: "wo1", password: "123", role: "WORKORDER", location: "SYSTEM", restrictions: [], canDownload: true }
+          allUsers = INITIAL_DB?.users || [
+            { userCode: "A001", username: "admin", password: "admin123", role: "ADMIN", location: "SYSTEM", restrictions: [], canDownload: true }
           ];
         }
         setUsers(allUsers);
         try { localStorage.setItem('bqos_cache_users', JSON.stringify(allUsers)); } catch(e){}
+
+        if ((!initialData?.workorders || initialData.workorders.length === 0) && INITIAL_DB?.workorders) {
+          setWorkorders(INITIAL_DB.workorders);
+          try { localStorage.setItem('bqos_cache_wo', JSON.stringify(INITIAL_DB.workorders)); } catch(e){}
+        }
 
         // Set global settings or user settings if returned by initial data!
         if (initialData?.settings) {

@@ -519,9 +519,13 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     const matched = normalizedData.filter(row => {
       if (!row) return false;
       // Zone filter
-      const zoneMatch = selectedZone === 'ALL' || 
-                        (row.zone && String(row.zone).toUpperCase() === selectedZone.toUpperCase()) || 
-                        (row.location && String(row.location).toUpperCase() === selectedZone.toUpperCase());
+      const cleanSelectedZone = (selectedZone || 'ALL').trim().toUpperCase();
+      const zoneMatch = cleanSelectedZone === 'ALL' || 
+                        cleanSelectedZone === 'SELECT...' || 
+                        cleanSelectedZone === '' ||
+                        (row.zone && String(row.zone).toUpperCase() === cleanSelectedZone) || 
+                        (row.location && String(row.location).toUpperCase() === cleanSelectedZone) ||
+                        (row.unit && String(row.unit).toUpperCase() === cleanSelectedZone);
       
       // Item filter
       const itemMatch = selectedItem === 'ALL' || 
@@ -1219,14 +1223,10 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               }}
               disabled={!isCommonOrAdmin}
             >
-              {isCommonOrAdmin ? (
-                <>
-                  <option value="ALL">ALL ZONES</option>
-                  {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
-                </>
-              ) : (
-                <option value={userAssignedZone}>{userAssignedZone}</option>
-              )}
+              {isCommonOrAdmin && <option value="ALL">ALL ZONES</option>}
+              {(isCommonOrAdmin ? currentZones : [userAssignedZone]).map((z: string) => (
+                <option key={z} value={z}>{z}</option>
+              ))}
             </SearchableSelect>
           </div>
         </div>
