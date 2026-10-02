@@ -99,13 +99,13 @@ export const getEmbedPreviewUrl = (url: string, driveId?: string): string => {
   const cleanUrl = extractCleanDocumentUrl(url, driveId);
   if (!cleanUrl) return '';
 
-  if (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:')) {
+  if (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:') || cleanUrl.startsWith('/uploads/') || cleanUrl.startsWith('/api/')) {
     return cleanUrl;
   }
 
   const fId = extractDriveFileId(cleanUrl, driveId);
   if (fId) {
-    return `https://drive.google.com/file/d/${fId}/preview`;
+    return `/api/drive-proxy?id=${fId}`;
   }
 
   if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {

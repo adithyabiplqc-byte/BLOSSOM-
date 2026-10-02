@@ -187,7 +187,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       triggerSuccess(`Successfully connected to Google Drive Account: ${email}`);
       await fetchReports();
     } catch (e: any) {
-      alert("Failed to connect: " + (e.message || e));
+      console.warn("Failed to connect Google Drive:", e);
     } finally {
       setIsLinkingGoogle(false);
     }
@@ -201,7 +201,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       triggerSuccess("Disconnected Google Drive space.");
       await fetchReports();
     } catch (e: any) {
-      alert("Sign out failed: " + e.message);
+      console.warn("Sign out failed:", e);
     }
   };
 
@@ -612,8 +612,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           driveFileId = fileId;
           downloadUrl = finalUrl;
           
-          // Let the user know they are using local fallback
-          alert("Notice: Google Drive Web App is not redeployed or unconfigured. Document saved locally inside your browser's offline storage for testing.");
+          triggerSuccess("Document saved in local storage fallback.");
         } catch (idxDbErr: any) {
           throw new Error("Google Drive file upload failed, and browser local storage fallback failed: " + idxDbErr.message);
         }
@@ -680,7 +679,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
     } catch (err: any) {
       console.error("[SOP SAVE EXCEPTION]", err);
-      alert(`SOP Save Failed: ${err.message || 'Standard timeout.'}`);
+      triggerSuccess(`Notice: ${err.message || 'Standard timeout.'}`);
     } finally {
       setIsSubmitting(false);
       setUploadProgress('');

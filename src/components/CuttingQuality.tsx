@@ -423,12 +423,12 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                 className="w-full bg-white border-2 border-slate-150 focus:border-indigo-500 rounded-xl font-bold"
               >
                 <option value="">Select Workorder...</option>
-                {workorders
-                  .filter(w => {
+                {(() => {
+                  const filtered = workorders.filter(w => {
                     const wZone = String(w.zone || w.location || "").toUpperCase().trim();
-                    const fZone = String(formPre.zone).toUpperCase().trim();
+                    const fZone = String(formPre.zone || "").toUpperCase().trim();
                     
-                    let matchesZone = (fZone === '' || fZone === 'ALL' || wZone === fZone);
+                    let matchesZone = (fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === '' || wZone === 'COMMON' || wZone === 'SYSTEM' || wZone === fZone);
                     if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL') {
                       const matchingRows = zoneMappings.filter(m => 
                         String(m.zone || '').toUpperCase().trim() === fZone || 
@@ -440,23 +440,22 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Precutting dropdown shows workorders in PRECUTTING, held in Precutting, or general PASS_AND_HOLD
                     const rawStatus = getWorkorderStatus(w);
                     const status = String(rawStatus || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const matchesStatus = (
-                      status === '' ||
-                      status === 'PRECUTTING' || 
-                      status === 'PRECUTTINGPASSANDHOLD' ||
-                      status === 'PASSANDHOLD'
-                    );
-                    return matchesZone && matchesStatus;
-                  })
-                  .map(w => (
+                    const isClosed = status === 'COMPLETED' || status === 'CLOSED';
+                    return matchesZone && !isClosed;
+                  });
+                  const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                    const rawStatus = getWorkorderStatus(w);
+                    const status = String(rawStatus || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    return status !== 'COMPLETED' && status !== 'CLOSED';
+                  });
+                  return (list.length > 0 ? list : workorders).map(w => (
                     <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
-                  ))
-                }
+                  ));
+                })()}
               </SearchableSelect>
             </div>
           </div>
@@ -646,13 +645,13 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                 className="w-full bg-white border-2 border-slate-150 focus:border-indigo-500 rounded-xl font-bold"
               >
                 <option value="">Select Workorder...</option>
-                {workorders
-                  .filter(w => {
+                {(() => {
+                  const filtered = workorders.filter(w => {
                     const wZone = String(w.zone || w.location || "").toUpperCase().trim();
-                    const fZone = String(form.zone).toUpperCase().trim();
+                    const fZone = String(form.zone || "").toUpperCase().trim();
                     
-                    let matchesZone = wZone === fZone;
-                    if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                    let matchesZone = (fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === '' || wZone === 'COMMON' || wZone === 'SYSTEM' || wZone === fZone);
+                    if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL') {
                       const matchingRows = zoneMappings.filter(m => 
                         String(m.zone || '').toUpperCase().trim() === fZone || 
                         String(m.id || '').toUpperCase().trim() === fZone
@@ -663,24 +662,22 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                       );
                     }
 
-                    // Main Cutting dropdown shows workorders passed from Precutting, held in Precutting, held in Cutting, CUTTING, or PASS_AND_HOLD
                     const rawStatus = getWorkorderStatus(w);
                     const status = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const matchesStatus = (
-                      status === 'CUTTING' || 
-                      status === 'PRECUTTINGPASSED' || 
-                      status === 'PRECUTTINGPASSANDHOLD' || 
-                      status === 'CUTTINGPASSANDHOLD' ||
-                      status === 'PASSANDHOLD'
-                    );
-                    return matchesZone && matchesStatus;
-                  })
-                  .map(w => (
+                    const isClosed = status === 'COMPLETED' || status === 'CLOSED';
+                    return matchesZone && !isClosed;
+                  });
+                  const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                    const rawStatus = getWorkorderStatus(w);
+                    const status = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    return status !== 'COMPLETED' && status !== 'CLOSED';
+                  });
+                  return (list.length > 0 ? list : workorders).map(w => (
                     <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
-                  ))
-                }
+                  ));
+                })()}
               </SearchableSelect>
             </div>
           </div>

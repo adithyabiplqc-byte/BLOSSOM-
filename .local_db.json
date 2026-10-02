@@ -185,7 +185,6 @@
         "B6",
         "B7",
         "B8",
-        "B9",
         "B3",
         "B2",
         "C4",
@@ -197,7 +196,7 @@
         "A3",
         "A2",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -509,14 +508,13 @@
         "B3",
         "B4",
         "B5",
-        "B9",
         "B8",
         "B7",
         "B6",
         "B2",
         "B",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -551,8 +549,8 @@
         "B4",
         "B5",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "C",
         "C1",
         "C2",
@@ -562,8 +560,7 @@
         "C6",
         "C7",
         "A8",
-        "B10",
-        "B7"
+        "B9"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -702,8 +699,8 @@
       "restrictions": [
         "B2",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "B5",
         "B4",
         "B3",
@@ -722,8 +719,7 @@
         "C6",
         "C7",
         "A8",
-        "B7",
-        "B10"
+        "B9"
       ],
       "canDownload": true,
       "zone": "TIRUPUR",
@@ -747,8 +743,8 @@
         "B4",
         "B5",
         "B6",
+        "B7",
         "B8",
-        "B9",
         "C",
         "C1",
         "C2",
@@ -758,7 +754,7 @@
         "C3",
         "C4",
         "A8",
-        "B10"
+        "B9"
       ],
       "canDownload": true,
       "zone": "BANGALORE",
@@ -797,7 +793,6 @@
         "B7",
         "B8",
         "B9",
-        "B10",
         "C",
         "C1",
         "C2",
@@ -1121,26 +1116,400 @@
   ],
   "material_reports": [
     {
-      "timestamp": "2026-09-30T07:00:21.756Z",
-      "receivedDate": "2026-09-29T18:30:00.000Z",
-      "checkingDate": "2026-09-29T18:30:00.000Z",
-      "date": "2026-09-29T18:30:00.000Z",
-      "grn": 999,
-      "billNo": "TEST-99",
-      "supplierName": "TEST SUPPLIER",
-      "materialType": "Packing Material",
-      "materialCategory": "Packing Material",
-      "itemName": "ELASTIC",
-      "receivedQuantity": 100,
-      "checkedQuantity": 100,
-      "passQuantity": 98,
-      "rejectedQuantity": 2,
-      "itemRemarks": "Pass",
-      "generalRemarks": "",
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "TAPE NARROW WOVEN BINDING 100%NYLON 18MM SN201-18 MEDIEVAL BLUE",
+      "receivedQuantity": 5100,
+      "checkedQuantity": 1530,
+      "passQuantity": 5100,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
       "zone": "KERALA",
       "location": "KERALA",
-      "inspector": "ADMIN",
-      "id": "0881c115-7f72-4580-82b6-9bf66e083564"
+      "inspector": "SONY LENIN",
+      "id": "0d605d4b-fb02-478d-83e5-ea0bb893e91f"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 BURL WOOD",
+      "receivedQuantity": 2850,
+      "checkedQuantity": 855,
+      "passQuantity": 2850,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "2aff5301-c7d0-48da-b1fd-a62231889598"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 CARBON",
+      "receivedQuantity": 4950,
+      "checkedQuantity": 1485,
+      "passQuantity": 4950,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "91fd4db7-e1c9-4837-a2c6-678c41ed567e"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 CORONET BLUE",
+      "receivedQuantity": 5100,
+      "checkedQuantity": 1530,
+      "passQuantity": 5100,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "a69eeece-a45b-46c4-9b49-2d728cdd7bc5"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 DEEP TAUPE",
+      "receivedQuantity": 3000,
+      "checkedQuantity": 900,
+      "passQuantity": 0,
+      "rejectedQuantity": 3000,
+      "itemRemarks": "REJECT",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "d54cae10-758e-43f4-b267-bf5ff9c12960"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 MAROON",
+      "receivedQuantity": 3000,
+      "checkedQuantity": 900,
+      "passQuantity": 3000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "COMMERCIAL PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "039dc6be-cb9d-43ee-b350-f3b8ae9f21ca"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 MAUVE",
+      "receivedQuantity": 2850,
+      "checkedQuantity": 855,
+      "passQuantity": 2850,
+      "rejectedQuantity": 0,
+      "itemRemarks": "COMMERCIAL PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "424a690f-fef7-438e-a295-10a86613ec32"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 QUIAL",
+      "receivedQuantity": 2850,
+      "checkedQuantity": 855,
+      "passQuantity": 2850,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "4dcdcead-99f6-4a83-96ac-19fb039e1650"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 SEPLA ROSE",
+      "receivedQuantity": 4950,
+      "checkedQuantity": 1485,
+      "passQuantity": 4950,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "d15f6210-83d1-49d9-a69c-4ae151141fb4"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN BUFF 90%NYLON 10%SPNDX 10MM SN18-10 SLATE",
+      "receivedQuantity": 4950,
+      "checkedQuantity": 1485,
+      "passQuantity": 4950,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "f86123e0-14aa-450f-9c5a-3d505da77c7b"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 12MM CORONET BLUE",
+      "receivedQuantity": 5000,
+      "checkedQuantity": 1500,
+      "passQuantity": 5000,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "1105390d-e116-46a4-b0f2-ca35f914c5f1"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 12MM SLATE",
+      "receivedQuantity": 5000,
+      "checkedQuantity": 1500,
+      "passQuantity": 0,
+      "rejectedQuantity": 5000,
+      "itemRemarks": "REJECT",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "fd8cb44a-77e7-47c0-895c-48d9c63ae8cd"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 12MM SEPLA ROSE",
+      "receivedQuantity": 4750,
+      "checkedQuantity": 1425,
+      "passQuantity": 4750,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "e74abde4-7341-4b3e-914e-aaca3ee7c89d"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM CORONET BLUE",
+      "receivedQuantity": 9950,
+      "checkedQuantity": 2985,
+      "passQuantity": 9950,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "cca93f6d-0b8a-4ece-b7df-90df9eacd25f"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM SEPLA ROSE",
+      "receivedQuantity": 4940,
+      "checkedQuantity": 1482,
+      "passQuantity": 4940,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "5b7e6894-51d4-47c7-8e87-0c5c9633bd8b"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 14MM SLATE",
+      "receivedQuantity": 6230,
+      "checkedQuantity": 1869,
+      "passQuantity": 0,
+      "rejectedQuantity": 6230,
+      "itemRemarks": "REJECT",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "c1778dcf-d87c-4cd1-80f3-674a1b755446"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC NARROW WOVEN ARROW 84%NYLON 16%SPANDEX 18MM BLACK",
+      "receivedQuantity": 3280,
+      "checkedQuantity": 984,
+      "passQuantity": 3280,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "1e43392e-f32f-4060-84b4-ffab1ad1b399"
+    },
+    {
+      "timestamp": "2026-10-01T04:41:19.600Z",
+      "receivedDate": "2026-08-31T18:30:00.000Z",
+      "checkingDate": "2026-09-30T18:30:00.000Z",
+      "date": "2026-09-30T18:30:00.000Z",
+      "grn": 1252,
+      "billNo": 1627,
+      "supplierName": "SACHINAM FABRICS PVT LTD",
+      "materialType": "Raw Material",
+      "materialCategory": "Raw Material",
+      "itemName": "ELASTIC MICRO NARROW WOVEN BUFF 84%NYLON 16%SPNDX 18MM MEDIEVAL BLUE",
+      "receivedQuantity": 5160,
+      "checkedQuantity": 1548,
+      "passQuantity": 5160,
+      "rejectedQuantity": 0,
+      "itemRemarks": "PASS",
+      "generalRemarks": "14230 MTR REJECTED DUE TO SHADE VARIATION , 6000 MTR COMMERCIAL PASS & BALANCE QTY PASS",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "inspector": "SONY LENIN",
+      "id": "fd8c1d90-9223-49a7-ac31-ac4d068737b1"
     },
     {
       "timestamp": "2026-09-30T06:48:45.230Z",
@@ -8667,8 +9036,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 0,
+      "totalQty": "100",
+      "openQty": "90",
       "remarks": "Passed pieces from Bundle B10",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:43.883Z",
@@ -8699,8 +9068,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 20,
+      "totalQty": "100",
+      "openQty": "80",
       "remarks": "Passed pieces from Bundle B8",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:38.251Z",
@@ -8731,8 +9100,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 20,
+      "totalQty": "100",
+      "openQty": "70",
       "remarks": "Passed pieces from Bundle B8",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:32.290Z",
@@ -8763,8 +9132,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 30,
+      "totalQty": "100",
+      "openQty": "60",
       "remarks": "Passed pieces from Bundle B7",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:25.565Z",
@@ -8795,8 +9164,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 40,
+      "totalQty": "100",
+      "openQty": "50",
       "remarks": "Passed pieces from Bundle B6",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:16.954Z",
@@ -8827,8 +9196,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 60,
+      "totalQty": "100",
+      "openQty": "40",
       "remarks": "Passed pieces from Bundle B4",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:09.267Z",
@@ -8859,8 +9228,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 60,
+      "totalQty": "100",
+      "openQty": "30",
       "remarks": "Passed pieces from Bundle B4",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:03.635Z",
@@ -8891,8 +9260,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 70,
+      "totalQty": "100",
+      "openQty": "20",
       "remarks": "Passed pieces from Bundle B3",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:58.101Z",
@@ -8923,8 +9292,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 80,
+      "totalQty": "100",
+      "openQty": "10",
       "remarks": "Passed pieces from Bundle B2",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:52.380Z",
@@ -8955,12 +9324,12 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 90,
+      "totalQty": "100",
+      "openQty": "0",
       "remarks": "Passed pieces from Bundle B1",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:44.355Z",
-      "moveToAQL": false
+      "moveToAQL": true
     },
     {
       "id": "endline_bpass_1790320948078_7ovmu",
@@ -8987,8 +9356,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 1300,
-      "openQty": 1280,
+      "totalQty": "1300",
+      "openQty": "1290",
       "remarks": "Passed pieces from Bundle B2",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:22:28.078Z",
@@ -9019,8 +9388,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 1300,
-      "openQty": 1290,
+      "totalQty": "1300",
+      "openQty": "1280",
       "remarks": "Passed pieces from Bundle B1",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:22:21.833Z",
@@ -9424,6 +9793,31 @@
       "uploadDate": "2026-09-27T18:30:00.000Z",
       "lastModified": "2026-09-28T09:39:33.003Z",
       "status": "ACTIVE"
+    },
+    {
+      "id": "sop-1790753675860",
+      "title": "SPEC SHEET   WOVEN FABRIC 100% CTN",
+      "category": "SOP",
+      "description": "hgjgh",
+      "attachmentUrl": "indexeddb://sop_file_1790753663339",
+      "attachmentName": "SPEC SHEET - WOVEN FABRIC 100% CTN.pdf",
+      "creator": "ADITHYA",
+      "creatorCode": "U011",
+      "zone": "COMMON",
+      "location": "COMMON",
+      "timestamp": "2026-09-30T07:34:35.860Z",
+      "googleDriveEmail": "",
+      "department": "Quality",
+      "version": 1,
+      "remarks": "hjgh",
+      "driveFileId": "sop_file_1790753663339",
+      "viewUrl": "indexeddb://sop_file_1790753663339",
+      "downloadUrl": "indexeddb://sop_file_1790753663339",
+      "fileSize": "195 KB",
+      "uploadedBy": "ADITHYA",
+      "uploadDate": "2026-09-29T18:30:00.000Z",
+      "lastModified": "2026-09-30T07:34:35.860Z",
+      "status": "ACTIVE"
     }
   ],
   "customer_complaints": [
@@ -9481,725 +9875,725 @@
       "timestamp": "2026-07-06T15:23:35.197Z"
     },
     {
-      "id": "zmap-8928283",
+      "id": "zmap-9834943",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "101 - SUSAN V C",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-5717641",
+      "id": "zmap-4924748",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "102 - SYAMALA K K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-118783",
+      "id": "zmap-2712005",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "106 - SHEELA N K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-2003844",
+      "id": "zmap-2176541",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "108 - SUJATHA K O",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-3664895",
+      "id": "zmap-2458462",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "112 - PREETHA VINODKUMAR",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-9650227",
+      "id": "zmap-5150587",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1128 - AJITHA M V",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-8683296",
+      "id": "zmap-15080",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1129 - VIMALA N C",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-4950449",
+      "id": "zmap-8181303",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "113 - KRISHNA GIREESH",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-3664121",
+      "id": "zmap-8923729",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1132 - SABITHA K M",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-9674907",
+      "id": "zmap-2173604",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "115 - JANCY GEORGE",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-9114076",
+      "id": "zmap-6298890",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1152 - BINDU P K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-1476623",
+      "id": "zmap-6069109",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "121 - VIJAYAMMA JAYAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-7782469",
+      "id": "zmap-7806666",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1240 - VINITHA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-2167405",
+      "id": "zmap-4246043",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1245 - SANDHYA SUBHASH",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-6874965",
+      "id": "zmap-5572444",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1246 - GINIMOL",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-9718244",
+      "id": "zmap-7885605",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1247 - DEEPA K M",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.516Z"
     },
     {
-      "id": "zmap-8675744",
+      "id": "zmap-8924708",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "126 - SANTHA SHAJI",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4594440",
+      "id": "zmap-4053889",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "128 - SAJITHA V K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6316358",
+      "id": "zmap-5132312",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "130 - SOBHANA VIJAYAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9678762",
+      "id": "zmap-5230879",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "136 - JULI SUNNY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4458769",
+      "id": "zmap-6432395",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1367 - RAMESH KARAKARIA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7132507",
+      "id": "zmap-5858837",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "137 - P K LATHA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8465662",
+      "id": "zmap-2305100",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1398 - SANITHA SUNIL",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9336637",
+      "id": "zmap-9413348",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "14 - SUNIL K V",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6193299",
+      "id": "zmap-245579",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1435 - NEETHU ANTONY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9746569",
+      "id": "zmap-2862293",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1459 - SOUMYA RAJAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3085729",
+      "id": "zmap-6011052",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "147 - SHIJI SAJU",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-2806364",
+      "id": "zmap-9621615",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1490 - MINI JOHN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7306313",
+      "id": "zmap-9988403",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1541 - JOLLY THOMAS",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-206629",
+      "id": "zmap-440905",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1553 - BINILA P K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4525974",
+      "id": "zmap-8071269",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1675 - SALINI A B",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3658034",
+      "id": "zmap-6747432",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1676 - LAYA UMESH",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7679045",
+      "id": "zmap-189347",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1795 - SOBINI SOMAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1326108",
+      "id": "zmap-883607",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1860 - REMYA SHINO",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6505629",
+      "id": "zmap-7703248",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "189 - SONIYA BABY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9982490",
+      "id": "zmap-7179322",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "195 - LIJIMOLE C V",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1246946",
+      "id": "zmap-8026429",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1972 - SANJU KUMAR HANSDA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1329411",
+      "id": "zmap-7536795",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "214 - SUDHA VIJAYAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8599407",
+      "id": "zmap-5097706",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "225 - VINEETHA M D",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1334238",
+      "id": "zmap-7615177",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2274 - AJIMOL K A",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-78088",
+      "id": "zmap-8938735",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "228 - JAYA M A",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8321866",
+      "id": "zmap-4325960",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "229 - SHEELA SURESH",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-801987",
+      "id": "zmap-817448",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2317 - REJITHA SAJEEV",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8610159",
+      "id": "zmap-2018010",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2318 - BINDU T T",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8493095",
+      "id": "zmap-6864857",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "232 - SARITHA BIJU",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6201339",
+      "id": "zmap-3749581",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2334 - BEENA SREERAJ",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5727844",
+      "id": "zmap-2371872",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2339 - PRIYA GIBI",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4224437",
+      "id": "zmap-8037001",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2354 - SHAIJA KRISHNANKUTTY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1161959",
+      "id": "zmap-7959587",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2427 - SINDHU GEORGE",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6830113",
+      "id": "zmap-4801886",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2532 - PRIYA K THANKAPPAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-364719",
+      "id": "zmap-4148824",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2535 - PREEJA JEEMON",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5624098",
+      "id": "zmap-5764012",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2536 - AJITHA BIJU",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8070551",
+      "id": "zmap-2701913",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "260 - LATHA K B",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4293415",
+      "id": "zmap-8344598",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2630 - JALAJA KRISHNAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5260559",
+      "id": "zmap-7624222",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2631 - SURAMYA PK",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3689333",
+      "id": "zmap-6785465",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2640 - SUJATHA PRAKASAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9724123",
+      "id": "zmap-145682",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2645 - SUKANYA KUMAR CK",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9493335",
+      "id": "zmap-9521332",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2650 - AMRITHA RAJAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9625706",
+      "id": "zmap-5898285",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2659 - SABITHA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9767395",
+      "id": "zmap-4401770",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "267 - NITHA C V",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-384897",
+      "id": "zmap-75110",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2704 - RAMYA SREE MOHANAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1160916",
+      "id": "zmap-5632168",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2705 - SHIJI PR",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7848581",
+      "id": "zmap-1861395",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2765 - NISHA CP",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5941031",
+      "id": "zmap-336557",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2767 - KALEESWARI A",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1880623",
+      "id": "zmap-3948273",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2774 - BINAYA PRADHAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3070922",
+      "id": "zmap-8601546",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2811 - RATHEESHKUMAR R",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8241360",
+      "id": "zmap-8138616",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "308 - RADHA M N",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4495566",
+      "id": "zmap-6275044",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "31 - USHA BABY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5166712",
+      "id": "zmap-3581372",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "321 - SWAPNA SANTHOSH",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3283596",
+      "id": "zmap-5622546",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "322 - SOUMYA KRISHNAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-2387919",
+      "id": "zmap-3334421",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "333 - MANJU SAJI",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4115793",
+      "id": "zmap-9489601",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "351 - SANDHYA KRISHNAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5276422",
+      "id": "zmap-3556658",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "371 - SUNIMOL A K",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-248330",
+      "id": "zmap-3510779",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "384 - ANITHA SIVAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7286198",
+      "id": "zmap-2347747",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "42 - SIJI VARGHESE",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-3399357",
+      "id": "zmap-4118260",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "511 - BINDU GOPALAN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-2088607",
+      "id": "zmap-2364457",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "6 - PAILYKUNJU T P",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6376058",
+      "id": "zmap-1720362",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "644 - DHANYA REVI",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4337431",
+      "id": "zmap-3086115",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "654 - SUJATHA",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-8305918",
+      "id": "zmap-3746015",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "681 - SINI N M",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-2204949",
+      "id": "zmap-6150144",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "69 - SINDHU GIGI",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5929223",
+      "id": "zmap-4125638",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "70 - GEETHA S",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-2278095",
+      "id": "zmap-6479990",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "72 - SANI BABY",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6381847",
+      "id": "zmap-3881282",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "73 - SALY JOHN",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-6268913",
+      "id": "zmap-8692931",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "74 - SUSEELA SHIBU",
-      "timestamp": "2026-09-30T07:23:13.977Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4158581",
+      "id": "zmap-6828673",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "79 - RAJANI N",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9359785",
+      "id": "zmap-5397538",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "84 - LATHIKA VISWANATHAN",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-7491113",
+      "id": "zmap-4905335",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "86 - GEETHA V U",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-5046677",
+      "id": "zmap-6374996",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "87 - OMANA E A",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-4485388",
+      "id": "zmap-3141159",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "92 - PAUL N J",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1440729",
+      "id": "zmap-4081283",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "934 - SIJO VARGHESE",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-9962829",
+      "id": "zmap-4267346",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "94 - P K SHEELA",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-60514",
+      "id": "zmap-7376334",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "95 - SHAINY K J",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-138081",
+      "id": "zmap-1772586",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "97 - SINDHU JOJI",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-1358891",
+      "id": "zmap-1681509",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "98 - SINI K N",
-      "timestamp": "2026-09-30T07:23:13.978Z"
+      "timestamp": "2026-10-02T14:38:11.517Z"
     },
     {
-      "id": "zmap-641099",
+      "id": "zmap-5251085",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ADITHYA",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-4310239",
+      "id": "zmap-7989313",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "GOPAKUMAR",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-9827530",
+      "id": "zmap-7318039",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHOK",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-7167578",
+      "id": "zmap-5734251",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHIR",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-2896291",
+      "id": "zmap-2196836",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SREEJITH",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-3049737",
+      "id": "zmap-1546690",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SHARATH",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-8471475",
+      "id": "zmap-9507354",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "CHRISTY",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
-      "id": "zmap-5364715",
+      "id": "zmap-9826860",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "MIDHUN",
-      "timestamp": "2026-09-30T07:23:14.028Z"
+      "timestamp": "2026-10-02T14:38:11.544Z"
     },
     {
       "id": "zmap-177980",
@@ -15582,7 +15976,9 @@
     "UNIT": [
       "MUVATTUPUZHA",
       "ANGAMALY",
-      "RAW MATERIAL STORE"
+      "RAW MATERIAL STORE",
+      "RAW MATERIAL STORE - TUP",
+      "RAW MATERIAL STORE - BNGLR"
     ],
     "LINE": [
       "LINE 1",
@@ -15599,6 +15995,13 @@
       "KERALA",
       "TIRUPUR",
       "BANGALORE"
+    ],
+    "UNITS": [
+      "MUVATTUPUZHA",
+      "ANGAMALY",
+      "RAW MATERIAL STORE",
+      "RAW MATERIAL STORE - TUP",
+      "RAW MATERIAL STORE - BNGLR"
     ]
   }
 }

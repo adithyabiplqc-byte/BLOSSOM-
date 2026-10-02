@@ -166,23 +166,15 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
           <SearchableSelect value={form.wo} onChange={e => setForm({...form, wo: e.target.value})} required className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold text-xs">
             <option value="">Select Workorder</option>
-            {workorders
-              .filter(w => {
+            {(() => {
+              const filtered = workorders.filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
-                const fZone = String(form.zone).toUpperCase().trim();
+                const fZone = String(form.zone || "").toUpperCase().trim();
                 const rawStatus = getWorkorderStatus(w);
                 const status = String(rawStatus || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const matchesStatus = (
-                  status === 'FINAL' || 
-                  status === 'FINALAUDIT' ||
-                  status === 'FINALPASSANDHOLD' || 
-                  status === 'AQLPASSANDHOLD' ||
-                  status === 'PASSANDHOLD' ||
-                  (status.includes('FINAL') && status.includes('HOLD'))
-                );
 
-                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === 'COMMON' || wZone === 'SYSTEM');
-                if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === '' || wZone === 'COMMON' || wZone === 'SYSTEM');
+                if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL' && fZone !== 'COMMON') {
                   const matchingRows = zoneMappings.filter((m: any) => 
                     String(m.zone || '').toUpperCase().trim() === fZone || 
                     String(m.id || '').toUpperCase().trim() === fZone
@@ -193,10 +185,18 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
                   );
                 }
 
-                return matchesZone && matchesStatus;
-              })
-              .map(w => <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
-            }
+                return matchesZone && status !== 'CLOSED';
+              });
+              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                const s = String(getWorkorderStatus(w) || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return s !== 'CLOSED';
+              });
+              return (list.length > 0 ? list : workorders).map(w => (
+                <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
+                  {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
+                </option>
+              ));
+            })()}
           </SearchableSelect>
         </div>
         <div className="space-y-1">

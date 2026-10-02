@@ -918,12 +918,12 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
               className="w-full bg-white border border-slate-200 transition-colors duration-150 text-slate-800 text-xs font-bold rounded-xl py-2.5 px-3 shadow-sm focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50"
             >
               <option value="">Select Job...</option>
-              {workorders
-                .filter(w => {
+              {(() => {
+                const filtered = workorders.filter(w => {
                   const wZone = String(w.zone || w.location || '').toUpperCase().trim();
-                  const fZone = String(form.zone).toUpperCase().trim();
-                  let matchesZone = wZone === fZone || fZone === '' || fZone === 'ALL';
-                  if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                  const fZone = String(form.zone || '').toUpperCase().trim();
+                  let matchesZone = wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === '' || wZone === 'COMMON' || wZone === 'SYSTEM';
+                  if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL' && fZone !== 'COMMON') {
                     const matchingRows = zoneMappings.filter(m => 
                       String(m.zone || '').toUpperCase().trim() === fZone || 
                       String(m.id || '').toUpperCase().trim() === fZone
@@ -936,38 +936,18 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   if (!matchesZone) return false;
 
                   const statusUpper = normalizeStatus(w.status);
-                  if (
-                    statusUpper !== 'ENDLINE' && 
-                    statusUpper !== 'INLINEANDENDLINE' && 
-                    statusUpper !== 'INLINE' &&
-                    statusUpper !== 'CUTTINGPASSANDHOLD' &&
-                    statusUpper !== 'ENDLINEPASSANDHOLD' &&
-                    statusUpper !== 'PASSANDHOLD'
-                  ) {
-                    return false;
-                  }
-
-                  const targetQty = Number(w.quantity || w.orderQty || w.qty || w.ORDER_QTY || 0);
-                  const passedQty = endlineRecords
-                    .filter(r => {
-                      const rWo = String(r.wo || r.workorderNumber || '').trim().toUpperCase();
-                      const wWo = String(w.workorderNumber || '').trim().toUpperCase();
-                      const wId = String(w.id || '').trim().toUpperCase();
-                      return rWo && (rWo === wWo || rWo === wId);
-                    })
-                    .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
-
-                  if (targetQty > 0 && passedQty >= targetQty) {
-                    return false;
-                  }
-
-                  return true;
-                })
-                .map(w => (
+                  return statusUpper !== 'COMPLETED' && statusUpper !== 'CLOSED';
+                });
+                const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                  const s = normalizeStatus(w.status);
+                  return s !== 'COMPLETED' && s !== 'CLOSED';
+                });
+                return (list.length > 0 ? list : workorders).map(w => (
                   <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                     {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                   </option>
-                ))}
+                ));
+              })()}
             </SearchableSelect>
           </div>
 

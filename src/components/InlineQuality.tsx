@@ -1112,15 +1112,15 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           >
             <option value="">Select Workorder</option>
-            {workorders
-              .filter(w => {
+            {(() => {
+              const filtered = workorders.filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
-                const fZone = String(form.zone).toUpperCase().trim();
+                const fZone = String(form.zone || "").toUpperCase().trim();
                 const wUnit = String(w.unit || "").toUpperCase().trim();
                 const fUnit = String(form.unit || "").toUpperCase().trim();
                 const status = normalizeStatus(w.status);
                 
-                let matchesZone = (wZone === fZone || fZone === "" || fZone === "ALL" || fZone === "COMMON" || fZone === "SYSTEM");
+                let matchesZone = (wZone === fZone || fZone === "" || fZone === "ALL" || fZone === "COMMON" || fZone === "SYSTEM" || wZone === "" || wZone === "COMMON" || wZone === "SYSTEM");
                 if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL' && fZone !== 'COMMON') {
                   const matchingRows = zoneMappings.filter(m => 
                     String(m.zone || '').toUpperCase().trim() === fZone || 
@@ -1132,19 +1132,19 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   );
                 }
                 const matchesUnit = (fUnit === "" || fUnit === "COMMON" || wUnit === "" || wUnit === fUnit || wUnit === "COMMON");
-                const matchesStatus = (
-                  status === 'INLINE' || 
-                  status === 'ENDLINE' || 
-                  status === 'INLINEANDENDLINE' || 
-                  status === 'CUTTINGPASSANDHOLD' ||
-                  status === 'INLINEPASSANDHOLD' ||
-                  status === 'PASSANDHOLD'
-                );
-                
-                return matchesZone && matchesUnit && matchesStatus;
-              })
-              .map(w => <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>{w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})</option>)
-            }
+                const isClosed = status === 'COMPLETED' || status === 'CLOSED';
+                return matchesZone && matchesUnit && !isClosed;
+              });
+              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                const s = normalizeStatus(w.status);
+                return s !== 'COMPLETED' && s !== 'CLOSED';
+              });
+              return (list.length > 0 ? list : workorders).map(w => (
+                <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
+                  {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
+                </option>
+              ));
+            })()}
           </SearchableSelect>
         </div>
 

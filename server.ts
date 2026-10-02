@@ -166,7 +166,7 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
 
     async function callSheet(action: string, params: any[] = [{ zone: "ALL" }]) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -187,13 +187,22 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
 
     const db = readLocalDb();
 
-    const initData = await callSheet("api_getInitialData");
+    const initData = await callSheet("api_getInitialData", [{ zone: "ALL" }]);
     if (initData) {
       if (Array.isArray(initData.users) && initData.users.length > 0) {
         db.users = initData.users;
       }
       if (Array.isArray(initData.workorders) && initData.workorders.length > 0) {
-        db.workorders = initData.workorders;
+        const woMap = new Map();
+        (db.workorders || []).forEach((w: any) => {
+          const k = String(w.id || w.workorderNumber || w.wo);
+          woMap.set(k, w);
+        });
+        initData.workorders.forEach((w: any) => {
+          const k = String(w.id || w.workorderNumber || w.wo);
+          woMap.set(k, { ...woMap.get(k), ...w });
+        });
+        db.workorders = Array.from(woMap.values());
       }
       if (initData.settings) {
         db.settings = db.settings || {};
@@ -201,9 +210,18 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
       }
     }
 
-    const wos = await callSheet("api_getWorkorders");
+    const wos = await callSheet("api_getWorkorders", [{ zone: "ALL" }]);
     if (Array.isArray(wos) && wos.length > 0) {
-      db.workorders = wos;
+      const woMap = new Map();
+      (db.workorders || []).forEach((w: any) => {
+        const k = String(w.id || w.workorderNumber || w.wo);
+        woMap.set(k, w);
+      });
+      wos.forEach((w: any) => {
+        const k = String(w.id || w.workorderNumber || w.wo);
+        woMap.set(k, { ...woMap.get(k), ...w });
+      });
+      db.workorders = Array.from(woMap.values());
     }
 
     const mat = await callSheet("api_getMaterialData");
@@ -1275,42 +1293,13 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getInitialData': {
       const zone = params[0]?.zone;
       const userCode = params[0]?.userCode;
-      let workorders = db.workorders || [];
-      if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
-        try {
-          const zoneRows = db.zone || db.zones || [];
-          const uppercaseZone = String(zone).toUpperCase().trim();
-          const allowedZones = new Set<string>([uppercaseZone]);
-          
-          for (const row of zoneRows) {
-            const z = String(row.zone || '').trim().toUpperCase();
-            const id = String(row.id || '').trim().toUpperCase();
-            if (z === uppercaseZone || id === uppercaseZone || z.replace(/^ZMAP-/, '') === uppercaseZone || id.replace(/^ZMAP-/, '') === uppercaseZone) {
-              if (z) allowedZones.add(z);
-              if (id) allowedZones.add(id);
-              if (z.replace(/^ZMAP-/, '')) allowedZones.add(z.replace(/^ZMAP-/, ''));
-              if (id.replace(/^ZMAP-/, '')) allowedZones.add(id.replace(/^ZMAP-/, ''));
-            }
-          }
-          
-          workorders = workorders.filter((w: any) => {
-            const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-            return allowedZones.has(zVal) || allowedZones.has(zVal.replace(/^ZMAP-/, ''));
-          });
-        } catch (err) {
-          console.error("Local fallback error mapping zones in getInitialData:", err);
-          workorders = workorders.filter((w: any) => {
-            const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-            return zVal === String(zone).toUpperCase().trim();
-          });
-        }
-      }
+      const allWOs = db.workorders || [];
       db.settings = db.settings || {};
       const rawSettings = userCode ? (db.settings[userCode] || db.settings['GLOBAL'] || {}) : (db.settings['GLOBAL'] || {});
       const settings = getDynamicSettingsForServer(rawSettings, db);
       return {
         users: db.users || [],
-        workorders: workorders,
+        workorders: allWOs,
         settings: settings,
         serverTime: new Date().toISOString(),
         success: true
@@ -2154,6 +2143,8 @@ function executeLocalAction(action: string, params: any[]): any {
         return {
           success: true,
           url: relativeUrl,
+          downloadUrl: relativeUrl,
+          id: `local-${timestamp}`,
           name: safeName
         };
       } catch (e: any) {
@@ -2467,21 +2458,21 @@ async function startServer() {
       }
 
       const candidateUrls = [
-        `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`,
-        `https://lh3.googleusercontent.com/d/${driveId}=s1600`,
         `https://drive.google.com/uc?export=download&id=${driveId}`,
-        `https://drive.google.com/uc?export=view&id=${driveId}`
+        `https://drive.google.com/uc?export=view&id=${driveId}`,
+        `https://lh3.googleusercontent.com/d/${driveId}=s1600`,
+        `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`
       ];
 
       for (const targetUrl of candidateUrls) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
 
           const response = await fetch(targetUrl, {
             headers: {
               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+              "Accept": "application/pdf,image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
             },
             redirect: "follow",
             signal: controller.signal as any
@@ -2490,10 +2481,14 @@ async function startServer() {
 
           if (response.ok) {
             const contentType = response.headers.get("content-type") || "";
-            if (contentType.startsWith("image/") || contentType.includes("octet-stream") || contentType.includes("binary")) {
+            const isImage = contentType.startsWith("image/");
+            const isPdf = contentType.includes("pdf") || contentType.startsWith("application/pdf");
+            const isOctet = contentType.includes("octet-stream") || contentType.includes("binary");
+
+            if (isImage || isPdf || isOctet) {
               const arrayBuffer = await response.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
-              const resolvedContentType = contentType.startsWith("image/") ? contentType : "image/jpeg";
+              const resolvedContentType = isImage ? contentType : (isPdf ? "application/pdf" : "image/jpeg");
 
               // Store in LRU cache
               if (driveImageCache.size >= MAX_CACHE_ITEMS) {
@@ -2712,7 +2707,18 @@ async function startServer() {
                         return code;
                       }).filter(Boolean)))
                     }));
-                    if (Array.isArray(parsed.workorders)) currentDb.workorders = parsed.workorders;
+                    if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) {
+                      const woMap = new Map();
+                      (currentDb.workorders || []).forEach((w: any) => {
+                        const k = String(w.id || w.workorderNumber || w.wo);
+                        woMap.set(k, w);
+                      });
+                      parsed.workorders.forEach((w: any) => {
+                        const k = String(w.id || w.workorderNumber || w.wo);
+                        woMap.set(k, { ...woMap.get(k), ...w });
+                      });
+                      currentDb.workorders = Array.from(woMap.values());
+                    }
                     if (parsed.settings) currentDb.settings = { ...(currentDb.settings || {}), ...parsed.settings };
                     writeLocalDb(currentDb);
                     markUrlHealth(targetUrl, true);
@@ -2906,11 +2912,6 @@ async function startServer() {
           if (driveUrl && !sopCandidateUrls.includes(driveUrl)) {
             sopCandidateUrls.push(driveUrl);
           }
-          candidateUrls.forEach(url => {
-            if (!sopCandidateUrls.includes(url)) {
-              sopCandidateUrls.push(url);
-            }
-          });
         } else {
           sopCandidateUrls = [...candidateUrls];
         }

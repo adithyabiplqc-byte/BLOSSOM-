@@ -303,26 +303,13 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
             className="w-full bg-white border-2 border-slate-150 rounded-xl font-bold"
           >
             <option value="">Select Workorder...</option>
-            {workorders
-              .filter(w => {
-                const rawStatus = getWorkorderStatus(w);
-                const wStatus = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const matchesStatus = (
-                  wStatus === 'AQL' || 
-                  wStatus === 'AQLPASSANDHOLD' || 
-                  wStatus === 'ENDLINEPASSANDHOLD' || 
-                  wStatus === 'PASSANDHOLD' ||
-                  (wStatus.includes('AQL') && wStatus.includes('HOLD'))
-                );
-                if (!matchesStatus) {
-                  return false;
-                }
-
+            {(() => {
+              const filtered = workorders.filter(w => {
                 const wZone = String(w.zone || w.location || "").toUpperCase().trim();
-                const fZone = String(form.zone).toUpperCase().trim();
+                const fZone = String(form.zone || "").toUpperCase().trim();
                 
-                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === 'COMMON' || wZone === 'SYSTEM');
-                if (!matchesZone && zoneMappings.length > 0 && fZone !== '') {
+                let matchesZone = (wZone === fZone || fZone === '' || fZone === 'ALL' || fZone === 'COMMON' || fZone === 'SYSTEM' || wZone === '' || wZone === 'COMMON' || wZone === 'SYSTEM');
+                if (!matchesZone && zoneMappings.length > 0 && fZone !== '' && fZone !== 'ALL' && fZone !== 'COMMON') {
                   const matchingRows = zoneMappings.filter(m => 
                     String(m.zone || '').toUpperCase().trim() === fZone || 
                     String(m.id || '').toUpperCase().trim() === fZone
@@ -332,15 +319,20 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
                     String(m.id || '').toUpperCase().trim() === wZone
                   );
                 }
-                
-                return matchesZone;
-              })
-              .map(w => (
+                const rawStatus = getWorkorderStatus(w);
+                const wStatus = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return matchesZone && wStatus !== 'CLOSED';
+              });
+              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
+                const s = String(getWorkorderStatus(w) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return s !== 'CLOSED';
+              });
+              return (list.length > 0 ? list : workorders).map(w => (
                 <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>
-              ))
-            }
+              ));
+            })()}
           </SearchableSelect>
         </div>
         <div className="space-y-1">

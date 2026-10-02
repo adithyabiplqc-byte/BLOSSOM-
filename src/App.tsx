@@ -300,7 +300,10 @@ const App: React.FC = () => {
         setUsers(allUsers);
         try { localStorage.setItem('bqos_cache_users', JSON.stringify(allUsers)); } catch(e){}
 
-        if ((!initialData?.workorders || initialData.workorders.length === 0) && INITIAL_DB?.workorders) {
+        if (Array.isArray(initialData?.workorders) && initialData.workorders.length > 0) {
+          setWorkorders(initialData.workorders);
+          try { localStorage.setItem('bqos_cache_wo', JSON.stringify(initialData.workorders)); } catch(e){}
+        } else if ((!initialData?.workorders || initialData.workorders.length === 0) && INITIAL_DB?.workorders) {
           setWorkorders(INITIAL_DB.workorders);
           try { localStorage.setItem('bqos_cache_wo', JSON.stringify(INITIAL_DB.workorders)); } catch(e){}
         }

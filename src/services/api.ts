@@ -1799,53 +1799,28 @@ export const api = {
           }
         }
 
-        // 1. First, try to upload directly to Google Apps Script (GAS) to save to Google Drive permanently!
-        const customDriveUrl = localStorage.getItem('VITE_GAS_DRIVE_URL');
-        const customSheetsUrl = localStorage.getItem('VITE_GAS_URL');
-        const envDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
-        const envSheetsUrl = (import.meta as any).env?.VITE_GAS_URL;
-        
-        const candidateUrls: string[] = [];
-        if (customDriveUrl) candidateUrls.push(customDriveUrl);
-        if (envDriveUrl && !envDriveUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envDriveUrl)) candidateUrls.push(envDriveUrl);
-        if (customSheetsUrl && !candidateUrls.includes(customSheetsUrl)) candidateUrls.push(customSheetsUrl);
-        if (envSheetsUrl && !envSheetsUrl.includes("REPLACE_WITH") && !candidateUrls.includes(envSheetsUrl)) candidateUrls.push(envSheetsUrl);
-
-        const hardcodedUrls = [
-          DEFAULT_DRIVE_URL,
-          DEFAULT_SHEETS_URL
-        ];
-        hardcodedUrls.forEach(url => {
-          if (!candidateUrls.includes(url)) {
-            candidateUrls.push(url);
-          }
-        });
-
-        if (candidateUrls.length > 0) {
-          console.log("[runDirect api_uploadSOPFile] Attempting direct permanent upload to Google Apps Script...");
+        // 1. First, try to upload via server /api/gas proxy which routes directly to Google Drive without CORS issues!
+        try {
+          console.log("[runDirect api_uploadSOPFile] Uploading file to Google Drive via backend proxy...");
           const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
-          for (const targetUrl of candidateUrls) {
-            try {
-              const response = await fetch(targetUrl, {
-                method: 'POST',
-                mode: 'cors',
-                body: JSON.stringify({
-                  action: 'api_uploadSOPFile',
-                  params: [fileName, rawBase64, mimeType, category],
-                  spreadsheetId: activeSheetId
-                })
-              });
-              if (response.ok) {
-                const parsed = await response.json();
-                if (parsed && parsed.success && parsed.url) {
-                  console.log("[runDirect api_uploadSOPFile] Google Drive permanent upload successful via Apps Script!", parsed.url);
-                  return parsed;
-                }
-              }
-            } catch (err: any) {
-              console.log(`[runDirect api_uploadSOPFile] Direct GAS upload completed or diverted for ${targetUrl}:`, err.message);
+          const response = await fetch('/api/gas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'api_uploadSOPFile',
+              params: [fileName, rawBase64, mimeType, category],
+              spreadsheetId: activeSheetId
+            })
+          });
+          if (response.ok) {
+            const parsed = await response.json();
+            if (parsed && parsed.success && parsed.url) {
+              console.log("[runDirect api_uploadSOPFile] Google Drive upload successful via backend proxy!", parsed.url);
+              return parsed;
             }
           }
+        } catch (proxyErr: any) {
+          console.warn("[runDirect api_uploadSOPFile] Backend proxy upload notice:", proxyErr.message);
         }
 
         // 2. If Apps Script fails, try the local backend server `/api/upload-offline`
@@ -2051,7 +2026,10 @@ export const api = {
 
       // Lightning-fast write operations: apply mutation to memory & localStorage immediately (<1ms)
       // This eliminates all UI lag and prevents the app from hanging when entering data
-      if (!isCacheable && method !== 'api_ping') {
+      // NOTE: Upload methods (api_uploadSOPFile, api_uploadComplaintImage) must NOT be short-circuited
+      // because they must return the physical Google Drive URL / file link from the backend!
+      const isUploadAction = method === 'api_uploadSOPFile' || method === 'api_uploadComplaintImage';
+      if (!isCacheable && method !== 'api_ping' && !isUploadAction) {
         const localMutationResult = applyLocalMutation(method, sanitizedArgs);
         clientReadCache.clear();
 
