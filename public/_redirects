@@ -1,3 +1,6 @@
-/api/gas  https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec  200!
-/api/drive  https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec  200!
-/*  /index.html  200
+/api/drive-proxy  /.netlify/functions/drive-proxy  200!
+/api/gas          /.netlify/functions/gas          200!
+/api/config       /.netlify/functions/config       200!
+/api/save-config  /.netlify/functions/config       200!
+/api/health       /.netlify/functions/health       200!
+/*                /index.html                      200

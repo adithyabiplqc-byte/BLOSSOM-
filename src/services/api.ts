@@ -4,8 +4,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 import { INITIAL_DB } from '../data/initialDb';
 
-export const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
-export const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
+export const DEFAULT_SHEETS_URL = ((import.meta as any).env?.VITE_GAS_URL) || "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
+export const DEFAULT_DRIVE_URL = ((import.meta as any).env?.VITE_GAS_DRIVE_URL) || "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 // Fallback helper to query embedded initial database by zone when proxy is offline (e.g. Netlify / GitHub Pages)
 function getLocalFallbackData(method: string, args: any[]): any {
@@ -669,6 +669,10 @@ export const api = {
       const id = setTimeout(() => controller.abort(), 5000);
       const response = await fetch("/api/config", { signal: controller.signal });
       clearTimeout(id);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('text/html')) {
+        throw new Error('Config endpoint unavailable or returned HTML');
+      }
       const data = await response.json();
 
       // 2. Fallback and local sync
@@ -2094,10 +2098,14 @@ export const api = {
 
             clearTimeout(timeoutId);
 
-            if (response.status === 404 || !response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            const isHtml = contentType.includes('text/html');
+
+            if (response.status === 404 || !response.ok || isHtml) {
               // Direct browser fallback for static host environments
               try {
-                const directRes = await fetch(DEFAULT_SHEETS_URL, {
+                const targetGasUrl = customUrl || DEFAULT_SHEETS_URL;
+                const directRes = await fetch(targetGasUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                   body: JSON.stringify({ action: gasMethod, params: gasArgs }),
@@ -2115,7 +2123,7 @@ export const api = {
                 }
               } catch (directErr) {}
 
-              throw new Error(`Proxy status ${response.status}`);
+              throw new Error(`Proxy status ${response.status}${isHtml ? ' (returned HTML)' : ''}`);
             }
 
             const parsedResult = await response.json();

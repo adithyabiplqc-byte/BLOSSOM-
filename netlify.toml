@@ -2,15 +2,36 @@
   publish = "dist"
   command = "npm run build"
 
+[functions]
+  directory = "netlify/functions"
+
 [[redirects]]
-  from = "/api/gas"
-  to = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec"
+  from = "/api/drive-proxy"
+  to = "/.netlify/functions/drive-proxy"
   status = 200
   force = true
 
 [[redirects]]
-  from = "/api/drive"
-  to = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec"
+  from = "/api/gas"
+  to = "/.netlify/functions/gas"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/config"
+  to = "/.netlify/functions/config"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/save-config"
+  to = "/.netlify/functions/config"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
   status = 200
   force = true
 

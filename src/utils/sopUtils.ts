@@ -99,13 +99,14 @@ export const getEmbedPreviewUrl = (url: string, driveId?: string): string => {
   const cleanUrl = extractCleanDocumentUrl(url, driveId);
   if (!cleanUrl) return '';
 
-  if (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:') || cleanUrl.startsWith('/uploads/') || cleanUrl.startsWith('/api/')) {
+  if (cleanUrl.startsWith('blob:') || cleanUrl.startsWith('data:') || cleanUrl.startsWith('/uploads/')) {
     return cleanUrl;
   }
 
   const fId = extractDriveFileId(cleanUrl, driveId);
   if (fId) {
-    return `/api/drive-proxy?id=${fId}`;
+    // Official Google Drive embed URL: works universally across AI Studio, Netlify, mobile and desktop
+    return `https://drive.google.com/file/d/${fId}/preview`;
   }
 
   if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
@@ -145,7 +146,7 @@ export const getDirectDownloadUrl = (url: string, driveId?: string): string => {
 
   const fId = extractDriveFileId(cleanUrl, driveId);
   if (fId) {
-    return `/api/drive-proxy?id=${fId}&download=true`;
+    return `https://drive.google.com/uc?export=download&id=${fId}`;
   }
 
   return cleanUrl;
@@ -171,12 +172,13 @@ export const triggerDirectDownload = async (url: string, filename: string = 'doc
     return;
   }
 
-  // 2. Google Drive file: use server proxy with Content-Disposition
+  // 2. Google Drive file: try server proxy with Content-Disposition if not returning HTML
   if (fId) {
     const proxyDownloadUrl = `/api/drive-proxy?id=${fId}&download=true&filename=${encodeURIComponent(filename)}`;
     try {
       const resp = await fetch(proxyDownloadUrl);
-      if (resp.ok) {
+      const contentType = resp.headers.get('content-type') || '';
+      if (resp.ok && !contentType.includes('text/html')) {
         const blob = await resp.blob();
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
