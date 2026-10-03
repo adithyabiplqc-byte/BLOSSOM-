@@ -60,6 +60,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [restrictingUserCode, setRestrictingUserCode] = useState('');
   const [deletingUserCode, setDeletingUserCode] = useState('');
   const isLocked = useRef(false);
+
+  // Admin Activity Logs state synced with Google Sheets
+  const [adminLogs, setAdminLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState<boolean>(false);
+  const [logSearch, setLogSearch] = useState<string>('');
+  const [selectedLogModule, setSelectedLogModule] = useState<string>('ALL');
+  const [selectedLogAdmin, setSelectedLogAdmin] = useState<string>('ALL');
+
+  const fetchAdminLogs = async (force: boolean = false) => {
+    setLoadingLogs(true);
+    try {
+      if (force) {
+        api.clearCache('api_getAdminLogs');
+      }
+      const res = await api.run('api_getAdminLogs');
+      if (Array.isArray(res)) {
+        setAdminLogs(res);
+      }
+    } catch (e) {
+      console.warn("Failed to load admin logs:", e);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'logs') {
+      fetchAdminLogs(true);
+    }
+  }, [tab]);
+
+  const filteredLogs = React.useMemo(() => {
+    return adminLogs
+      .filter(log => {
+        if (!log) return false;
+        const search = logSearch.toLowerCase().trim();
+        const matchesSearch = !search ||
+          String(log.details || '').toLowerCase().includes(search) ||
+          String(log.action || '').toLowerCase().includes(search) ||
+          String(log.module || '').toLowerCase().includes(search) ||
+          String(log.admin || '').toLowerCase().includes(search);
+        
+        const matchesModule = selectedLogModule === 'ALL' || String(log.module || '').toUpperCase() === selectedLogModule.toUpperCase();
+        const matchesAdmin = selectedLogAdmin === 'ALL' || String(log.admin || '').toUpperCase() === selectedLogAdmin.toUpperCase();
+        return matchesSearch && matchesModule && matchesAdmin;
+      })
+      .slice()
+      .reverse(); // Newest first
+  }, [adminLogs, logSearch, selectedLogModule, selectedLogAdmin]);
+
+  const uniqueLogModules = React.useMemo(() => {
+    const modules = adminLogs.map(l => String(l.module || '').trim()).filter(Boolean);
+    return Array.from(new Set(modules));
+  }, [adminLogs]);
+
+  const uniqueLogAdmins = React.useMemo(() => {
+    const admins = adminLogs.map(l => String(l.admin || '').trim()).filter(Boolean);
+    return Array.from(new Set(admins));
+  }, [adminLogs]);
+
+  const exportLogsToCsv = () => {
+    if (filteredLogs.length === 0) return alert("No logs available to export.");
+    const headers = ["Timestamp", "Module", "Action", "Details", "Admin"];
+    const rows = filteredLogs.map(l => [
+      `"${String(l.timestamp || '').replace(/"/g, '""')}"`,
+      `"${String(l.module || '').replace(/"/g, '""')}"`,
+      `"${String(l.action || '').replace(/"/g, '""')}"`,
+      `"${String(l.details || '').replace(/"/g, '""')}"`,
+      `"${String(l.admin || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `admin_activity_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   
   const styleOptions = React.useMemo(() => {
     if (settings) {
@@ -831,7 +910,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'restrictions', label: 'Restrictions', icon: 'shield-off' },
           { id: 'settings', label: 'User Data', icon: 'database' },
           { id: 'delete', label: 'Delete User', icon: 'user-minus' },
-          { id: 'delete_data', label: 'Delete Data', icon: 'trash-2' }
+          { id: 'delete_data', label: 'Delete Data', icon: 'trash-2' },
+          { id: 'logs', label: 'Activity Logs', icon: 'file-text' }
         ].map(t => (
           <button 
             key={t.id} 
@@ -1935,65 +2015,191 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )}
-      </div>
 
-      {unauthorizedDomain && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fade-in" id="firebase-domain-auth-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-rose-100 space-y-5 animate-scale-up">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">⚠️</span>
-              <div>
-                <h3 className="text-sm font-black text-rose-950 uppercase tracking-wider">Domain Authorization Required</h3>
-                <p className="text-[11px] text-slate-500 font-medium">Firebase Authentication is blocking this request.</p>
+        {tab === 'logs' && (
+          <div className="space-y-5 animate-fade-in">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-black text-slate-850 uppercase tracking-wider flex items-center gap-2">
+                    <Icon name="file-text" size={18} className="text-indigo-600" />
+                    System Audit & Activity Logs
+                  </h3>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Live Google Sheet Sync
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
+                  Complete historical record of all administrative alterations, user registrations, and system configurations.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => fetchAdminLogs(true)}
+                  disabled={loadingLogs}
+                  className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Force refresh logs from Google Sheet"
+                >
+                  <Icon name="refresh-cw" size={14} className={loadingLogs ? "animate-spin" : ""} />
+                  <span>{loadingLogs ? "Syncing..." : "Sync Sheet"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportLogsToCsv}
+                  disabled={filteredLogs.length === 0}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-40"
+                  title="Download all filtered audit logs as CSV file"
+                >
+                  <Icon name="download" size={14} />
+                  <span>Export CSV</span>
+                </button>
               </div>
             </div>
-            
-            <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100/80 space-y-2">
-              <p className="text-xs text-rose-900 leading-relaxed font-semibold">
-                Your application is currently running on <strong className="text-rose-700 font-black">{unauthorizedDomain}</strong>, which is not registered as an authorized domain in Firebase Authentication.
-              </p>
+
+            {/* Filters bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200/80">
+              {/* Search text */}
+              <div className="relative">
+                <Icon name="search" size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={logSearch}
+                  onChange={e => setLogSearch(e.target.value)}
+                  placeholder="Search logs by action, detail, admin..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                />
+              </div>
+
+              {/* Module Filter */}
+              <div>
+                <select
+                  value={selectedLogModule}
+                  onChange={e => setSelectedLogModule(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                >
+                  <option value="ALL">All Modules ({uniqueLogModules.length})</option>
+                  {uniqueLogModules.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Admin Filter */}
+              <div>
+                <select
+                  value={selectedLogAdmin}
+                  onChange={e => setSelectedLogAdmin(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                >
+                  <option value="ALL">All Admins ({uniqueLogAdmins.length})</option>
+                  {uniqueLogAdmins.map(a => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
-              <p className="font-extrabold uppercase text-[10px] tracking-wider text-slate-400">How to authorize this domain:</p>
-              <ol className="list-decimal list-inside space-y-1.5 pl-1 text-[11px]">
-                <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Firebase Console</a></li>
-                <li>Navigate to <strong className="text-slate-800">Authentication</strong> &gt; <strong className="text-slate-800">Settings</strong></li>
-                <li>Scroll down to <strong className="text-slate-800">Authorized domains</strong></li>
-                <li>Click <strong className="text-indigo-600 font-bold">Add domain</strong> and enter exactly:</li>
-              </ol>
+            {/* Live Count Strip */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-1">
+              <span>Showing {filteredLogs.length} of {adminLogs.length} logged activities</span>
+              {loadingLogs && <span className="text-indigo-600 font-bold animate-pulse">Syncing Google Sheets...</span>}
             </div>
 
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-xl p-2.5">
-              <code className="text-xs font-mono font-bold text-slate-800 select-all">{unauthorizedDomain}</code>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(unauthorizedDomain);
-                  if (triggerSuccess) {
-                    triggerSuccess("Copied domain to clipboard!");
-                  } else {
-                    alert("Copied domain to clipboard!");
-                  }
-                }}
-                className="text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-2xs hover:shadow-sm cursor-pointer transition-all"
-              >
-                Copy
-              </button>
-            </div>
+            {/* Table */}
+            {loadingLogs && adminLogs.length === 0 ? (
+              <div className="py-20 text-center space-y-3">
+                <div className="inline-block w-7 h-7 rounded-full border-3 border-indigo-200 border-t-indigo-600 animate-spin" />
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Loading Google Sheets Activity Log...</p>
+              </div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <Icon name="file-text" size={28} className="mx-auto text-slate-300" />
+                <p className="text-xs font-bold text-slate-600">No activity logs found</p>
+                <p className="text-[11px] text-slate-400">Try clearing or changing your search filters above.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs max-h-[600px] overflow-y-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-100/90 text-slate-600 uppercase text-[10px] font-black tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3 w-44">Date & Time</th>
+                      <th className="p-3 w-28">Module</th>
+                      <th className="p-3 w-36">Action</th>
+                      <th className="p-3 min-w-[280px]">Details</th>
+                      <th className="p-3 w-36">Admin User</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 bg-white">
+                    {filteredLogs.map((log, idx) => {
+                      const actionUpper = String(log.action || '').toUpperCase();
+                      const isAdd = actionUpper.includes('ADD') || actionUpper.includes('CREATE') || actionUpper.includes('SAVE');
+                      const isEdit = actionUpper.includes('EDIT') || actionUpper.includes('UPDATE');
+                      const isDel = actionUpper.includes('DELETE') || actionUpper.includes('WIPE') || actionUpper.includes('RESET');
 
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setUnauthorizedDomain(null)}
-                className="w-full bg-slate-900 hover:bg-slate-850 text-white text-[11px] font-black uppercase tracking-widest py-2.5 px-5 rounded-xl cursor-pointer transition shadow-md"
-              >
-                Got it, close
-              </button>
-            </div>
+                      const actionBadge = isDel
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : isAdd
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : isEdit
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+                      let formattedTime = log.timestamp;
+                      try {
+                        const d = new Date(log.timestamp);
+                        if (!isNaN(d.getTime())) {
+                          formattedTime = d.toLocaleDateString(undefined, {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          }) + ' ' + d.toLocaleTimeString(undefined, {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          });
+                        }
+                      } catch (e) {}
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                            {formattedTime}
+                          </td>
+                          <td className="p-3 font-bold text-slate-700">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider border border-slate-200">
+                              {log.module || 'SYSTEM'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${actionBadge}`}>
+                              {log.action || 'ACTIVITY'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-800 font-medium leading-relaxed">
+                            {log.details || '-'}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-700">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">
+                                {String(log.admin || 'S').charAt(0).toUpperCase()}
+                              </div>
+                              <span className="truncate">{log.admin || 'SYSTEM'}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

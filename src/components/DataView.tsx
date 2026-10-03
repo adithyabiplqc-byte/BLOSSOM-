@@ -7,6 +7,7 @@ import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { flexibleSearchMatch } from '../utils/search';
 import { getDirectImageUrl, parseAndNormalizeImages, resolveIndexedDbImage } from '../utils/imageUtils';
+import { triggerDirectDownload } from '../utils/sopUtils';
 import SmartImage from './SmartImage';
 
 const HOURLY_ROUNDS = [
@@ -92,7 +93,7 @@ const DataViewImageItem: React.FC<{
           onPreview();
         }}
         title={`Click to preview photo: ${img.name || `Photo ${idx + 1}`}`}
-        className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 hover:shadow-md transition-all duration-200 bg-slate-100 dark:bg-slate-800 block text-left group w-12 h-12"
+        className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-indigo-500 hover:shadow-md transition-all duration-200 bg-slate-100 dark:bg-slate-800 block text-left group w-12 h-12 cursor-pointer"
       >
         <SmartImage
           image={img}
@@ -105,6 +106,21 @@ const DataViewImageItem: React.FC<{
           <Icon name="eye" size={15} className="text-white drop-shadow animate-pulse" />
           <span className="text-[7px] font-black uppercase mt-0.5 tracking-tighter text-indigo-200">View</span>
         </div>
+      </button>
+
+      {/* Quick direct download button on hover */}
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          const rawUrl = typeof img === 'object' ? (img.downloadUrl || img.url || img.previewUrl || img.proxyUrl) : String(img);
+          const fileName = (typeof img === 'object' && img.name) ? img.name : `inspection-photo-${Date.now()}.jpg`;
+          await triggerDirectDownload(rawUrl, fileName);
+        }}
+        title="Download photo directly"
+        className="absolute -top-1.5 -right-1.5 z-30 p-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer hover:scale-110 active:scale-95"
+      >
+        <Icon name="download" size={10} />
       </button>
     </div>
   );
@@ -1691,6 +1707,21 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                         <span className="hidden sm:inline">{lightboxData.useEmbed ? 'Direct Image' : 'Drive Viewer'}</span>
                       </button>
                     )}
+
+                    {/* Download Image */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const rawUrl = typeof currentImg === 'object' ? (currentImg.downloadUrl || currentImg.url || currentImg.previewUrl || currentImg.proxyUrl) : String(currentImg);
+                        const fileName = (typeof currentImg === 'object' && currentImg.name) ? currentImg.name : `inspection-photo-${Date.now()}.jpg`;
+                        await triggerDirectDownload(rawUrl, fileName);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                      title="Download image to your device"
+                    >
+                      <Icon name="download" size={13} />
+                      <span className="hidden sm:inline">Download</span>
+                    </button>
 
                     {/* Open in Drive / Tab */}
                     {(currentImg.downloadUrl || currentImg.url) && (

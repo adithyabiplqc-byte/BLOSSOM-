@@ -145,8 +145,73 @@ export const getDirectDownloadUrl = (url: string, driveId?: string): string => {
 
   const fId = extractDriveFileId(cleanUrl, driveId);
   if (fId) {
-    return `https://drive.google.com/uc?export=download&id=${fId}`;
+    return `/api/drive-proxy?id=${fId}&download=true`;
   }
 
   return cleanUrl;
+};
+
+/**
+ * Universal browser-safe direct file downloader.
+ * Supports blobs, data URIs, Google Drive files, and web assets.
+ */
+export const triggerDirectDownload = async (url: string, filename: string = 'document.pdf', driveId?: string): Promise<void> => {
+  if (!url && !driveId) return;
+  const fId = extractDriveFileId(url, driveId);
+  const clean = extractCleanDocumentUrl(url, driveId);
+
+  // 1. Direct blob or data URL
+  if (clean.startsWith('blob:') || clean.startsWith('data:')) {
+    const a = document.createElement('a');
+    a.href = clean;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  // 2. Google Drive file: use server proxy with Content-Disposition
+  if (fId) {
+    const proxyDownloadUrl = `/api/drive-proxy?id=${fId}&download=true&filename=${encodeURIComponent(filename)}`;
+    try {
+      const resp = await fetch(proxyDownloadUrl);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        return;
+      }
+    } catch (e) {
+      console.warn("Proxy blob download fallback:", e);
+    }
+
+    // Direct Google Drive export fallback
+    const directUrl = `https://drive.google.com/uc?export=download&id=${fId}`;
+    const a = document.createElement('a');
+    a.href = directUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  // 3. Fallback for arbitrary external URLs
+  const a = document.createElement('a');
+  a.href = clean;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 };

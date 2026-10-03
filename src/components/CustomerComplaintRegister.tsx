@@ -3,6 +3,7 @@ import Icon from './Icon';
 import { api } from '../services/api';
 import { flexibleSearchMatch } from '../utils/search';
 import { getDirectImageUrl, parseAndNormalizeImages, compressImageFile } from '../utils/imageUtils';
+import { triggerDirectDownload } from '../utils/sopUtils';
 import SmartImage from './SmartImage';
 
 interface CustomerComplaintRegisterProps {
@@ -254,6 +255,16 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
     });
     setActiveTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDownloadImage = async (img: any) => {
+    try {
+      const rawUrl = typeof img === 'object' ? (img.downloadUrl || img.url || img.previewUrl || img.proxyUrl) : String(img);
+      const fileName = (typeof img === 'object' && img.name) ? img.name : `complaint-photo-${Date.now()}.jpg`;
+      await triggerDirectDownload(rawUrl, fileName);
+    } catch (e) {
+      console.error("Failed to download image:", e);
+    }
   };
 
   // Submit / Save Complaint (Uploads any local preview images to Google Drive now)
@@ -1242,6 +1253,20 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
                     <span className="hidden sm:inline">{lightboxData.useEmbed ? 'Direct Image' : 'Drive Viewer'}</span>
                   </button>
                 )}
+                {/* Download Image Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadImage(currentImg);
+                  }}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/40 cursor-pointer"
+                  title="Download Image to Device"
+                >
+                  <Icon name="download" size={14} />
+                  <span>Download Image</span>
+                </button>
+
                 {(currentImg.downloadUrl || currentImg.url) && (
                   <a
                     href={currentImg.downloadUrl || currentImg.url}

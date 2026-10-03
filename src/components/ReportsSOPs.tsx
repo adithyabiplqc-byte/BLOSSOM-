@@ -7,7 +7,8 @@ import {
   extractDriveFileId, 
   getEmbedPreviewUrl, 
   getDirectViewUrl, 
-  getDirectDownloadUrl 
+  getDirectDownloadUrl,
+  triggerDirectDownload
 } from '../utils/sopUtils';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
@@ -220,6 +221,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState<string>('ALL');
   const [sortMode, setSortMode] = useState<string>('date_desc');
+  const [viewFormat, setViewFormat] = useState<'table' | 'cards'>('table');
   
   // State for upload completion
   const [justPublished, setJustPublished] = useState(false);
@@ -792,7 +794,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
   // Render Section
   return (
-    <div className="max-w-2xl mx-auto py-3 animate-fade-in" id="company-policy-module">
+    <div className="w-full max-w-7xl mx-auto py-2 space-y-6 animate-fade-in" id="company-policy-module">
       
       {/* 1. ENTRY UPLOADER MODE (Submodule A7) - Purely uploader form */}
       {effectiveMode === 'entry' && (
@@ -1062,408 +1064,526 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
 
       {/* 2. VIEWING & READING MODE (Submodule B8) */}
       {effectiveMode === 'view' && (
-        <div className="space-y-4">
-          {!selectedReport ? (
-            /* List View Screen */
-            <div className="space-y-4">
-              {/* Header Title with Back Chevron */}
-              <div className="flex items-center justify-between px-1">
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                  <Icon name="file-text" className="text-[#00B4D8]" size={22} />
-                  SOP & Audit Documents
-                </h1>
-              </div>
-
-              {/* Clean Search Input & Filters */}
-              <div className="space-y-3">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search SOP guidelines, inspection reports, specs..."
-                    className="w-full bg-white border border-slate-200/80 rounded-2xl pl-10 pr-4 py-3 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none shadow-sm transition"
-                  />
-                  <span className="absolute left-3.5 top-3 text-slate-400">
-                    <Icon name="search" size={14} />
-                  </span>
+        <div className="space-y-5">
+          {/* Professional SAP Control Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Icon name="file-text" size={20} />
                 </div>
-
-                {/* Filter controls */}
-                <div className="grid grid-cols-3 gap-2.5 animate-fade-in">
-                  {/* Category Filter */}
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Category</label>
-                    <SearchableSelect
-                      value={selectedCategoryFilter}
-                      onChange={e => setSelectedCategoryFilter(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
-                    >
-                      <option value="ALL">All Categories</option>
-                      {DOCUMENT_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </SearchableSelect>
-                  </div>
-
-                  {/* Department Filter */}
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Department</label>
-                    <SearchableSelect
-                      value={selectedDepartmentFilter}
-                      onChange={e => setSelectedDepartmentFilter(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
-                    >
-                      <option value="ALL">All Departments</option>
-                      {DEPARTMENTS.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </SearchableSelect>
-                  </div>
-
-                  {/* Sorting Mode */}
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Sort By</label>
-                    <SearchableSelect
-                      value={sortMode}
-                      onChange={e => setSortMode(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] text-slate-600 font-bold focus:ring-2 focus:ring-[#00B4D8]/20 outline-none transition shadow-sm"
-                    >
-                      <option value="date_desc">Newest Uploaded</option>
-                      <option value="date_asc">Oldest Uploaded</option>
-                      <option value="name_asc">Name (A-Z)</option>
-                      <option value="name_desc">Name (Z-A)</option>
-                    </SearchableSelect>
-                  </div>
+                <div>
+                  <h1 className="text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    SOP & Audit Documents Repository
+                  </h1>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Corporate Quality Standards, Operating Procedures & Audit Guidelines
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Document List without acknowledgment info */}
-              {loading ? (
-                <div className="py-20 text-center space-y-3">
-                  <div className="inline-block w-7 h-7 rounded-full border-3 border-[#00B4D8]/20 border-t-[#00B4D8] animate-spin" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Loading Documents Repository...</p>
-                </div>
-              ) : filteredReports.length === 0 ? (
-                <div className="py-16 text-center space-y-4 max-w-xs mx-auto bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
-                  <Icon name="file-text" size={24} className="text-slate-300 mx-auto animate-pulse" />
-                  <div>
-                    <h4 className="font-bold text-slate-800 text-sm">No documents located</h4>
-                    <p className="text-xs text-slate-400 mt-1">Try changing your search keywords.</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3" id="sop-documents-list">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {/* Table / Grid view switcher */}
+              <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setViewFormat('table')}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    viewFormat === 'table'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="SAP Enterprise Table View"
+                >
+                  <Icon name="list" size={14} />
+                  <span className="hidden sm:inline">Table View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewFormat('cards')}
+                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    viewFormat === 'cards'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Grid Card View"
+                >
+                  <Icon name="grid" size={14} />
+                  <span className="hidden sm:inline">Cards View</span>
+                </button>
+              </div>
+
+              {/* Live Sync Sheet button */}
+              <button
+                type="button"
+                onClick={() => fetchReports()}
+                disabled={loading}
+                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                title="Sync documents list from Google Sheets and Drive"
+              >
+                <Icon name="refresh-cw" size={14} className={loading ? "animate-spin" : ""} />
+                <span>{loading ? "Syncing..." : "Sync Sheet"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Clean Search Input & Filter Controls */}
+          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search SOP guidelines, inspection reports, specs, departments..."
+                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none shadow-xs transition"
+              />
+              <span className="absolute left-3.5 top-3 text-slate-400">
+                <Icon name="search" size={15} />
+              </span>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Category Filter */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Category</label>
+                <SearchableSelect
+                  value={selectedCategoryFilter}
+                  onChange={e => setSelectedCategoryFilter(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-2xs"
+                >
+                  <option value="ALL">All Categories ({DOCUMENT_CATEGORIES.length})</option>
+                  {DOCUMENT_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </SearchableSelect>
+              </div>
+
+              {/* Department Filter */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Department</label>
+                <SearchableSelect
+                  value={selectedDepartmentFilter}
+                  onChange={e => setSelectedDepartmentFilter(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-2xs"
+                >
+                  <option value="ALL">All Departments ({DEPARTMENTS.length})</option>
+                  {DEPARTMENTS.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </SearchableSelect>
+              </div>
+
+              {/* Sorting Mode */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Sort By</label>
+                <SearchableSelect
+                  value={sortMode}
+                  onChange={e => setSortMode(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-2xs"
+                >
+                  <option value="date_desc">Newest Uploaded First</option>
+                  <option value="date_asc">Oldest Uploaded First</option>
+                  <option value="name_asc">Document Name (A-Z)</option>
+                  <option value="name_desc">Document Name (Z-A)</option>
+                </SearchableSelect>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Document Counter & Status */}
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
+            <span>Showing <strong className="text-slate-800">{filteredReports.length}</strong> of <strong className="text-slate-800">{reports.length}</strong> official documents</span>
+            {loading && <span className="text-indigo-600 font-bold animate-pulse">Syncing with Google Sheets & Drive...</span>}
+          </div>
+
+          {/* Document Content List */}
+          {loading && reports.length === 0 ? (
+            <div className="py-24 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
+              <div className="inline-block w-8 h-8 rounded-full border-3 border-indigo-200 border-t-indigo-600 animate-spin" />
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Loading Documents Repository...</p>
+            </div>
+          ) : filteredReports.length === 0 ? (
+            <div className="py-20 text-center space-y-3 bg-white border border-slate-200 rounded-2xl p-8 shadow-xs">
+              <Icon name="file-text" size={32} className="text-slate-300 mx-auto" />
+              <h4 className="font-bold text-slate-800 text-sm">No documents located</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                No SOP guidelines or audit documents match your active search and category filters. Try resetting the filters above.
+              </p>
+            </div>
+          ) : viewFormat === 'table' ? (
+            /* 1. PROFESSIONAL SAP ENTERPRISE TABLE VIEW */
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs bg-white">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-slate-100/90 text-slate-600 uppercase text-[10px] font-black tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="p-3 w-12 text-center">#</th>
+                    <th className="p-3 min-w-[240px]">Document Title & Description</th>
+                    <th className="p-3 w-28">Category</th>
+                    <th className="p-3 w-28">Department</th>
+                    <th className="p-3 w-20 text-center">Version</th>
+                    <th className="p-3 w-36">Author & Date</th>
+                    <th className="p-3 w-24">File</th>
+                    <th className="p-3 w-56 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
                   {filteredReports.map((report, idx) => {
+                    const docTitle = report.title || "Untitled Document";
+                    const docFileName = report.attachmentName || `${docTitle}.pdf`;
+                    const hasAttachment = Boolean(report.attachmentUrl || report.driveFileId);
+
                     return (
-                      <div
-                        key={report.id || idx}
-                        onClick={() => {
-                          setSelectedReport(report);
-                          setShowInlinePdf(false);
-                        }}
-                        className="bg-white border border-slate-200/60 rounded-2xl p-4 flex items-center justify-between shadow-xs cursor-pointer hover:shadow-md transition-all duration-200"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {/* Folder graphic stack badge icon element */}
-                          <div className="w-10 h-10 relative flex items-center justify-center rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0">
-                            <Icon name="file-text" className="text-[#00B4D8]" size={18} />
-                          </div>
-
-                          {/* Detail titles */}
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-slate-800 text-xs leading-snug">
-                                {report.title}
-                              </h3>
-                              {report.version && (
-                                <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
-                                  v{report.version}
-                                </span>
-                              )}
-                            </div>
-                            
-                            <p className="text-[10px] text-slate-400 font-medium">
-                              By {report.creator || 'SYSTEM'} &bull; {formatDate(report.timestamp || report.uploadDate)}
-                            </p>
-                            
-                            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                              <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#00B4D8]/10 text-[#00B4D8]">
-                                {report.category}
-                              </span>
-                              <span className="text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
-                                {report.department || 'Quality'}
-                              </span>
-                              {report.fileSize && (
-                                <span className="text-[8px] font-bold text-slate-400">
-                                  {report.fileSize}
-                                </span>
-                              )}
-                            </div>
-
+                      <tr key={report.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="p-3 text-center text-slate-400 font-mono text-[11px]">
+                          {idx + 1}
+                        </td>
+                        <td className="p-3">
+                          <div className="space-y-0.5">
+                            <span className="font-black text-slate-850 text-xs hover:text-indigo-600 transition block">
+                              {docTitle}
+                            </span>
+                            {report.description && (
+                              <p className="text-[11px] text-slate-500 line-clamp-1">
+                                {report.description}
+                              </p>
+                            )}
                             {report.remarks && (
-                              <p className="text-[10px] text-slate-500 italic truncate max-w-xs" title={report.remarks}>
-                                "{report.remarks}"
+                              <p className="text-[10px] text-slate-400 italic line-clamp-1">
+                                Note: {report.remarks}
                               </p>
                             )}
                           </div>
-                        </div>
-
-                        {/* Actions container: Delete option + Open chevron */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {report.attachmentUrl && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewReport(report);
-                              }}
-                              className="w-8 h-8 rounded-full bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all duration-150 border border-slate-100"
-                              title="Preview Guideline PDF"
-                            >
-                              <Icon name="eye" size={13} />
-                            </button>
-                          )}
-                          {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSopToDelete(report);
-                              }}
-                              className="w-8 h-8 rounded-full bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all duration-150 border border-slate-105"
-                              title="Delete outstanding document"
-                            >
-                              <Icon name="trash-2" size={13} />
-                            </button>
-                          )}
-                          <div className="w-8 h-8 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-300">
-                            <Icon name="chevron-right" size={16} />
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-200">
+                            {report.category || 'SOP'}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                            {report.department || 'Quality'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            v{report.version || '1.0'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-600 text-[11px]">
+                          <div className="space-y-0.5">
+                            <span className="font-semibold block truncate max-w-[130px]">{report.creator || 'SYSTEM'}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{formatDate(report.timestamp || report.uploadDate)}</span>
                           </div>
-                        </div>
-                      </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-black text-[9px]">PDF</span>
+                            {report.fileSize && <span className="text-[10px] text-slate-400">{report.fileSize}</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Preview Button */}
+                            {hasAttachment && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewReport(report)}
+                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Fullscreen Preview Document"
+                              >
+                                <Icon name="eye" size={13} />
+                                <span>Preview</span>
+                              </button>
+                            )}
+
+                            {/* Download Button */}
+                            {hasAttachment && (
+                              <button
+                                type="button"
+                                onClick={() => triggerDirectDownload(report.attachmentUrl || '', docFileName, report.driveFileId)}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Download PDF to your device"
+                              >
+                                <Icon name="download" size={13} />
+                                <span>Download</span>
+                              </button>
+                            )}
+
+                            {/* Open in Drive Link */}
+                            {hasAttachment && (
+                              <a
+                                href={getDirectViewUrl(report.attachmentUrl || '', report.driveFileId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                                title="Open in Google Drive / New Tab"
+                              >
+                                <Icon name="external-link" size={14} />
+                              </a>
+                            )}
+
+                            {/* Delete (Admin only) */}
+                            {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
+                              <button
+                                type="button"
+                                onClick={() => setSopToDelete(report)}
+                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ml-1"
+                                title="Delete document"
+                              >
+                                <Icon name="trash-2" size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                </div>
-              )}
+                </tbody>
+              </table>
             </div>
           ) : (
-            /* Policy Details View (matching Image 1) */
-            <div className="space-y-4 animate-slide-up">
-              {/* Backchevron and header title */}
-              <div className="flex items-center justify-between pb-1 px-1">
-                <button
-                  onClick={() => setSelectedReport(null)}
-                  className="flex items-center gap-1.5 text-slate-800 font-bold hover:opacity-80 transition text-sm"
-                >
-                  <Icon name="chevron-left" className="text-slate-800" size={20} />
-                  Back to Documents List
-                </button>
+            /* 2. ENTERPRISE CARDS GRID VIEW */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredReports.map((report, idx) => {
+                const docTitle = report.title || "Untitled Document";
+                const docFileName = report.attachmentName || `${docTitle}.pdf`;
+                const hasAttachment = Boolean(report.attachmentUrl || report.driveFileId);
 
-                {/* Delete option restricted to Admin only */}
-                {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
-                  <button
-                    onClick={() => setSopToDelete(selectedReport)}
-                    className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-xl transition duration-150 shadow-xs flex items-center gap-1"
-                    title="Delete parameters"
+                return (
+                  <div
+                    key={report.id || idx}
+                    className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4"
                   >
-                    <Icon name="trash-2" size={14} />
-                    <span className="text-[10px] font-bold">Delete</span>
-                  </button>
-                )}
-              </div>
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-200">
+                            {report.category || 'SOP'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            v{report.version || '1.0'}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                          {report.department || 'Quality'}
+                        </span>
+                      </div>
 
-              {/* Section block 2: Parameter values cards */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Document Title</span>
-                  <p className="text-xs text-slate-800 font-bold leading-relaxed">{selectedReport.title}</p>
-                </div>
+                      <div>
+                        <h3 className="font-black text-slate-850 text-sm leading-snug line-clamp-2">
+                          {docTitle}
+                        </h3>
+                        {report.description && (
+                          <p className="text-xs text-slate-500 font-medium mt-1 line-clamp-2 leading-relaxed">
+                            {report.description}
+                          </p>
+                        )}
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4 border-t pt-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Category Type</span>
-                    <p className="text-xs text-[#00B4D8] font-bold leading-relaxed">{selectedReport.category}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Department</span>
-                    <p className="text-xs text-indigo-600 font-bold leading-relaxed">{selectedReport.department || 'Quality'}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t pt-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Version / Revision</span>
-                    <p className="text-xs text-slate-800 font-bold leading-relaxed">v{selectedReport.version || '1.0'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Published Date</span>
-                    <p className="text-xs text-slate-800 font-semibold leading-relaxed">{formatDate(selectedReport.timestamp || selectedReport.uploadDate)}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t pt-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">File Size</span>
-                    <p className="text-xs text-slate-600 font-medium leading-relaxed">{selectedReport.fileSize || 'Standard PDF'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Status</span>
-                    <p className="text-xs text-emerald-600 font-bold leading-relaxed uppercase">{selectedReport.status || 'ACTIVE'}</p>
-                  </div>
-                </div>
-
-                {selectedReport.remarks && (
-                  <div className="border-t pt-3">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Remarks / Notes</span>
-                    <p className="text-xs text-slate-600 font-medium leading-relaxed italic">"{selectedReport.remarks}"</p>
-                  </div>
-                )}
-
-                <div className="border-t pt-3.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Scope & Details</span>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-line">{selectedReport.description}</p>
-                </div>
-              </div>
-
-              {/* Section block 3: Attachments card list */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest border-b pb-2">
-                  Attachments (1)
-                </h4>
-
-                <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 bg-red-600 flex items-center justify-center text-white rounded-lg border border-red-500 flex-shrink-0 font-bold text-[9px] shadow-sm select-none">
-                      PDF
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>By {report.creator || 'SYSTEM'}</span>
+                        <span>{formatDate(report.timestamp || report.uploadDate)}</span>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-850 truncate block">
-                        {selectedReport.attachmentName || "Guideline_Document.pdf"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Standard PDF Format</p>
+
+                    {/* Card Actions */}
+                    <div className="pt-3 border-t border-slate-150 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {hasAttachment && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewReport(report)}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                            title="Preview Document"
+                          >
+                            <Icon name="eye" size={13} />
+                            <span>Preview</span>
+                          </button>
+                        )}
+
+                        {hasAttachment && (
+                          <button
+                            type="button"
+                            onClick={() => triggerDirectDownload(report.attachmentUrl || '', docFileName, report.driveFileId)}
+                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 hover:border-emerald-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Icon name="download" size={13} />
+                            <span>Download</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {hasAttachment && (
+                          <a
+                            href={getDirectViewUrl(report.attachmentUrl || '', report.driveFileId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
+                            title="Open in Google Drive"
+                          >
+                            <Icon name="external-link" size={15} />
+                          </a>
+                        )}
+
+                        {String(user?.role || '').trim().toUpperCase() === 'ADMIN' && (
+                          <button
+                            type="button"
+                            onClick={() => setSopToDelete(report)}
+                            className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                            title="Delete document"
+                          >
+                            <Icon name="trash-2" size={15} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  {/* Actions buttons */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {selectedReport.attachmentUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewReport(selectedReport)}
-                        className="px-3 py-1.5 bg-[#00B4D8]/10 text-[#00B4D8] hover:bg-[#00B4D8] hover:text-white border border-[#00B4D8]/20 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs"
-                        title="View Fullscreen PDF Modal"
-                      >
-                        <Icon name="eye" size={13} />
-                        <span>Fullscreen Preview</span>
-                      </button>
-                    )}
-                    {selectedReport.attachmentUrl && (
-                      <a
-                        href={getDirectDownloadUrl(resolvedSelectedUrl || selectedReport.attachmentUrl, selectedReport.driveFileId)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={selectedReport.attachmentName || `${selectedReport.title}.pdf`}
-                        className="p-1.5 text-slate-500 hover:text-slate-850 hover:bg-slate-100 border border-slate-200 rounded-lg shadow-xs transition block"
-                        title="Download Link"
-                      >
-                        <Icon name="download" size={13} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Back to List footer button */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedReport(null)}
-                  className="w-full bg-slate-900 hover:bg-black text-white font-bold text-xs py-3.5 rounded-xl transition shadow-md duration-150"
-                >
-                  Back to Documents List
-                </button>
-              </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* 3. PREMIUM FULL-SCREEN MODAL PDF VIEWER (Direct Frame rendering with Google Viewer redundant support) */}
+      {/* 3. ROBUST FULL-SCREEN MODAL PDF VIEWER (Never auto-closes, with direct Download & Open buttons) */}
       {previewReport && (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950/80 backdrop-blur-md p-3 md:p-6 justify-center items-center animate-fade-in" id="pdf-viewer-modal">
-          <div className="bg-white w-full max-w-5xl h-full rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-slate-150">
-            
+        <div
+          className="fixed inset-0 z-[1000] flex flex-col bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 justify-center items-center animate-fade-in select-none"
+          id="pdf-viewer-modal"
+          onClick={(e) => {
+            // Close ONLY if clicking directly on the dark backdrop, not inside the modal!
+            if (e.target === e.currentTarget) {
+              setPreviewReport(null);
+            }
+          }}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setPreviewReport(null);
+          }}
+        >
+          <div
+            className="bg-white w-full max-w-6xl h-full rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header bar */}
-            <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 bg-[#00B4D8]/10 text-[#00B4D8] rounded-lg">
+            <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0">
                   <Icon name="file-text" size={18} />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-slate-800 text-sm truncate leading-snug">
-                    {previewReport.title}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    {previewReport.category} &bull; Published: {formatDate(previewReport.timestamp)}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-slate-850 text-sm truncate leading-snug">
+                      {previewReport.title}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-200">
+                      {previewReport.category || 'SOP'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                      v{previewReport.version || '1.0'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                    {previewReport.department || 'Quality'} &bull; Published: {formatDate(previewReport.timestamp)}
                   </p>
                 </div>
               </div>
-              
+
               {/* Action buttons inside Header */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Download Document Button */}
+                <button
+                  type="button"
+                  onClick={() => triggerDirectDownload(
+                    resolvedPreviewUrl || previewReport.attachmentUrl || '',
+                    previewReport.attachmentName || `${previewReport.title}.pdf`,
+                    previewReport.driveFileId
+                  )}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm shadow-emerald-900/20 cursor-pointer"
+                  title="Download PDF to Device"
+                >
+                  <Icon name="download" size={14} />
+                  <span className="hidden sm:inline">Download PDF</span>
+                </button>
+
+                {/* Open in Drive Link */}
                 {previewReport.attachmentUrl && (
                   <a
                     href={getDirectViewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-[#00B4D8] hover:text-white text-slate-650 rounded-lg text-[11px] font-bold transition flex items-center gap-1 border border-slate-200"
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 border border-slate-200"
+                    title="Open in Google Drive / New Tab"
                   >
-                    <Icon name="external-link" size={12} />
-                    <span className="hidden sm:inline">New Tab</span>
+                    <Icon name="external-link" size={13} />
+                    <span className="hidden sm:inline">Open Drive</span>
                   </a>
                 )}
+
+                {/* Close Button */}
                 <button
+                  type="button"
                   onClick={() => setPreviewReport(null)}
-                  className="p-1.5 hover:bg-slate-250 rounded-lg text-slate-500 hover:text-slate-800 transition"
-                  title="Close Preview Screen"
+                  className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer ml-1"
+                  title="Close Preview Screen (Esc)"
                 >
                   <Icon name="x" size={20} className="stroke-[2.5]" />
                 </button>
               </div>
             </div>
-            
+
             {/* Modal content container */}
-            <div className="flex-1 bg-slate-100/50 p-4 relative flex flex-col justify-between">
-              {previewReport.attachmentUrl ? (
+            <div className="flex-1 bg-slate-100/50 p-3 sm:p-4 relative flex flex-col justify-between overflow-hidden">
+              {previewReport.attachmentUrl || previewReport.driveFileId ? (
                 <div className="w-full h-full flex flex-col space-y-3">
-                  <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-xs text-sky-900 font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-start gap-2 leading-relaxed">
-                      <span className="text-sm">💡</span>
-                      <div>
-                        <strong>Iframe Sandbox Loading Notice:</strong> If the document preview below appears blank or displays a connection error, it is due to your browser or Google Drive's sandboxed iframe security blocks on this domain. Click the blue button to open the PDF directly in a new tab!
-                      </div>
+                  {/* Quick fallback notice bar */}
+                  <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 text-xs text-sky-900 font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Icon name="info" size={16} className="text-sky-600 flex-shrink-0" />
+                      <span className="text-[11px]">
+                        If your browser restricts Google Drive embedded frames, use the direct buttons to view or download:
+                      </span>
                     </div>
-                    <a
-                      href={getDirectViewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-[#00B4D8] hover:bg-[#0077B6] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shrink-0 shadow-sm shadow-[#00B4D8]/20"
-                    >
-                      <Icon name="external-link" size={14} />
-                      Open PDF in New Tab
-                    </a>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <a
+                        href={getDirectViewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-[#00B4D8] hover:bg-[#0077B6] text-white rounded-lg text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-2xs"
+                      >
+                        <Icon name="external-link" size={13} />
+                        <span>Open in New Tab</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => triggerDirectDownload(
+                          resolvedPreviewUrl || previewReport.attachmentUrl || '',
+                          previewReport.attachmentName || `${previewReport.title}.pdf`,
+                          previewReport.driveFileId
+                        )}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                      >
+                        <Icon name="download" size={13} />
+                        <span>Save PDF</span>
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="flex-1 bg-white border border-slate-250 rounded-xl overflow-hidden shadow-inner relative">
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 z-0 select-none p-6 text-center">
-                      <Icon name="loader" size={32} className="animate-spin text-[#00B4D8] mb-3" />
-                      <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Stream-rendering document ...</p>
-                      <p className="text-[11px] text-slate-400 mt-2 max-w-sm">If this loading spinner persists or Google blocks the frame, please click the "Open PDF in New Tab" button above to view it instantly.</p>
-                    </div>
+
+                  {/* Main PDF Frame */}
+                  <div className="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-inner relative">
                     <iframe
                       src={getEmbedPreviewUrl(resolvedPreviewUrl || previewReport.attachmentUrl, previewReport.driveFileId)}
                       className="w-full h-full border-0 relative z-10"
@@ -1474,22 +1594,19 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 </div>
               ) : (
                 <div className="py-24 text-center text-slate-400 max-w-sm mx-auto space-y-3">
-                  <Icon name="alert-triangle" size={32} className="mx-auto text-amber-500 animate-pulse" />
-                  <div>
-                    <p className="text-xs font-bold text-slate-700">Preview Stream Unreachable</p>
-                    <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">System has flagged secure restrictions. Open the link natively using the "New Tab" tool above.</p>
-                  </div>
+                  <Icon name="alert-triangle" size={32} className="mx-auto text-amber-500" />
+                  <p className="text-xs font-bold text-slate-700">Preview Attachment Missing</p>
+                  <p className="text-[11px] text-slate-400">This document record does not have an attached PDF file.</p>
                 </div>
               )}
             </div>
-
           </div>
         </div>
       )}
 
-      {/* 4. DESIGNER IN-APP DELETION CONFIRMATION DIALOG (Avoids blockable standard confirm) */}
+      {/* 4. DESIGNER IN-APP DELETION CONFIRMATION DIALOG */}
       {sopToDelete && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-fade-in" id="delete-sop-modal">
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-fade-in" id="delete-sop-modal">
           <div className="bg-white max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-200 text-center space-y-4">
             <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shadow-inner">
               <Icon name="trash-2" size={20} />
@@ -1521,64 +1638,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                 className="flex-1 py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition shadow-md shadow-red-500/10 cursor-pointer"
               >
                 Yes, Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {unauthorizedDomain && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fade-in" id="firebase-domain-auth-modal">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-rose-100 space-y-5 animate-scale-up">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">⚠️</span>
-              <div>
-                <h3 className="text-sm font-black text-rose-950 uppercase tracking-wider">Domain Authorization Required</h3>
-                <p className="text-[11px] text-slate-500 font-medium">Firebase Authentication is blocking this request.</p>
-              </div>
-            </div>
-            
-            <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100/80 space-y-2">
-              <p className="text-xs text-rose-900 leading-relaxed font-semibold">
-                Your application is currently running on <strong className="text-rose-700 font-black">{unauthorizedDomain}</strong>, which is not registered as an authorized domain in Firebase Authentication.
-              </p>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600 font-medium leading-relaxed">
-              <p className="font-extrabold uppercase text-[10px] tracking-wider text-slate-400">How to authorize this domain:</p>
-              <ol className="list-decimal list-inside space-y-1.5 pl-1 text-[11px]">
-                <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Firebase Console</a></li>
-                <li>Navigate to <strong className="text-slate-800">Authentication</strong> &gt; <strong className="text-slate-800">Settings</strong></li>
-                <li>Scroll down to <strong className="text-slate-800">Authorized domains</strong></li>
-                <li>Click <strong className="text-indigo-600 font-bold">Add domain</strong> and enter exactly:</li>
-              </ol>
-            </div>
-
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-150 rounded-xl p-2.5">
-              <code className="text-xs font-mono font-bold text-slate-800 select-all">{unauthorizedDomain}</code>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(unauthorizedDomain);
-                  if (triggerSuccess) {
-                    triggerSuccess("Copied domain to clipboard!");
-                  } else {
-                    alert("Copied domain to clipboard!");
-                  }
-                }}
-                className="text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-2xs hover:shadow-sm cursor-pointer transition-all"
-              >
-                Copy
-              </button>
-            </div>
-
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setUnauthorizedDomain(null)}
-                className="w-full bg-slate-900 hover:bg-slate-850 text-white text-[11px] font-black uppercase tracking-widest py-2.5 px-5 rounded-xl cursor-pointer transition shadow-md"
-              >
-                Got it, close
               </button>
             </div>
           </div>

@@ -2059,13 +2059,16 @@ function executeLocalAction(action: string, params: any[]): any {
       
       let data = db.reports_sop || [];
       
-      // Perform zone-based filtering
-      if (zone && zone !== 'ALL') {
-        data = data.filter((r: any) => {
+      // SOP & Audit guidelines are corporate-wide documents that must be accessible across all devices and zones
+      if (zone && zone !== 'ALL' && zone !== 'COMMON' && userRole !== 'ADMIN') {
+        const targetZone = String(zone).trim().toUpperCase();
+        const filtered = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const targetZone = String(zone).trim().toUpperCase();
-          return rZone === targetZone || rZone === 'ALL' || rZone === '';
+          return !rZone || rZone === targetZone || rZone === 'ALL' || rZone === 'COMMON';
         });
+        if (filtered.length > 0) {
+          data = filtered;
+        }
       }
       
       const deletedList = db.deleted_sop_ids || [];
@@ -2447,6 +2450,9 @@ async function startServer() {
         return res.status(400).send("Missing Google Drive file ID or URL parameter.");
       }
 
+      const isDownloadReq = req.query.download === 'true' || req.query.dl === '1';
+      const customFilename = typeof req.query.filename === 'string' && req.query.filename.trim() ? req.query.filename.trim() : '';
+
       // Check In-Memory Cache for instant sub-millisecond response
       const cached = driveImageCache.get(driveId);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -2454,6 +2460,11 @@ async function startServer() {
         res.setHeader("Cache-Control", "public, max-age=604800, immutable");
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("X-Cache", "HIT");
+        if (isDownloadReq) {
+          const ext = cached.contentType.includes("pdf") ? ".pdf" : (cached.contentType.includes("png") ? ".png" : ".jpg");
+          const dlName = customFilename || `file-${driveId}${ext}`;
+          res.setHeader("Content-Disposition", `attachment; filename="${dlName}"`);
+        }
         return res.send(cached.buffer);
       }
 
@@ -2501,6 +2512,11 @@ async function startServer() {
               res.setHeader("Cache-Control", "public, max-age=604800, immutable");
               res.setHeader("Access-Control-Allow-Origin", "*");
               res.setHeader("X-Cache", "MISS");
+              if (isDownloadReq) {
+                const ext = isPdf ? ".pdf" : (resolvedContentType.includes("png") ? ".png" : ".jpg");
+                const dlName = customFilename || `file-${driveId}${ext}`;
+                res.setHeader("Content-Disposition", `attachment; filename="${dlName}"`);
+              }
               return res.send(buffer);
             }
           }
