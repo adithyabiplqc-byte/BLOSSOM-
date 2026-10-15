@@ -161,20 +161,45 @@ const App: React.FC = () => {
         userCode: user.userCode,
         username: user.username,
         role: user.role,
-        zone: user.zone || user.location,
-        location: user.location || user.zone
+        zone: user.zone || user.location || globalZone,
+        location: user.location || user.zone || 'SYSTEM'
       } : { role: 'GUEST' };
 
-      const res = await api.run('api_heartbeat', payload) as any;
-      setIsOnline(res?.success !== false);
-      if (res?.maintenance) {
-        setMaintenance(res.maintenance);
-        try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
-      }
-      if (typeof res?.onlineCount === 'number') {
-        setOnlineUsersCount(res.onlineCount);
-      } else if (typeof res?.count === 'number') {
-        setOnlineUsersCount(res.count);
+      // 1. Direct REST ping to backend server
+      let gotHeartbeat = false;
+      try {
+        const hbRes = await fetch('/api/system/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (hbRes.ok) {
+          const hbData = await hbRes.json();
+          gotHeartbeat = true;
+          setIsOnline(true);
+          if (hbData?.maintenance) {
+            setMaintenance(hbData.maintenance);
+            try { localStorage.setItem('bqos_maintenance', JSON.stringify(hbData.maintenance)); } catch (e) {}
+          }
+          if (typeof hbData?.onlineCount === 'number') {
+            setOnlineUsersCount(hbData.onlineCount);
+          }
+        }
+      } catch (hbErr) {}
+
+      // 2. Also run through api.run pipeline if direct fetch didn't return
+      if (!gotHeartbeat) {
+        const res = await api.run('api_heartbeat', payload) as any;
+        setIsOnline(res?.success !== false);
+        if (res?.maintenance) {
+          setMaintenance(res.maintenance);
+          try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
+        }
+        if (typeof res?.onlineCount === 'number') {
+          setOnlineUsersCount(res.onlineCount);
+        } else if (typeof res?.count === 'number') {
+          setOnlineUsersCount(res.count);
+        }
       }
     } catch (e) {
       console.warn("Heartbeat ping notice:", e);
@@ -182,11 +207,11 @@ const App: React.FC = () => {
     } finally {
       setIsCheckingMaintenance(false);
     }
-  }, [user]);
+  }, [user, globalZone]);
 
   useEffect(() => {
     checkConnectivity();
-    const interval = setInterval(checkConnectivity, 15000); // Check every 15s
+    const interval = setInterval(checkConnectivity, 10000); // Check every 10s
     return () => clearInterval(interval);
   }, [checkConnectivity]);
 
@@ -866,9 +891,36 @@ const App: React.FC = () => {
         <MaintenanceScreen
           maintenance={maintenance}
           onCheckStatus={checkConnectivity}
+          currentUser={user}
           onAdminLogin={(admin) => {
             handleLogin(admin);
             triggerSuccess("Administrator authenticated: Maintenance override active");
+          }}
+          onTurnOnApp={async () => {
+            const payload = {
+              enabled: false,
+              message: maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+              setAt: new Date().toISOString(),
+              setBy: user?.username || 'ADMIN'
+            };
+            try {
+              await fetch('/api/system/maintenance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+            } catch (e) {}
+            try {
+              await api.run('api_setMaintenanceStatus', payload);
+            } catch (e) {}
+            setMaintenance(payload);
+            try { localStorage.setItem('bqos_maintenance', JSON.stringify(payload)); } catch (e) {}
+            triggerSuccess("Application Turned ON — System is Live");
+          }}
+          onGoToAdmin={() => {
+            try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
+            setSelectedSubmodule('');
+            setView('admin');
           }}
           users={users}
           isChecking={isCheckingMaintenance}

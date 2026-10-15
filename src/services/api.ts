@@ -76,20 +76,37 @@ function getLocalFallbackData(method: string, args: any[]): any {
     }
     case 'api_getMaintenanceStatus': {
       let m = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
+      let logs: any[] = [];
       try {
         const cached = localStorage.getItem('bqos_maintenance');
         if (cached) m = JSON.parse(cached);
+        const cachedLogs = localStorage.getItem('bqos_maintenance_logs');
+        if (cachedLogs) logs = JSON.parse(cachedLogs);
       } catch (e) {}
-      return { success: true, maintenance: m };
+      return { success: true, maintenance: m, logs };
     }
     case 'api_setMaintenanceStatus': {
       const param = args[0] || {};
       const enabled = typeof param === 'boolean' ? param : !!param.enabled;
       const message = param.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
       const setBy = param.setBy || args[1] || 'ADMIN';
-      const m = { enabled, message, setAt: new Date().toISOString(), setBy: String(setBy) };
-      try { localStorage.setItem('bqos_maintenance', JSON.stringify(m)); } catch (e) {}
-      return { success: true, maintenance: m };
+      const nowIso = new Date().toISOString();
+      const m = { enabled, message, setAt: nowIso, setBy: String(setBy) };
+      let logs: any[] = [];
+      try {
+        localStorage.setItem('bqos_maintenance', JSON.stringify(m));
+        const cachedLogs = localStorage.getItem('bqos_maintenance_logs');
+        if (cachedLogs) logs = JSON.parse(cachedLogs);
+        logs.unshift({
+          timestamp: nowIso,
+          module: 'SYSTEM',
+          action: 'MAINTENANCE_MODE',
+          details: `Application turned ${enabled ? 'OFF (Maintenance Active)' : 'ON (System Live)'}: ${message}`,
+          admin: String(setBy)
+        });
+        localStorage.setItem('bqos_maintenance_logs', JSON.stringify(logs.slice(0, 50)));
+      } catch (e) {}
+      return { success: true, maintenance: m, logs };
     }
     case 'api_getOnlineUsers': {
       let currentUser: any = null;
@@ -944,7 +961,64 @@ export const api = {
 
     switch (method) {
       case 'api_ping':
+      case 'api_heartbeat': {
+        try {
+          const res = await fetch('/api/system/heartbeat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(args[0] || {})
+          });
+          if (res.ok) return await res.json();
+        } catch (e) {}
         return { success: true, status: "Connected", timestamp: new Date().toISOString() };
+      }
+
+      case 'api_getOnlineUsers': {
+        try {
+          const res = await fetch('/api/system/online-users');
+          if (res.ok) return await res.json();
+        } catch (e) {}
+        return getLocalFallbackData('api_getOnlineUsers', args);
+      }
+
+      case 'api_getMaintenanceStatus': {
+        try {
+          const res = await fetch('/api/system/maintenance');
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.maintenance) {
+              try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
+            }
+            if (data?.logs) {
+              try { localStorage.setItem('bqos_maintenance_logs', JSON.stringify(data.logs)); } catch (e) {}
+            }
+            return data;
+          }
+        } catch (e) {}
+        return getLocalFallbackData('api_getMaintenanceStatus', args);
+      }
+
+      case 'api_setMaintenanceStatus': {
+        const payload = args[0] || {};
+        try {
+          const res = await fetch('/api/system/maintenance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.maintenance) {
+              try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
+            }
+            if (data?.logs) {
+              try { localStorage.setItem('bqos_maintenance_logs', JSON.stringify(data.logs)); } catch (e) {}
+            }
+            return data;
+          }
+        } catch (e) {}
+        return getLocalFallbackData('api_setMaintenanceStatus', args);
+      }
 
       case 'api_getInitialData': {
         const zone = args[0]?.zone;
@@ -976,17 +1050,15 @@ export const api = {
               }
             }
             
-            workorders = workorders.filter(w => {
+            const filtered = workorders.filter(w => {
               const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-              return allowedZones.has(zVal) || allowedZones.has(zVal.replace(/^ZMAP-/, ''));
+              return !zVal || zVal === 'ALL' || zVal === 'COMMON' || allowedZones.has(zVal) || allowedZones.has(zVal.replace(/^ZMAP-/, ''));
             });
+            if (filtered.length > 0) {
+              workorders = filtered;
+            }
           } catch (err) {
             console.error("Failed to load zone mapping list in api_getInitialData:", err);
-            // Fallback to strict filtering
-            workorders = workorders.filter(w => {
-              const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-              return zVal === String(zone).toUpperCase().trim();
-            });
           }
         }
 
@@ -997,10 +1069,31 @@ export const api = {
           settings = await sheetsService.getSettings('GLOBAL');
         }
 
+        let maintenance = {
+          enabled: false,
+          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+          setAt: '',
+          setBy: ''
+        };
+        try {
+          const mRes = await fetch('/api/system/maintenance');
+          if (mRes.ok) {
+            const mJson = await mRes.json();
+            if (mJson?.maintenance) maintenance = mJson.maintenance;
+          }
+        } catch (e) {
+          try {
+            const cached = localStorage.getItem('bqos_maintenance');
+            if (cached) maintenance = JSON.parse(cached);
+          } catch (ce) {}
+        }
+
         return {
           users,
           workorders,
           settings,
+          maintenance,
+          onlineCount: 1,
           serverTime: new Date().toISOString(),
           success: true
         };
@@ -1068,13 +1161,24 @@ export const api = {
       }
 
       case 'api_getWorkorders': {
-        const zone = (typeof args[0] === 'string' ? args[0] : args[0]?.zone);
+        const zoneArg = (typeof args[0] === 'string' ? args[0] : args[0]?.zone);
         let workorders = await sheetsService.getData('WORKORDER');
-        if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
-          workorders = workorders.filter(w => {
-            const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-            return zVal === String(zone).toUpperCase().trim();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zClean);
+          const filtered = workorders.filter(w => {
+            const rZone = String(w.zone || w.location || '').trim().toUpperCase();
+            const rUnit = String(w.unit || '').trim().toUpperCase();
+            if (!rZone && !rUnit) return true; // Keep untagged workorders visible
+            if (rZone === 'ALL' || rZone === 'COMMON' || rZone === 'SYSTEM') return true;
+            if (rZone === zClean || rUnit === zClean) return true;
+            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
+          if (filtered.length > 0) {
+            workorders = filtered;
+          }
         }
         return workorders;
       }
@@ -2256,6 +2360,18 @@ export const api = {
             });
 
             clearTimeout(timeoutId);
+
+            if (response.status === 503) {
+              const errJson = await response.json().catch(() => ({}));
+              if (errJson?.error === 'MAINTENANCE_MODE' || errJson?.maintenance) {
+                const mInfo = {
+                  enabled: true,
+                  message: errJson.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.'
+                };
+                try { localStorage.setItem('bqos_maintenance', JSON.stringify(mInfo)); } catch (e) {}
+                return { success: false, error: 'MAINTENANCE_MODE', maintenance: mInfo };
+              }
+            }
 
             const contentType = response.headers.get('content-type') || '';
             const isHtml = contentType.includes('text/html');

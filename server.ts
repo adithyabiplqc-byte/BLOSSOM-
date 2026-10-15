@@ -545,7 +545,7 @@ function registerUserPresence(userData: any) {
   const userCode = String(rawCode).trim().toUpperCase();
   if (!userCode || userCode === 'LOGIN' || userCode === 'GUEST') return;
 
-  activeUsers.set(userCode, {
+  const record: ActiveUserRecord = {
     id: userCode,
     userCode,
     username: String(userData.username || userCode),
@@ -553,23 +553,54 @@ function registerUserPresence(userData: any) {
     zone: String(userData.zone || userData.location || 'ALL'),
     location: String(userData.location || userData.zone || 'ALL'),
     lastSeen: Date.now()
-  });
+  };
+
+  activeUsers.set(userCode, record);
+
+  // Also persist to local db presence map so multi-process and server reloads preserve online sessions
+  try {
+    const db = readLocalDb();
+    db.presence = db.presence || {};
+    db.presence[userCode] = record;
+    // Periodically prune old records (> 5 mins)
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    for (const [k, v] of Object.entries(db.presence as Record<string, any>)) {
+      if (!v || !v.lastSeen || v.lastSeen < cutoff) {
+        delete db.presence[k];
+      }
+    }
+    fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+  } catch (e) {}
 }
 
 function getOnlineUsersList(): ActiveUserRecord[] {
   const now = Date.now();
-  const threshold = 5 * 60 * 1000; // active within the last 5 minutes
-  const list: ActiveUserRecord[] = [];
+  const threshold = 3 * 60 * 1000; // active within the last 3 minutes
+  const userMap = new Map<string, ActiveUserRecord>();
+
+  // 1. Load from file presence cache
+  try {
+    const db = readLocalDb();
+    if (db.presence && typeof db.presence === 'object') {
+      for (const [key, record] of Object.entries(db.presence as Record<string, any>)) {
+        if (record && record.lastSeen && (now - record.lastSeen <= threshold)) {
+          userMap.set(key.toUpperCase(), record as ActiveUserRecord);
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2. Merge with memory map
   for (const [key, record] of activeUsers.entries()) {
     if (now - record.lastSeen <= threshold) {
-      list.push(record);
+      userMap.set(key.toUpperCase(), record);
     } else {
       activeUsers.delete(key);
     }
   }
 
-  // Ensure active sessions list always has at least the active admin if none registered yet
-  if (list.length === 0) {
+  // 3. Ensure at least current admin is listed if map empty
+  if (userMap.size === 0) {
     const adminRecord: ActiveUserRecord = {
       id: 'A001',
       userCode: 'A001',
@@ -579,11 +610,55 @@ function getOnlineUsersList(): ActiveUserRecord[] {
       location: 'SYSTEM',
       lastSeen: now
     };
-    activeUsers.set('A001', adminRecord);
-    list.push(adminRecord);
+    userMap.set('A001', adminRecord);
   }
 
-  return list;
+  return Array.from(userMap.values());
+}
+
+/**
+ * Resilient helper to match a database record against a target zone.
+ * Prevents reports or workorders from disappearing when a zone or unit filter is active.
+ */
+function isRecordMatchingZone(r: any, targetZone: string, zoneRows: any[] = []): boolean {
+  if (!r) return false;
+  if (!targetZone || targetZone === 'ALL' || targetZone === 'SELECT...' || targetZone === '') return true;
+
+  const clean = (s: string) => String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+  const cTarget = clean(targetZone);
+  if (!cTarget || cTarget === 'ALL') return true;
+
+  const rZone = String(r.zone || r.location || '').trim().toUpperCase();
+  const rUnit = String(r.unit || '').trim().toUpperCase();
+
+  // If record has no zone or unit specified, keep it visible (never drop untagged data)
+  if (!rZone && !rUnit) return true;
+  // If record is tagged as COMMON, SYSTEM, or ALL, it belongs to all zones
+  if (rZone === 'COMMON' || rZone === 'SYSTEM' || rZone === 'ALL') return true;
+
+  // Direct matches
+  if (rZone === targetZone || rUnit === targetZone) return true;
+
+  const cZone = clean(rZone);
+  const cUnit = clean(rUnit);
+  if (cZone && (cZone === cTarget || cZone.includes(cTarget) || cTarget.includes(cZone))) return true;
+  if (cUnit && (cUnit === cTarget || cUnit.includes(cTarget) || cTarget.includes(cUnit))) return true;
+
+  // Check zone mappings: if the record's unit belongs to the target zone
+  if (Array.isArray(zoneRows) && zoneRows.length > 0) {
+    for (const zm of zoneRows) {
+      const zmZone = clean(zm.zone || zm.id || '');
+      const zmUnit = clean(zm.unit || '');
+      if (zmZone === cTarget && cUnit && (zmUnit === cUnit || zmUnit.includes(cUnit) || cUnit.includes(zmUnit))) {
+        return true;
+      }
+      if (zmUnit === cTarget && cZone && (zmZone === cZone || zmZone.includes(cZone) || cZone.includes(zmZone))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function _obsoleteMockData() {
@@ -1228,7 +1303,9 @@ const TABLES = [
   'reports_sop',
   'customer_complaints',
   'settings',
-  'zone'
+  'zone',
+  'maintenance',
+  'admin_logs'
 ];
 
 let lastPushedData: { [key: string]: string } = {};
@@ -1424,6 +1501,7 @@ function executeLocalAction(action: string, params: any[]): any {
     }
 
     case 'api_getMaintenanceStatus': {
+      const maintenanceLogs = (db.admin_logs || []).filter((l: any) => l.module === 'SYSTEM' || String(l.action).includes('MAINTENANCE'));
       return {
         success: true,
         maintenance: db.maintenance || {
@@ -1431,24 +1509,41 @@ function executeLocalAction(action: string, params: any[]): any {
           message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
           setAt: '',
           setBy: ''
-        }
+        },
+        logs: maintenanceLogs
       };
     }
 
     case 'api_setMaintenanceStatus': {
       const param = params[0] || {};
       const enabled = typeof param === 'boolean' ? param : !!param.enabled;
-      const message = param.message || db.maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
+      const message = (param.message && String(param.message).trim()) || db.maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
       const setBy = param.setBy || params[1] || 'ADMIN';
+      const nowIso = new Date().toISOString();
       db.maintenance = {
         enabled,
         message,
-        setAt: new Date().toISOString(),
+        setAt: nowIso,
         setBy: String(setBy)
       };
+
+      db.admin_logs = db.admin_logs || [];
+      db.admin_logs.push({
+        timestamp: nowIso,
+        module: 'SYSTEM',
+        action: 'MAINTENANCE_MODE',
+        details: `Application turned ${enabled ? 'OFF (Maintenance Active)' : 'ON (System Live)'}: ${message}`,
+        admin: String(setBy)
+      });
+
       writeLocalDb(db);
       console.log(`[MAINTENANCE] Mode updated: enabled=${enabled}, by=${setBy}`);
-      return { success: true, maintenance: db.maintenance };
+      const maintenanceLogs = db.admin_logs.filter((l: any) => l.module === 'SYSTEM' || String(l.action).includes('MAINTENANCE'));
+      return { 
+        success: true, 
+        maintenance: db.maintenance, 
+        logs: maintenanceLogs 
+      };
     }
       
     case 'api_getInitialData': {
@@ -1554,10 +1649,12 @@ function executeLocalAction(action: string, params: any[]): any {
       const zone = (typeof arg === 'string' ? arg : arg?.zone);
       let workorders = db.workorders || [];
       if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
-        workorders = workorders.filter((w: any) => {
-          const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-          return zVal === String(zone).toUpperCase().trim();
-        });
+        const zoneRows = db.zone || [];
+        const filtered = workorders.filter((w: any) => isRecordMatchingZone(w, String(zone).toUpperCase().trim(), zoneRows));
+        // If filter matched rows, return them; otherwise if all workorders belong to company, return all to prevent blank UI
+        if (filtered.length > 0) {
+          workorders = filtered;
+        }
       }
       return workorders;
     }
@@ -2057,15 +2154,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.material_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2075,15 +2166,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.cutting_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2093,15 +2178,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.sewing_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2111,15 +2190,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.sewing_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2129,15 +2202,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.endline_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2147,15 +2214,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.aql_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2165,15 +2226,9 @@ function executeLocalAction(action: string, params: any[]): any {
       let data = db.final_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
       if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-        data = data.filter((r: any) => {
-          const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-          const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-          const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zClean);
-          if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zClean) || zClean.includes(rZone);
-        });
+        const zoneRows = db.zone || [];
+        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
+        if (filtered.length > 0) data = filtered;
       }
       return data;
     }
@@ -2770,8 +2825,160 @@ async function startServer() {
     }
   });
 
+  // Dedicated REST system endpoints for Maintenance & Online Users Monitor
+  app.get("/api/system/maintenance", (req, res) => {
+    const db = readLocalDb();
+    const maintenanceLogs = (db.admin_logs || []).filter((l: any) => l.module === 'SYSTEM' || String(l.action).includes('MAINTENANCE'));
+    return res.json({
+      success: true,
+      maintenance: db.maintenance || {
+        enabled: false,
+        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+        setAt: '',
+        setBy: ''
+      },
+      logs: maintenanceLogs
+    });
+  });
+
+  app.post("/api/system/maintenance", (req, res) => {
+    const db = readLocalDb();
+    const { enabled, message, setBy } = req.body || {};
+    const finalEnabled = !!enabled;
+    const finalMessage = (message && String(message).trim()) || db.maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
+    const finalSetBy = setBy || 'ADMIN';
+    const nowIso = new Date().toISOString();
+
+    db.maintenance = {
+      enabled: finalEnabled,
+      message: finalMessage,
+      setAt: nowIso,
+      setBy: String(finalSetBy)
+    };
+
+    // Log this action to admin_logs
+    db.admin_logs = db.admin_logs || [];
+    db.admin_logs.push({
+      timestamp: nowIso,
+      module: 'SYSTEM',
+      action: 'MAINTENANCE_MODE',
+      details: `Application turned ${finalEnabled ? 'OFF (Maintenance Active)' : 'ON (System Live)'}: ${finalMessage}`,
+      admin: String(finalSetBy)
+    });
+
+    writeLocalDb(db);
+    console.log(`[MAINTENANCE] System availability updated: enabled=${finalEnabled}, by=${finalSetBy}`);
+    const maintenanceLogs = db.admin_logs.filter((l: any) => l.module === 'SYSTEM' || String(l.action).includes('MAINTENANCE'));
+    return res.json({ success: true, maintenance: db.maintenance, logs: maintenanceLogs });
+  });
+
+  app.get("/api/system/online-users", (req, res) => {
+    const list = getOnlineUsersList();
+    return res.json({
+      success: true,
+      count: list.length,
+      users: list
+    });
+  });
+
+  app.post("/api/system/presence/logout", (req, res) => {
+    const { userCode, username } = req.body || {};
+    const code = String(userCode || username || '').trim().toUpperCase();
+    if (code) {
+      activeUsers.delete(code);
+      try {
+        const db = readLocalDb();
+        if (db.presence) {
+          delete db.presence[code];
+          fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+        }
+      } catch (e) {}
+    }
+    const list = getOnlineUsersList();
+    return res.json({ success: true, count: list.length, users: list });
+  });
+
+  app.post("/api/system/heartbeat", (req, res) => {
+    if (req.body && typeof req.body === 'object') {
+      registerUserPresence(req.body);
+    }
+    const db = readLocalDb();
+    const list = getOnlineUsersList();
+    const maintenanceLogs = (db.admin_logs || []).filter((l: any) => l.module === 'SYSTEM' || String(l.action).includes('MAINTENANCE'));
+    return res.json({
+      success: true,
+      status: "Connected",
+      timestamp: new Date().toISOString(),
+      onlineCount: list.length,
+      users: list,
+      maintenance: db.maintenance || {
+        enabled: false,
+        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+        setAt: '',
+        setBy: ''
+      },
+      logs: maintenanceLogs
+    });
+  });
+
   app.post("/api/gas", async (req, res) => {
     try {
+      const bodyPayload = { ...req.body };
+      const action = bodyPayload.action || 'unknown';
+
+      // Track active user presence if user info is included
+      const incomingPresence = bodyPayload.user || bodyPayload.params?.[0]?.user || bodyPayload.params?.[0];
+      if (incomingPresence && typeof incomingPresence === 'object') {
+        registerUserPresence(incomingPresence);
+      }
+
+      // Priority #1: Ultra-fast instant response for system actions (heartbeat, presence, maintenance)
+      // These actions are server-authoritative and do NOT require external Google Apps Script execution
+      if (action === 'api_ping' || action === 'api_heartbeat') {
+        const db = readLocalDb();
+        return res.json({ 
+          success: true, 
+          status: "Connected", 
+          timestamp: new Date().toISOString(),
+          serverTime: new Date().toISOString(),
+          onlineCount: getOnlineUsersList().length,
+          users: getOnlineUsersList(),
+          maintenance: db.maintenance || {
+            enabled: false,
+            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+            setAt: '',
+            setBy: ''
+          }
+        });
+      }
+
+      if (action === 'api_getOnlineUsers') {
+        const list = getOnlineUsersList();
+        return res.json({
+          success: true,
+          count: list.length,
+          users: list
+        });
+      }
+
+      if (action === 'api_getMaintenanceStatus') {
+        const db = readLocalDb();
+        return res.json({
+          success: true,
+          maintenance: db.maintenance || {
+            enabled: false,
+            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+            setAt: '',
+            setBy: ''
+          }
+        });
+      }
+
+      if (action === 'api_setMaintenanceStatus') {
+        const result = executeLocalAction('api_setMaintenanceStatus', bodyPayload.params || []);
+        return res.json(result);
+      }
+
       // Load Firestore config in case we need to auto-heal
       const fsConfig = await getFirestoreConfig();
 
@@ -2829,7 +3036,6 @@ async function startServer() {
       }
 
       // In-flight body preparation: if spreadsheetId is missing from client, inject from server backups and Firestore
-      const bodyPayload = { ...req.body };
       if (!bodyPayload.spreadsheetId) {
         try {
           if (fs.existsSync(SPREADSHEET_FILE)) {
@@ -2847,67 +3053,8 @@ async function startServer() {
         console.log(`[API PROXY] Recovered and injected spreadsheetId from env: ${bodyPayload.spreadsheetId}`);
       }
 
-      const action = bodyPayload.action || 'unknown';
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
-
-      // Track active user presence if user info is included
-      const incomingPresence = bodyPayload.user || bodyPayload.params?.[0]?.user || bodyPayload.params?.[0];
-      if (incomingPresence && typeof incomingPresence === 'object') {
-        registerUserPresence(incomingPresence);
-      }
-
-      // Ultra-fast instant response for heartbeat connectivity & presence pings
-      if (action === 'api_ping' || action === 'api_heartbeat') {
-        const db = readLocalDb();
-        return res.json({ 
-          success: true, 
-          status: "Connected", 
-          timestamp: new Date().toISOString(),
-          serverTime: new Date().toISOString(),
-          onlineCount: getOnlineUsersList().length,
-          maintenance: db.maintenance || {
-            enabled: false,
-            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-            setAt: '',
-            setBy: ''
-          }
-        });
-      }
-
-      // Live online user monitor request
-      if (action === 'api_getOnlineUsers') {
-        const caller = bodyPayload.user || bodyPayload.params?.[0];
-        if (caller && typeof caller === 'object') {
-          registerUserPresence(caller);
-        }
-        const list = getOnlineUsersList();
-        return res.json({
-          success: true,
-          count: list.length,
-          users: list
-        });
-      }
-
-      // Query current maintenance mode state
-      if (action === 'api_getMaintenanceStatus') {
-        const db = readLocalDb();
-        return res.json({
-          success: true,
-          maintenance: db.maintenance || {
-            enabled: false,
-            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-            setAt: '',
-            setBy: ''
-          }
-        });
-      }
-
-      // Toggle or update maintenance mode switch
-      if (action === 'api_setMaintenanceStatus') {
-        const result = executeLocalAction('api_setMaintenanceStatus', bodyPayload.params || []);
-        return res.json(result);
-      }
 
       // If Maintenance Mode is active, block regular users from reading or writing data
       const currentDb = readLocalDb();

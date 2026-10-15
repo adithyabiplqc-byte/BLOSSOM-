@@ -136,7 +136,39 @@ interface DataViewProps {
 }
 
 const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, setGlobalZone, workorders }) => {
-  const currentZones = settings?.ZONE || settings?.ZONES || ZONES;
+  const [zoneMappings, setZoneMappings] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('bqos_cache_zm');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    api.run('api_getZoneMappings').then(res => {
+      if (Array.isArray(res) && res.length > 0) {
+        setZoneMappings(res);
+        try { localStorage.setItem('bqos_cache_zm', JSON.stringify(res)); } catch (e) {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  const currentZonesList = useMemo(() => {
+    if (zoneMappings.length > 0) {
+      const fromMap = zoneMappings
+        .filter((z: any) => String(z.zone || '').trim())
+        .map((z: any) => String(z.zone).toUpperCase().trim())
+        .filter((z: string) => z && !z.startsWith('ZMAP-'));
+      const unique = Array.from(new Set(fromMap));
+      if (unique.length > 0) return unique;
+    }
+    const raw = settings?.ZONE || settings?.ZONES || ZONES;
+    if (Array.isArray(raw)) return raw.map(s => String(s).trim()).filter(Boolean);
+    if (typeof raw === 'string') return raw.split('\n').map(s => s.trim()).filter(Boolean);
+    return ZONES;
+  }, [settings, zoneMappings]);
+
   const currentItems = settings?.ITEMS || settings?.ITEM || ['T-SHIRT', 'POLO', 'HOODIE', 'JACKET', 'PANTS'];
 
   const isCommonOrAdmin = user?.role === 'ADMIN' || user?.zone === 'COMMON' || user?.location === 'COMMON';
@@ -534,22 +566,38 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     if (!Array.isArray(normalizedData)) return [];
     const matched = normalizedData.filter(row => {
       if (!row) return false;
-      // Zone filter with resilient fuzzy matching
+      // Zone filter with resilient fuzzy and mapping-aware matching
       const cleanSelectedZone = (selectedZone || 'ALL').trim().toUpperCase();
       const clean = (s: string) => String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
       const cSelected = clean(cleanSelectedZone);
-      const cRowZone = clean(row.zone || row.location || '');
-      const cRowUnit = clean(row.unit || '');
-      const zoneMatch = cleanSelectedZone === 'ALL' || 
-                        cleanSelectedZone === 'SELECT...' || 
-                        cleanSelectedZone === '' ||
-                        !cSelected ||
-                        (row.zone && String(row.zone).toUpperCase() === cleanSelectedZone) || 
-                        (row.location && String(row.location).toUpperCase() === cleanSelectedZone) ||
-                        (row.unit && String(row.unit).toUpperCase() === cleanSelectedZone) ||
-                        (cRowZone && cRowZone === cSelected) ||
-                        (cRowUnit && cRowUnit === cSelected) ||
-                        (cRowZone && (cRowZone.includes(cSelected) || cSelected.includes(cRowZone)));
+      const rZoneRaw = String(row.zone || row.location || '').trim().toUpperCase();
+      const rUnitRaw = String(row.unit || '').trim().toUpperCase();
+      const cRowZone = clean(rZoneRaw);
+      const cRowUnit = clean(rUnitRaw);
+
+      let zoneMatch = cleanSelectedZone === 'ALL' || 
+                      cleanSelectedZone === 'SELECT...' || 
+                      cleanSelectedZone === '' ||
+                      !cSelected ||
+                      (!rZoneRaw && !rUnitRaw) || // Never drop untagged data
+                      rZoneRaw === 'ALL' || 
+                      rZoneRaw === 'COMMON' || 
+                      rZoneRaw === 'SYSTEM' ||
+                      rZoneRaw === cleanSelectedZone || 
+                      rUnitRaw === cleanSelectedZone ||
+                      (cRowZone && cRowZone === cSelected) ||
+                      (cRowUnit && cRowUnit === cSelected) ||
+                      (cRowZone && (cRowZone.includes(cSelected) || cSelected.includes(cRowZone))) ||
+                      (cRowUnit && (cRowUnit.includes(cSelected) || cSelected.includes(cRowUnit)));
+
+      if (!zoneMatch && Array.isArray(zoneMappings) && zoneMappings.length > 0) {
+        zoneMatch = zoneMappings.some((zm: any) => {
+          const zmZone = clean(zm.zone || zm.id || '');
+          const zmUnit = clean(zm.unit || '');
+          return (zmZone === cSelected && cRowUnit && (zmUnit === cRowUnit || zmUnit.includes(cRowUnit) || cRowUnit.includes(zmUnit))) ||
+                 (zmUnit === cSelected && cRowZone && (zmZone === cRowZone || zmZone.includes(cRowZone) || cRowZone.includes(zmZone)));
+        });
+      }
       
       // Item filter
       const itemMatch = selectedItem === 'ALL' || 
@@ -1248,7 +1296,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
               disabled={!isCommonOrAdmin}
             >
               {isCommonOrAdmin && <option value="ALL">ALL ZONES</option>}
-              {(isCommonOrAdmin ? currentZones : [userAssignedZone]).map((z: string) => (
+              {(isCommonOrAdmin ? currentZonesList : [userAssignedZone]).map((z: string) => (
                 <option key={z} value={z}>{z}</option>
               ))}
             </SearchableSelect>

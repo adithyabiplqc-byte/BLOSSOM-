@@ -165,9 +165,26 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
           setRawRecords(res);
 
           // Apply Global Zone Filter
-          const filtered = globalZone && globalZone !== 'ALL' 
-            ? res.filter((r: any) => (r.zone === globalZone || r.location === globalZone))
-            : res;
+          const isRecordZoneMatched = (zoneVal?: string, locVal?: string, unitVal?: string) => {
+            if (!globalZone || globalZone === 'ALL' || globalZone === '') return true;
+            const target = globalZone.toUpperCase().trim();
+            const z = String(zoneVal || '').toUpperCase().trim();
+            const loc = String(locVal || '').toUpperCase().trim();
+            const u = String(unitVal || '').toUpperCase().trim();
+            if (!z && !loc && !u) return true;
+            if (z === 'COMMON' || z === 'SYSTEM' || z === 'ALL' || loc === 'COMMON' || loc === 'SYSTEM') return true;
+            if (z === target || loc === target || u === target) return true;
+            const cleanTarget = target.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cleanZ = z.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cleanLoc = loc.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            const cleanU = u.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+            if (cleanTarget && (cleanZ === cleanTarget || cleanLoc === cleanTarget || cleanU === cleanTarget)) return true;
+            if (cleanTarget && cleanZ && (cleanZ.includes(cleanTarget) || cleanTarget.includes(cleanZ))) return true;
+            if (cleanTarget && cleanU && (cleanU.includes(cleanTarget) || cleanTarget.includes(cleanU))) return true;
+            return false;
+          };
+
+          const filtered = res.filter((r: any) => isRecordZoneMatched(r.zone, r.location, r.unit));
 
           const grouped = filtered.reduce((acc: any, curr: any) => {
             const rawDate = curr.timestamp || curr.receivedDate;

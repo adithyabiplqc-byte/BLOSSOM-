@@ -127,8 +127,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         location: currentUser.location || 'SYSTEM'
       } : { role: 'GUEST' };
 
-      const res = await api.run('api_getOnlineUsers', payload) as any;
-      let list = (res && Array.isArray(res.users)) ? [...res.users] : [];
+      let list: any[] = [];
+      try {
+        const sysRes = await fetch('/api/system/online-users');
+        if (sysRes.ok) {
+          const sysData = await sysRes.json();
+          if (sysData && Array.isArray(sysData.users)) {
+            list = sysData.users;
+          }
+        }
+      } catch (e) {}
+
+      if (list.length === 0) {
+        const res = await api.run('api_getOnlineUsers', payload) as any;
+        if (res && Array.isArray(res.users)) {
+          list = [...res.users];
+        }
+      }
 
       // Guarantee current active user is always represented in the online list
       if (currentUser) {
@@ -168,11 +183,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const fetchMaintenance = async () => {
     try {
-      const res = await api.run('api_getMaintenanceStatus') as any;
-      if (res && res.maintenance) {
-        setMaintenanceState(res.maintenance);
-        setMaintenanceMsg(res.maintenance.message || '');
-        try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
+      let mData: any = null;
+      try {
+        const mRes = await fetch('/api/system/maintenance');
+        if (mRes.ok) {
+          const mJson = await mRes.json();
+          if (mJson?.maintenance) mData = mJson.maintenance;
+        }
+      } catch (e) {}
+
+      if (!mData) {
+        const res = await api.run('api_getMaintenanceStatus') as any;
+        if (res && res.maintenance) mData = res.maintenance;
+      }
+
+      if (mData) {
+        setMaintenanceState(mData);
+        setMaintenanceMsg(mData.message || '');
+        try { localStorage.setItem('bqos_maintenance', JSON.stringify(mData)); } catch (e) {}
+        if (onUpdateMaintenance) onUpdateMaintenance(mData);
       }
     } catch (e) {
       console.warn("Failed to fetch maintenance status:", e);
@@ -184,7 +213,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     fetchMaintenance();
     const interval = setInterval(() => {
       fetchOnlineUsers();
-    }, 15000);
+      fetchMaintenance();
+    }, 10000); // Sync every 10s
     return () => clearInterval(interval);
   }, []);
 
@@ -205,15 +235,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (onUpdateMaintenance) onUpdateMaintenance(payload);
 
     try {
+      // 1. Direct post to server
+      try {
+        await fetch('/api/system/maintenance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {}
+
+      // 2. Also run through API pipeline
       const res = await api.run('api_setMaintenanceStatus', payload) as any;
       if (res && res.maintenance) {
         setMaintenanceState(res.maintenance);
         try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
         if (onUpdateMaintenance) onUpdateMaintenance(res.maintenance);
       }
+
+      // 3. Log to Admin Activity Log
+      await logActivity(
+        'MAINTENANCE', 
+        nextState 
+          ? `Application turned OFF (Maintenance Mode Active) by ${currentUser?.username || 'ADMIN'}`
+          : `Application turned ON (System Live) by ${currentUser?.username || 'ADMIN'}`
+      ).catch(() => {});
+
       if (triggerSuccess) {
         triggerSuccess(nextState ? "⚠️ Application Turned OFF — Maintenance Mode is Active" : "✅ Application Turned ON — System is Live");
       }
+      fetchAdminLogs(true);
     } catch (e: any) {
       console.warn("Error toggling maintenance mode:", e);
     } finally {
@@ -233,15 +283,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setAt: maintenanceState.setAt || new Date().toISOString(),
         setBy: currentUser?.username || 'ADMIN'
       };
+
+      try {
+        await fetch('/api/system/maintenance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {}
+
       const res = await api.run('api_setMaintenanceStatus', payload) as any;
       if (res && res.maintenance) {
         setMaintenanceState(res.maintenance);
         try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
         if (onUpdateMaintenance) onUpdateMaintenance(res.maintenance);
-        if (triggerSuccess) {
-          triggerSuccess("Maintenance notice message updated successfully.");
-        }
       }
+
+      await logActivity(
+        'MAINTENANCE', 
+        `Updated maintenance message: "${maintenanceMsg.trim()}"`
+      ).catch(() => {});
+
+      if (triggerSuccess) {
+        triggerSuccess("Maintenance notice message updated successfully.");
+      }
+      fetchAdminLogs(true);
     } catch (e: any) {
       console.warn("Error saving notice message:", e);
     } finally {

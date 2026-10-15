@@ -307,10 +307,16 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   const filteredWorkorders = React.useMemo(() => {
     return workorders.filter(wo => {
       const wZone = String(wo.zone || wo.location || "").toUpperCase().trim();
-      const gZone = String(globalZone || "ALL").toUpperCase().trim();
-      const zoneMatch = gZone === 'ALL' || wZone === gZone;
-      const searchMatch = String(wo.workorderNumber).toLowerCase().includes(search.toLowerCase()) ||
-                          String(wo.style).toLowerCase().includes(search.toLowerCase());
+      const zoneMatch = gZone === 'ALL' || 
+                        !wZone || 
+                        wZone === 'COMMON' || 
+                        wZone === 'SYSTEM' || 
+                        wZone === 'ALL' || 
+                        wZone === gZone || 
+                        wZone.includes(gZone) || 
+                        gZone.includes(wZone);
+      const searchMatch = String(wo.workorderNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+                          String(wo.style || '').toLowerCase().includes(search.toLowerCase());
       return zoneMatch && searchMatch;
     });
   }, [workorders, globalZone, search]);
