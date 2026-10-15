@@ -13,8 +13,10 @@ export const handler = async (event: any) => {
     return { statusCode: 200, headers, body: '' };
   }
 
-  const gasUrl = process.env.VITE_GAS_URL || process.env.GAS_URL || DEFAULT_SHEETS_URL;
-  const gasDriveUrl = process.env.VITE_GAS_DRIVE_URL || process.env.GAS_DRIVE_URL || DEFAULT_DRIVE_URL;
+  const envUrl = process.env.VITE_GAS_URL || process.env.GAS_URL;
+  const gasUrl = (envUrl && !envUrl.includes("AKfycbwK") && !envUrl.includes("REPLACE_WITH")) ? envUrl : DEFAULT_SHEETS_URL;
+  const envDriveUrl = process.env.VITE_GAS_DRIVE_URL || process.env.GAS_DRIVE_URL;
+  const gasDriveUrl = (envDriveUrl && !envDriveUrl.includes("AKfycbwK") && !envDriveUrl.includes("REPLACE_WITH")) ? envDriveUrl : DEFAULT_DRIVE_URL;
 
   return {
     statusCode: 200,

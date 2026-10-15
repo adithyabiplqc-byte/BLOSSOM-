@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
+import { INITIAL_DB } from "./src/data/initialDb";
 
 const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
@@ -474,6 +475,36 @@ function readLocalDb(): any {
           parsed.zone = parsed.zone || [];
           parsed.settings = parsed.settings || {};
           parsed.admin_logs = parsed.admin_logs || [];
+          parsed.maintenance = parsed.maintenance || {
+            enabled: false,
+            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+            setAt: '',
+            setBy: ''
+          };
+
+          // Preserve and restore real September 23 production data from INITIAL_DB if local state is missing tables
+          if (parsed.workorders.length === 0 && INITIAL_DB?.workorders?.length > 0) {
+            parsed.workorders = JSON.parse(JSON.stringify(INITIAL_DB.workorders));
+          }
+          if (parsed.material_reports.length === 0 && INITIAL_DB?.material_reports?.length > 0) {
+            parsed.material_reports = JSON.parse(JSON.stringify(INITIAL_DB.material_reports));
+          }
+          if (parsed.cutting_reports.length === 0 && INITIAL_DB?.cutting_reports?.length > 0) {
+            parsed.cutting_reports = JSON.parse(JSON.stringify(INITIAL_DB.cutting_reports));
+          }
+          if (parsed.endline_reports.length === 0 && INITIAL_DB?.endline_reports?.length > 0) {
+            parsed.endline_reports = JSON.parse(JSON.stringify(INITIAL_DB.endline_reports));
+          }
+          if (parsed.users.length <= 3 && INITIAL_DB?.users?.length > 3) {
+            parsed.users = JSON.parse(JSON.stringify(INITIAL_DB.users));
+          }
+          if ((!parsed.settings || Object.keys(parsed.settings).length === 0) && INITIAL_DB?.settings) {
+            parsed.settings = JSON.parse(JSON.stringify(INITIAL_DB.settings));
+          }
+          if (parsed.zone.length === 0 && INITIAL_DB?.zone?.length > 0) {
+            parsed.zone = JSON.parse(JSON.stringify(INITIAL_DB.zone));
+          }
+
           sanitizeEndlineData(parsed);
           return parsed;
         }
@@ -483,7 +514,79 @@ function readLocalDb(): any {
     console.error("[LOCAL DB] Error reading local db:", e);
   }
   
-  // Seed database
+  // Seed database from INITIAL_DB (containing real September 23 production data)
+  const seed = JSON.parse(JSON.stringify(INITIAL_DB));
+  seed.maintenance = seed.maintenance || {
+    enabled: false,
+    message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+    setAt: '',
+    setBy: ''
+  };
+  writeLocalDb(seed);
+  return seed;
+}
+
+// In-memory active presence tracker
+interface ActiveUserRecord {
+  id: string;
+  userCode: string;
+  username: string;
+  role: string;
+  zone: string;
+  location: string;
+  lastSeen: number;
+}
+
+const activeUsers = new Map<string, ActiveUserRecord>();
+
+function registerUserPresence(userData: any) {
+  if (!userData || typeof userData !== 'object') return;
+  const rawCode = userData.userCode || userData.username || '';
+  const userCode = String(rawCode).trim().toUpperCase();
+  if (!userCode || userCode === 'LOGIN' || userCode === 'GUEST') return;
+
+  activeUsers.set(userCode, {
+    id: userCode,
+    userCode,
+    username: String(userData.username || userCode),
+    role: String(userData.role || 'USER').toUpperCase(),
+    zone: String(userData.zone || userData.location || 'ALL'),
+    location: String(userData.location || userData.zone || 'ALL'),
+    lastSeen: Date.now()
+  });
+}
+
+function getOnlineUsersList(): ActiveUserRecord[] {
+  const now = Date.now();
+  const threshold = 5 * 60 * 1000; // active within the last 5 minutes
+  const list: ActiveUserRecord[] = [];
+  for (const [key, record] of activeUsers.entries()) {
+    if (now - record.lastSeen <= threshold) {
+      list.push(record);
+    } else {
+      activeUsers.delete(key);
+    }
+  }
+
+  // Ensure active sessions list always has at least the active admin if none registered yet
+  if (list.length === 0) {
+    const adminRecord: ActiveUserRecord = {
+      id: 'A001',
+      userCode: 'A001',
+      username: 'admin',
+      role: 'ADMIN',
+      zone: 'ALL',
+      location: 'SYSTEM',
+      lastSeen: now
+    };
+    activeUsers.set('A001', adminRecord);
+    list.push(adminRecord);
+  }
+
+  return list;
+}
+
+function _obsoleteMockData() {
   const seed = {
     users: [
       { userCode: "U001", username: "user1", password: "pass1", role: "USER", location: "SYSTEM", restrictions: [], canDownload: true },
@@ -1109,7 +1212,6 @@ function readLocalDb(): any {
       }
     } as Record<string, any>
   };
-  writeLocalDb(seed);
   return seed;
 }
 
@@ -1288,9 +1390,69 @@ function executeLocalAction(action: string, params: any[]): any {
   
   switch (action) {
     case 'api_ping':
-      return { success: true, status: "Connected (Local Fallback)", timestamp: new Date().toISOString() };
+      return { 
+        success: true, 
+        status: "Connected (Local Fallback)", 
+        timestamp: new Date().toISOString(),
+        onlineCount: getOnlineUsersList().length,
+        maintenance: db.maintenance || {
+          enabled: false,
+          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+          setAt: '',
+          setBy: ''
+        }
+      };
+
+    case 'api_heartbeat': {
+      const user = params[0];
+      if (user) registerUserPresence(user);
+      return {
+        success: true,
+        count: getOnlineUsersList().length,
+        maintenance: db.maintenance || {
+          enabled: false,
+          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+          setAt: '',
+          setBy: ''
+        }
+      };
+    }
+
+    case 'api_getOnlineUsers': {
+      const list = getOnlineUsersList();
+      return { success: true, count: list.length, users: list };
+    }
+
+    case 'api_getMaintenanceStatus': {
+      return {
+        success: true,
+        maintenance: db.maintenance || {
+          enabled: false,
+          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+          setAt: '',
+          setBy: ''
+        }
+      };
+    }
+
+    case 'api_setMaintenanceStatus': {
+      const param = params[0] || {};
+      const enabled = typeof param === 'boolean' ? param : !!param.enabled;
+      const message = param.message || db.maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
+      const setBy = param.setBy || params[1] || 'ADMIN';
+      db.maintenance = {
+        enabled,
+        message,
+        setAt: new Date().toISOString(),
+        setBy: String(setBy)
+      };
+      writeLocalDb(db);
+      console.log(`[MAINTENANCE] Mode updated: enabled=${enabled}, by=${setBy}`);
+      return { success: true, maintenance: db.maintenance };
+    }
       
     case 'api_getInitialData': {
+      if (params[0]) registerUserPresence(params[0]);
       const zone = params[0]?.zone;
       const userCode = params[0]?.userCode;
       const allWOs = db.workorders || [];
@@ -1302,6 +1464,13 @@ function executeLocalAction(action: string, params: any[]): any {
         workorders: allWOs,
         settings: settings,
         serverTime: new Date().toISOString(),
+        maintenance: db.maintenance || {
+          enabled: false,
+          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+          setAt: '',
+          setBy: ''
+        },
+        onlineCount: getOnlineUsersList().length,
         success: true
       };
     }
@@ -1886,16 +2055,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getMaterialData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.material_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1904,16 +2073,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getCuttingData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.cutting_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1922,16 +2091,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getInlineData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1940,16 +2109,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_get8ROUNDSYSTEMData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1958,16 +2127,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getEndlineData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.endline_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1976,16 +2145,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getAQLData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.aql_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -1994,16 +2163,16 @@ function executeLocalAction(action: string, params: any[]): any {
     case 'api_getFinalAuditData': {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.final_reports || [];
-      if (zoneArg && zoneArg !== 'ALL') {
-        const zTarget = String(zoneArg).trim().toUpperCase();
+      const zClean = String(zoneArg || '').trim().toUpperCase();
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
         data = data.filter((r: any) => {
           const rZone = String(r.zone || r.location || '').trim().toUpperCase();
           const rUnit = String(r.unit || '').trim().toUpperCase();
-          if (rZone === zTarget || rUnit === zTarget) return true;
+          if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-          const cTarget = clean(zTarget);
+          const cTarget = clean(zClean);
           if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-          return rZone.includes(zTarget) || zTarget.includes(rZone);
+          return rZone.includes(zClean) || zClean.includes(rZone);
         });
       }
       return data;
@@ -2081,7 +2250,11 @@ function executeLocalAction(action: string, params: any[]): any {
       report.id = report.id || 'sop-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
       
-      const existingIdx = db.reports_sop.findIndex((r: any) => String(r.id) === String(report.id));
+      const existingIdx = db.reports_sop.findIndex((r: any) => 
+        (report.id && String(r.id) === String(report.id)) ||
+        (report.driveFileId && r.driveFileId && String(r.driveFileId) === String(report.driveFileId)) ||
+        (report.title && r.title && String(r.title).trim().toLowerCase() === String(report.title).trim().toLowerCase() && r.attachmentUrl === report.attachmentUrl)
+      );
       if (existingIdx !== -1) {
         db.reports_sop[existingIdx] = { ...db.reports_sop[existingIdx], ...report };
       } else {
@@ -2678,14 +2851,93 @@ async function startServer() {
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
 
-      // Ultra-fast instant response for heartbeat connectivity pings
-      if (action === 'api_ping') {
+      // Track active user presence if user info is included
+      const incomingPresence = bodyPayload.user || bodyPayload.params?.[0]?.user || bodyPayload.params?.[0];
+      if (incomingPresence && typeof incomingPresence === 'object') {
+        registerUserPresence(incomingPresence);
+      }
+
+      // Ultra-fast instant response for heartbeat connectivity & presence pings
+      if (action === 'api_ping' || action === 'api_heartbeat') {
+        const db = readLocalDb();
         return res.json({ 
           success: true, 
           status: "Connected", 
           timestamp: new Date().toISOString(),
-          serverTime: new Date().toISOString()
+          serverTime: new Date().toISOString(),
+          onlineCount: getOnlineUsersList().length,
+          maintenance: db.maintenance || {
+            enabled: false,
+            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+            setAt: '',
+            setBy: ''
+          }
         });
+      }
+
+      // Live online user monitor request
+      if (action === 'api_getOnlineUsers') {
+        const caller = bodyPayload.user || bodyPayload.params?.[0];
+        if (caller && typeof caller === 'object') {
+          registerUserPresence(caller);
+        }
+        const list = getOnlineUsersList();
+        return res.json({
+          success: true,
+          count: list.length,
+          users: list
+        });
+      }
+
+      // Query current maintenance mode state
+      if (action === 'api_getMaintenanceStatus') {
+        const db = readLocalDb();
+        return res.json({
+          success: true,
+          maintenance: db.maintenance || {
+            enabled: false,
+            message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+            setAt: '',
+            setBy: ''
+          }
+        });
+      }
+
+      // Toggle or update maintenance mode switch
+      if (action === 'api_setMaintenanceStatus') {
+        const result = executeLocalAction('api_setMaintenanceStatus', bodyPayload.params || []);
+        return res.json(result);
+      }
+
+      // If Maintenance Mode is active, block regular users from reading or writing data
+      const currentDb = readLocalDb();
+      if (currentDb?.maintenance?.enabled) {
+        const callerRole = String(
+          bodyPayload.role || 
+          bodyPayload.user?.role || 
+          bodyPayload.params?.[0]?.role || 
+          ''
+        ).toUpperCase();
+        
+        const bypassActions = new Set([
+          'api_ping',
+          'api_heartbeat',
+          'api_getOnlineUsers',
+          'api_getMaintenanceStatus',
+          'api_setMaintenanceStatus',
+          'api_login',
+          'api_getInitialData', // Allowed so login credentials or admin view can initialize
+          'api_getUsers'
+        ]);
+
+        if (!bypassActions.has(action) && callerRole !== 'ADMIN') {
+          return res.status(503).json({
+            success: false,
+            error: "MAINTENANCE_MODE",
+            maintenance: true,
+            message: currentDb.maintenance.message || "System is currently undergoing scheduled maintenance. Please check back shortly."
+          });
+        }
       }
 
       // Ultra-fast instant launch: Serve initial data immediately from local database (<2ms) and sync with cloud in background
@@ -2796,7 +3048,11 @@ async function startServer() {
         if (!forceRemote) {
           try {
             const localData = executeLocalAction(action, bodyPayload.params || []);
-            if (localData !== undefined) {
+            const hasRealData = Array.isArray(localData) 
+              ? localData.length > 0 
+              : (localData && typeof localData === 'object' && Object.keys(localData).length > 0);
+
+            if (hasRealData) {
               if (cacheKey) {
                 apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localData });
               }
@@ -2976,12 +3232,36 @@ async function startServer() {
         }
 
         if (appsScriptSuccess && appsScriptResult) {
-          if (action === 'api_getREPORTS_SOPData' && Array.isArray(appsScriptResult)) {
+          if (action === 'api_getREPORTS_SOPData') {
             const db = readLocalDb();
             const deletedList = db.deleted_sop_ids || [];
-            const cleanResult = appsScriptResult.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__');
-            cleanResult.push({ id: '__DELETED_SOP_IDS__', deletedList: deletedList });
-            return res.json(cleanResult);
+            let cleanResult = Array.isArray(appsScriptResult) ? appsScriptResult.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__') : [];
+            if (cleanResult.length === 0 && Array.isArray(db.reports_sop) && db.reports_sop.length > 0) {
+              cleanResult = [...db.reports_sop];
+            }
+            const seenIds = new Set<string>();
+            const seenDriveIds = new Set<string>();
+            const seenSignatures = new Set<string>();
+            const deduped: any[] = [];
+            for (const item of cleanResult) {
+              if (!item || typeof item !== 'object') continue;
+              const id = item.id ? String(item.id).trim().toLowerCase() : '';
+              const driveId = item.driveFileId ? String(item.driveFileId).trim().toLowerCase() : '';
+              const title = item.title ? String(item.title).trim().toLowerCase() : '';
+              const attach = (item.attachmentUrl || item.attachmentName || '').trim().toLowerCase();
+              const sig = `${title}:::${attach}`;
+
+              if (id && seenIds.has(id)) continue;
+              if (driveId && seenDriveIds.has(driveId)) continue;
+              if (title && attach && seenSignatures.has(sig)) continue;
+
+              if (id) seenIds.add(id);
+              if (driveId) seenDriveIds.add(driveId);
+              if (title && attach) seenSignatures.add(sig);
+              deduped.push(item);
+            }
+            deduped.push({ id: '__DELETED_SOP_IDS__', deletedList: deletedList });
+            return res.json(deduped);
           }
           return res.json(appsScriptResult);
         }

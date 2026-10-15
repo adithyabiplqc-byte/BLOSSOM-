@@ -8,6 +8,8 @@ import AdminDashboard from './components/AdminDashboard';
 import WorkorderDashboard from './components/WorkorderDashboard';
 import UserDashboard from './components/UserDashboard';
 import SubmoduleContainer from './components/SubmoduleContainer';
+import { MaintenanceScreen } from './components/MaintenanceScreen';
+import { OnlineUsersModal } from './components/OnlineUsersModal';
 
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
@@ -55,6 +57,27 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(true);
+  const [onlineUsersCount, setOnlineUsersCount] = useState<number>(1);
+  const [maintenance, setMaintenance] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('bqos_maintenance');
+      return cached ? JSON.parse(cached) : {
+        enabled: false,
+        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+        setAt: '',
+        setBy: ''
+      };
+    } catch (e) {
+      return {
+        enabled: false,
+        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+        setAt: '',
+        setBy: ''
+      };
+    }
+  });
+  const [isCheckingMaintenance, setIsCheckingMaintenance] = useState<boolean>(false);
+  const [showAppOnlineUsersModal, setShowAppOnlineUsersModal] = useState<boolean>(false);
   const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -132,18 +155,38 @@ const App: React.FC = () => {
   };
 
   const checkConnectivity = useCallback(async () => {
+    setIsCheckingMaintenance(true);
     try {
-      const res = await api.run('api_ping') as any;
+      const payload = user ? {
+        userCode: user.userCode,
+        username: user.username,
+        role: user.role,
+        zone: user.zone || user.location,
+        location: user.location || user.zone
+      } : { role: 'GUEST' };
+
+      const res = await api.run('api_heartbeat', payload) as any;
       setIsOnline(res?.success !== false);
+      if (res?.maintenance) {
+        setMaintenance(res.maintenance);
+        try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
+      }
+      if (typeof res?.onlineCount === 'number') {
+        setOnlineUsersCount(res.onlineCount);
+      } else if (typeof res?.count === 'number') {
+        setOnlineUsersCount(res.count);
+      }
     } catch (e) {
-      console.warn("Ping failed:", e);
+      console.warn("Heartbeat ping notice:", e);
       setIsOnline(true);
+    } finally {
+      setIsCheckingMaintenance(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     checkConnectivity();
-    const interval = setInterval(checkConnectivity, 30000); // Check every 30s
+    const interval = setInterval(checkConnectivity, 15000); // Check every 15s
     return () => clearInterval(interval);
   }, [checkConnectivity]);
 
@@ -155,7 +198,13 @@ const App: React.FC = () => {
     }
     try {
       const zoneToFetch = customZone || ((user.role === 'ADMIN' || user.zone === 'COMMON') ? globalZone : (user.zone || user.location));
-      const data = await api.run('api_getInitialData', { zone: zoneToFetch, userCode: user?.userCode }) as any;
+      const data = await api.run('api_getInitialData', { 
+        zone: zoneToFetch, 
+        userCode: user?.userCode,
+        username: user?.username,
+        role: user?.role,
+        location: user?.location
+      }) as any;
       if (data) {
         const freshUsers = Array.isArray(data.users) ? data.users : [];
         const freshWOs = Array.isArray(data.workorders) ? data.workorders : [];
@@ -164,6 +213,13 @@ const App: React.FC = () => {
         setWorkorders(prev => (JSON.stringify(prev) === JSON.stringify(freshWOs) ? prev : freshWOs));
         if (data.settings) {
           setSettings(prev => (JSON.stringify(prev) === JSON.stringify(data.settings) ? prev : data.settings));
+        }
+        if (data.maintenance) {
+          setMaintenance(data.maintenance);
+          try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
+        }
+        if (typeof data.onlineCount === 'number') {
+          setOnlineUsersCount(data.onlineCount);
         }
         if (!silent) {
           setConnectionError(null);
@@ -665,6 +721,27 @@ const App: React.FC = () => {
               )}
             </header>
 
+            {/* Warning banner for logged-in Administrator when Maintenance Mode is ON */}
+            {maintenance?.enabled && user?.role === 'ADMIN' && (
+              <div className="bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 text-white px-4 py-2.5 shadow-md flex flex-wrap items-center justify-between gap-3 text-xs font-bold sticky top-[65px] z-40">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <Icon name="alert-triangle" size={16} />
+                  <span>MAINTENANCE MODE ACTIVE: The app is currently turned OFF for regular users. Non-admin users see the maintenance window.</span>
+                </div>
+                <button
+                  onClick={() => {
+                    try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
+                    setSelectedSubmodule('');
+                    setView('admin');
+                  }}
+                  className="px-3 py-1 bg-white text-rose-700 hover:bg-slate-100 rounded-lg text-xs font-black uppercase tracking-wider transition-colors shadow-sm ml-auto"
+                >
+                  Admin Panel / Turn On
+                </button>
+              </div>
+            )}
+
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
               {connectionError === 'CONFIGURATION_MODE' ? (
                 <ConnectionGuide 
@@ -685,7 +762,7 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     <button 
-                      onClick={() => setConnectionError(null)}
+                      onClick={() => setConnectionError(null)} 
                       className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
                     >
                       <Icon name="x" size={16} />
@@ -702,7 +779,18 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 italic">Active Sheet: {globalZone}</p>
                     </div>
                   </div>
-                  <AdminDashboard workorders={workorders} users={users} setUsers={setUsers} currentUser={user} refreshData={fetchData} triggerSuccess={triggerSuccess} globalZone={globalZone} settings={settings} />
+                  <AdminDashboard 
+                    workorders={workorders} 
+                    users={users} 
+                    setUsers={setUsers} 
+                    currentUser={user} 
+                    refreshData={fetchData} 
+                    triggerSuccess={triggerSuccess} 
+                    globalZone={globalZone} 
+                    settings={settings}
+                    maintenance={maintenance}
+                    onUpdateMaintenance={setMaintenance}
+                  />
                 </div>
               )}
               {view === 'workorder' && (
@@ -772,6 +860,21 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      {/* When Maintenance Mode is active and current user is NOT an Admin:
+          Render the Maintenance Window on top of everything! */}
+      {maintenance?.enabled && user?.role !== 'ADMIN' && (
+        <MaintenanceScreen
+          maintenance={maintenance}
+          onCheckStatus={checkConnectivity}
+          onAdminLogin={(admin) => {
+            handleLogin(admin);
+            triggerSuccess("Administrator authenticated: Maintenance override active");
+          }}
+          users={users}
+          isChecking={isCheckingMaintenance}
+        />
+      )}
+
       {renderView()}
     </ErrorBoundary>
   );

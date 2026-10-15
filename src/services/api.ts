@@ -4,8 +4,19 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 import { INITIAL_DB } from '../data/initialDb';
 
-export const DEFAULT_SHEETS_URL = ((import.meta as any).env?.VITE_GAS_URL) || "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
-export const DEFAULT_DRIVE_URL = ((import.meta as any).env?.VITE_GAS_DRIVE_URL) || "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
+export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
+export const MASTER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
+
+// Master Authoritative Google Apps Script endpoints (filters out stale or empty test environment URLs)
+const rawEnvUrl = (import.meta as any).env?.VITE_GAS_URL;
+export const DEFAULT_SHEETS_URL = (rawEnvUrl && !rawEnvUrl.includes("AKfycbwK") && !rawEnvUrl.includes("REPLACE_WITH") && rawEnvUrl.startsWith("https://script.google.com/macros/s/"))
+  ? rawEnvUrl
+  : MASTER_SHEETS_URL;
+
+const rawEnvDriveUrl = (import.meta as any).env?.VITE_GAS_DRIVE_URL;
+export const DEFAULT_DRIVE_URL = (rawEnvDriveUrl && !rawEnvDriveUrl.includes("AKfycbwK") && !rawEnvDriveUrl.includes("REPLACE_WITH") && rawEnvDriveUrl.startsWith("https://script.google.com/macros/s/"))
+  ? rawEnvDriveUrl
+  : MASTER_DRIVE_URL;
 
 // Fallback helper to query embedded initial database by zone when proxy is offline (e.g. Netlify / GitHub Pages)
 function getLocalFallbackData(method: string, args: any[]): any {
@@ -47,12 +58,72 @@ function getLocalFallbackData(method: string, args: any[]): any {
         if (cachedS && Object.keys(cachedS).length > 0) settings = cachedS;
       } catch (e) {}
 
+      let maintenance = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
+      try {
+        const cachedM = localStorage.getItem('bqos_maintenance');
+        if (cachedM) maintenance = JSON.parse(cachedM);
+      } catch (e) {}
+
       return {
         users,
         workorders: wos,
         settings,
         serverTime: new Date().toISOString(),
+        maintenance,
+        onlineCount: 1,
         success: true
+      };
+    }
+    case 'api_getMaintenanceStatus': {
+      let m = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
+      try {
+        const cached = localStorage.getItem('bqos_maintenance');
+        if (cached) m = JSON.parse(cached);
+      } catch (e) {}
+      return { success: true, maintenance: m };
+    }
+    case 'api_setMaintenanceStatus': {
+      const param = args[0] || {};
+      const enabled = typeof param === 'boolean' ? param : !!param.enabled;
+      const message = param.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
+      const setBy = param.setBy || args[1] || 'ADMIN';
+      const m = { enabled, message, setAt: new Date().toISOString(), setBy: String(setBy) };
+      try { localStorage.setItem('bqos_maintenance', JSON.stringify(m)); } catch (e) {}
+      return { success: true, maintenance: m };
+    }
+    case 'api_getOnlineUsers': {
+      let currentUser: any = null;
+      try {
+        currentUser = JSON.parse(localStorage.getItem('bqos_session') || 'null');
+      } catch (e) {}
+      return {
+        success: true,
+        count: 1,
+        users: [{
+          id: currentUser?.userCode || 'A001',
+          userCode: currentUser?.userCode || 'A001',
+          username: currentUser?.username || 'admin',
+          role: currentUser?.role || 'ADMIN',
+          zone: currentUser?.zone || 'ALL',
+          location: currentUser?.location || 'SYSTEM',
+          lastSeen: Date.now()
+        }]
+      };
+    }
+    case 'api_heartbeat':
+    case 'api_ping': {
+      let m = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
+      try {
+        const cached = localStorage.getItem('bqos_maintenance');
+        if (cached) m = JSON.parse(cached);
+      } catch (e) {}
+      return {
+        success: true,
+        status: "Connected",
+        timestamp: new Date().toISOString(),
+        serverTime: new Date().toISOString(),
+        onlineCount: 1,
+        maintenance: m
       };
     }
     case 'api_getUsers': {
@@ -69,23 +140,63 @@ function getLocalFallbackData(method: string, args: any[]): any {
       } catch (e) {}
       return filterByZone(INITIAL_DB?.workorders || []);
     }
-    case 'api_getMaterialData':
+    case 'api_getMaterialData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_material') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.material_reports || []);
-    case 'api_getCuttingData':
+    }
+    case 'api_getCuttingData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_cutting') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.cutting_reports || []);
+    }
     case 'api_getInlineData':
-    case 'api_get8ROUNDSYSTEMData':
+    case 'api_get8ROUNDSYSTEMData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_sewing') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.sewing_reports || []);
-    case 'api_getEndlineData':
+    }
+    case 'api_getEndlineData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_endline') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.endline_reports || []);
-    case 'api_getAQLData':
+    }
+    case 'api_getAQLData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_aql') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.aql_reports || []);
-    case 'api_getFinalAuditData':
+    }
+    case 'api_getFinalAuditData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_final') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+      } catch (e) {}
       return filterByZone(INITIAL_DB?.final_reports || []);
-    case 'api_getREPORTS_SOPData':
+    }
+    case 'api_getREPORTS_SOPData': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_sop') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (e) {}
       return INITIAL_DB?.reports_sop || [];
-    case 'api_getCustomerComplaints':
+    }
+    case 'api_getCustomerComplaints': {
+      try {
+        const cached = JSON.parse(localStorage.getItem('bqos_cache_complaints') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (e) {}
       return INITIAL_DB?.customer_complaints || [];
+    }
     case 'api_getZoneMappings': {
       try {
         const cached = JSON.parse(localStorage.getItem('bqos_cache_zm') || '[]');
@@ -351,7 +462,11 @@ function applyLocalMutation(method: string, args: any[]): any {
         const sop = { ...(args[0] || {}) };
         sop.id = sop.id || ('sop-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6));
         INITIAL_DB.reports_sop = INITIAL_DB.reports_sop || [];
-        const idx = INITIAL_DB.reports_sop.findIndex((s: any) => String(s.id) === String(sop.id));
+        const idx = INITIAL_DB.reports_sop.findIndex((s: any) => 
+          (sop.id && String(s.id) === String(sop.id)) ||
+          (sop.driveFileId && s.driveFileId && String(s.driveFileId) === String(sop.driveFileId)) ||
+          (sop.title && s.title && String(s.title).trim().toLowerCase() === String(sop.title).trim().toLowerCase() && s.attachmentUrl === sop.attachmentUrl)
+        );
         if (idx !== -1) INITIAL_DB.reports_sop[idx] = sop;
         else INITIAL_DB.reports_sop.unshift(sop);
         try { localStorage.setItem('bqos_cache_sop', JSON.stringify(INITIAL_DB.reports_sop)); } catch (e) {}
@@ -610,8 +725,18 @@ async function flushOfflineSyncQueue() {
 
     isFlushingSyncQueue = true;
     const remaining: any[] = [];
+    const seenActions = new Set<string>();
 
     for (const item of queue) {
+      if (!item || !item.action) continue;
+      const paramId = item.params?.[0]?.id || item.params?.[0]?.driveFileId || '';
+      const actionKey = `${item.action}:::${paramId}`;
+      if (paramId && seenActions.has(actionKey)) {
+        // Skip duplicate action in sync queue
+        continue;
+      }
+      if (paramId) seenActions.add(actionKey);
+
       try {
         const res = await fetch("/api/gas", {
           method: 'POST',
@@ -1577,16 +1702,16 @@ export const api = {
       case 'api_getMaterialData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('MATERIAL REPORT');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1595,16 +1720,16 @@ export const api = {
       case 'api_getCuttingData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('CUTTING QUALITY');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1613,16 +1738,16 @@ export const api = {
       case 'api_getInlineData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('INLINE');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1631,16 +1756,16 @@ export const api = {
       case 'api_get8ROUNDSYSTEMData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('INLINE');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1649,16 +1774,16 @@ export const api = {
       case 'api_getEndlineData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('ENDLINE QUALITY');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1667,16 +1792,16 @@ export const api = {
       case 'api_getAQLData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('AQL REPORT');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1685,16 +1810,16 @@ export const api = {
       case 'api_getFinalAuditData': {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('FINAL AUDIT');
-        if (zoneArg && zoneArg !== 'ALL') {
-          const zTarget = String(zoneArg).trim().toUpperCase();
+        const zClean = String(zoneArg || '').trim().toUpperCase();
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           data = data.filter(r => {
             const rZone = String(r.zone || r.location || '').trim().toUpperCase();
             const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (rZone === zTarget || rUnit === zTarget) return true;
+            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
             const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zTarget);
+            const cTarget = clean(zClean);
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zTarget) || zTarget.includes(rZone);
+            return rZone.includes(zClean) || zClean.includes(rZone);
           });
         }
         return data;
@@ -1704,8 +1829,13 @@ export const api = {
         const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
         let data = await sheetsService.getData('REPORTS_SOP');
         if (Array.isArray(data)) {
-          data = data.map((r: any) => {
-            if (!r || typeof r !== 'object') return r;
+          const seenIds = new Set<string>();
+          const seenDriveIds = new Set<string>();
+          const seenSignatures = new Set<string>();
+          const uniqueItems: any[] = [];
+
+          for (const r of data) {
+            if (!r || typeof r !== 'object') continue;
             const rawDriveId = r.driveFileId || r.drive_file_id || '';
             const rawAttach = r.attachmentUrl || r.attachment_url || '';
             const rawView = r.viewUrl || r.view_url || '';
@@ -1716,14 +1846,28 @@ export const api = {
             const cleanView = extractCleanDocumentUrl(rawView, driveFileId) || getDirectViewUrl(cleanAttach, driveFileId);
             const cleanDown = extractCleanDocumentUrl(rawDown, driveFileId) || getDirectDownloadUrl(cleanAttach, driveFileId);
 
-            return {
+            const idKey = r.id ? String(r.id).trim().toLowerCase() : '';
+            const driveKey = (driveFileId || rawDriveId) ? String(driveFileId || rawDriveId).trim().toLowerCase() : '';
+            const titleKey = r.title ? String(r.title).trim().toLowerCase() : '';
+            const sigKey = `${titleKey}:::${cleanAttach}`;
+
+            if (idKey && seenIds.has(idKey)) continue;
+            if (driveKey && seenDriveIds.has(driveKey)) continue;
+            if (titleKey && cleanAttach && seenSignatures.has(sigKey)) continue;
+
+            if (idKey) seenIds.add(idKey);
+            if (driveKey) seenDriveIds.add(driveKey);
+            if (titleKey && cleanAttach) seenSignatures.add(sigKey);
+
+            uniqueItems.push({
               ...r,
               attachmentUrl: cleanAttach,
               driveFileId: driveFileId || rawDriveId,
               viewUrl: cleanView,
               downloadUrl: cleanDown
-            };
-          });
+            });
+          }
+          data = uniqueItems;
         }
         if (zoneArg && zoneArg !== 'ALL') {
           const zTarget = String(zoneArg).trim().toUpperCase();
@@ -2033,37 +2177,52 @@ export const api = {
       // NOTE: Upload methods (api_uploadSOPFile, api_uploadComplaintImage) must NOT be short-circuited
       // because they must return the physical Google Drive URL / file link from the backend!
       const isUploadAction = method === 'api_uploadSOPFile' || method === 'api_uploadComplaintImage';
-      if (!isCacheable && method !== 'api_ping' && !isUploadAction) {
+      const isSystemAction = method === 'api_ping' || 
+                             method === 'api_heartbeat' || 
+                             method === 'api_getOnlineUsers' || 
+                             method === 'api_getMaintenanceStatus' || 
+                             method === 'api_setMaintenanceStatus';
+      if (!isCacheable && !isSystemAction && !isUploadAction) {
         const localMutationResult = applyLocalMutation(method, sanitizedArgs);
         clientReadCache.clear();
 
-        // Queue mutation for background sync so nothing is lost
-        try {
-          const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
-          const queue = rawQueue ? JSON.parse(rawQueue) : [];
-          queue.push({
-            id: generateUuid(),
-            action: gasMethod,
-            params: gasArgs,
-            spreadsheetId: activeSheetId,
-            timestamp: Date.now()
-          });
-          localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
-        } catch (queueErr) {}
+        // Dispatch non-blocking background sync to server/Google Sheets
+        // Only queue in offline sync if network request fails, preventing duplicate sheet appends
+        const mutationRecord = {
+          id: generateUuid(),
+          action: gasMethod,
+          params: gasArgs,
+          spreadsheetId: activeSheetId,
+          timestamp: Date.now()
+        };
 
-        // Non-blocking background sync to server/Google Sheets
         (async () => {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
-            await fetch("/api/gas", {
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const res = await fetch("/api/gas", {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
               signal: controller.signal
             });
             clearTimeout(timeoutId);
-          } catch (bgErr) {}
+            if (!res.ok) {
+              try {
+                const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
+                const queue = rawQueue ? JSON.parse(rawQueue) : [];
+                queue.push(mutationRecord);
+                localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
+              } catch (qErr) {}
+            }
+          } catch (bgErr) {
+            try {
+              const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
+              const queue = rawQueue ? JSON.parse(rawQueue) : [];
+              queue.push(mutationRecord);
+              localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
+            } catch (qErr) {}
+          }
         })();
 
         return { 
@@ -2083,7 +2242,7 @@ export const api = {
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           try {
             const controller = new AbortController();
-            const timeoutDuration = (method.includes('upload') || method.includes('Upload')) ? 60000 : 3500;
+            const timeoutDuration = (method.includes('upload') || method.includes('Upload')) ? 60000 : 25000;
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
             const proxyHeaders: any = { 'Content-Type': 'application/json' };
@@ -2138,7 +2297,7 @@ export const api = {
             lastProxyError = attemptErr;
             if (attemptErr.message === "CONFIGURATION_REQUIRED") throw attemptErr;
             if (attempt < MAX_RETRIES) {
-              await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 200));
             }
           }
         }
@@ -2146,6 +2305,19 @@ export const api = {
         if (result !== null) {
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: result });
+          }
+          if (Array.isArray(result) && result.length > 0) {
+            try {
+              if (method === 'api_getMaterialData') localStorage.setItem('bqos_cache_material', JSON.stringify(result));
+              else if (method === 'api_getCuttingData') localStorage.setItem('bqos_cache_cutting', JSON.stringify(result));
+              else if (method === 'api_getInlineData' || method === 'api_get8ROUNDSYSTEMData') localStorage.setItem('bqos_cache_sewing', JSON.stringify(result));
+              else if (method === 'api_getEndlineData') localStorage.setItem('bqos_cache_endline', JSON.stringify(result));
+              else if (method === 'api_getAQLData') localStorage.setItem('bqos_cache_aql', JSON.stringify(result));
+              else if (method === 'api_getFinalAuditData') localStorage.setItem('bqos_cache_final', JSON.stringify(result));
+              else if (method === 'api_getWorkorders') localStorage.setItem('bqos_cache_wo', JSON.stringify(result));
+              else if (method === 'api_getREPORTS_SOPData') localStorage.setItem('bqos_cache_sop', JSON.stringify(result));
+              else if (method === 'api_getCustomerComplaints') localStorage.setItem('bqos_cache_complaints', JSON.stringify(result));
+            } catch (e) {}
           }
           flushOfflineSyncQueue();
           return result;
@@ -2158,11 +2330,14 @@ export const api = {
 
         if (isCacheable) {
           if (cacheKey && clientReadCache.has(cacheKey)) {
-            return clientReadCache.get(cacheKey)!.data;
+            const cachedVal = clientReadCache.get(cacheKey)!.data;
+            if (Array.isArray(cachedVal) ? cachedVal.length > 0 : cachedVal) {
+              return cachedVal;
+            }
           }
 
           const fallbackData = getLocalFallbackData(method, sanitizedArgs);
-          if (cacheKey && fallbackData !== undefined) {
+          if (cacheKey && fallbackData !== undefined && Array.isArray(fallbackData) && fallbackData.length > 0) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: fallbackData });
           }
           return fallbackData;

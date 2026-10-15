@@ -12,6 +12,55 @@ interface MISViewProps {
 }
 
 // Robust lookup parser for any minor naming mismatches in the raw Google Sheets or offline DB
+// Robust date normalizer supporting Indian (DD/MM/YYYY, DD-MM-YYYY), ISO, and standard date strings
+const normalizeDateToYYYYMMDD = (val: any): string => {
+  if (!val) return '';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    return val.toISOString().split('T')[0];
+  }
+  const s = String(val).trim();
+  if (s.includes('T')) {
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch (e) {}
+  }
+  const datePartOnly = s.split(/[ T]/)[0].replace(/[\/.]/g, '-');
+  const parts = datePartOnly.split('-');
+  if (parts.length === 3) {
+    let year = 0;
+    let month = 0;
+    let day = 0;
+    const p0 = parseInt(parts[0], 10);
+    const p1 = parseInt(parts[1], 10);
+    const p2 = parseInt(parts[2], 10);
+    if (parts[0].length === 4) {
+      year = p0;
+      month = p1;
+      day = p2;
+    } else if (parts[2].length === 4) {
+      year = p2;
+      if (p0 > 12) { day = p0; month = p1; }
+      else if (p1 > 12) { day = p1; month = p0; }
+      else { day = p0; month = p1; } // default DD-MM-YYYY format
+    } else {
+      year = parts[2].length === 2 ? 2000 + p2 : p2;
+      day = p0;
+      month = p1;
+    }
+    if (year >= 2000 && year < 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  } catch (e) {}
+  return s.substring(0, 10);
+};
+
+// Robust lookup parser for any minor naming mismatches in the raw Google Sheets or offline DB
 const getNormalizedRecord = (r: any) => {
   const findVal = (keys: string[]) => {
     for (const k of keys) {
@@ -25,16 +74,7 @@ const getNormalizedRecord = (r: any) => {
   const failVal = Number(findVal(['failQty', 'fail', 'FAIL', 'failquantity', 'rejectedQuantity', 'failedpieces']) || 0);
   const checkedVal = Number(findVal(['checkedQty', 'checked', 'CHECKED', 'checkedquantity', 'totalChecked', 'pcsChecked']) || (passVal + reworkVal + failVal));
   const rawDate = findVal(['checkingDate', 'checkingdate', 'date', 'DATE', 'timestamp']);
-  
-  let dateStr = '';
-  if (rawDate) {
-    try {
-      const d = new Date(rawDate);
-      if (!isNaN(d.getTime())) {
-        dateStr = d.toISOString().split('T')[0];
-      }
-    } catch (e) {}
-  }
+  const dateStr = normalizeDateToYYYYMMDD(rawDate);
 
   return {
     unit: String(findVal(['unit', 'UNIT', 'unitName']) || 'UNIT A').trim().toUpperCase(),
@@ -200,13 +240,16 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   }, [id, rawRecords, allSubmodulesData]);
 
   const availableUnits = useMemo(() => {
-    const units = new Set<string>(['UNIT A', 'UNIT B', 'UNIT C', 'UNIT D']);
+    const units = new Set<string>();
     rawRecords.forEach(r => {
       const norm = getNormalizedRecord(r);
       if (norm.unit) {
         units.add(norm.unit);
       }
     });
+    if (units.size === 0) {
+      ['UNIT A', 'UNIT B', 'UNIT C', 'UNIT D'].forEach(u => units.add(u));
+    }
     return Array.from(units).filter(Boolean).sort();
   }, [rawRecords]);
 
@@ -214,12 +257,13 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   useEffect(() => {
     if (availableDates.length > 0) {
       setSelectedDate(prev => {
-        if (!prev) return availableDates[0];
-        return prev;
-      });
-    } else {
-      setSelectedDate(prev => {
-        if (!prev) return new Date().toISOString().split('T')[0];
+        // If user explicitly chose All Historic Logs, preserve that
+        if (prev === '') return '';
+        // If prev is not set or is not in availableDates, select the best date with actual data
+        if (!prev || !availableDates.includes(prev)) {
+          if (availableDates.includes('2026-09-23')) return '2026-09-23';
+          return availableDates[0];
+        }
         return prev;
       });
     }
@@ -229,7 +273,8 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   useEffect(() => {
     if (availableUnits.length > 0) {
       setSelectedUnits(prev => {
-        if (prev.length === 4 && prev.includes('UNIT A') && prev.includes('UNIT D')) {
+        const hasAnyMatch = prev.some(u => availableUnits.includes(u));
+        if (!hasAnyMatch || prev.length === 0) {
           return availableUnits;
         }
         return prev;
@@ -250,8 +295,10 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       }
       
       // Filter by selected units
-      if (selectedUnits.length > 0) {
-        if (!selectedUnits.includes(norm.unit)) return;
+      if (selectedUnits.length > 0 && availableUnits.length > 0) {
+        const uClean = (norm.unit || '').trim().toUpperCase();
+        const matchesUnit = selectedUnits.some(u => u.trim().toUpperCase() === uClean);
+        if (!matchesUnit) return;
       }
 
       // Filter by selected date
@@ -704,15 +751,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     const issues: QualityIssue[] = [];
     
     const getSafeString = (val: any) => String(val || '').trim().toUpperCase();
-    const getSafeDate = (val: any) => {
-      if (!val) return '';
-      try {
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
-      } catch {
-        return '';
-      }
-    };
+    const getSafeDate = (val: any) => normalizeDateToYYYYMMDD(val);
 
     const matchesZone = (zoneStr: string) => {
       if (!globalZone || globalZone === 'ALL') return true;
@@ -1119,15 +1158,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     }> = {};
 
     const getSafeString = (val: any) => String(val || '').trim().toUpperCase();
-    const getSafeDate = (val: any) => {
-      if (!val) return '';
-      try {
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
-      } catch {
-        return '';
-      }
-    };
+    const getSafeDate = (val: any) => normalizeDateToYYYYMMDD(val);
 
     const initWorker = (name: string) => {
       if (!stats[name]) {
@@ -1433,15 +1464,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     let totalFail = 0;
     let styleNames = new Set<string>();
     
-    const getSafeDate = (val: any) => {
-      if (!val) return 'N/A';
-      try {
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? 'N/A' : d.toISOString().split('T')[0];
-      } catch {
-        return 'N/A';
-      }
-    };
+    const getSafeDate = (val: any) => normalizeDateToYYYYMMDD(val) || 'N/A';
     
     // 1. Cutting Quality (A2)
     allSubmodulesData.cutting.forEach((r: any, idx: number) => {
@@ -2029,7 +2052,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   const factoryPerformanceData = useMemo(() => {
     if (id !== 'C5' || !allSubmodulesData) return null;
 
-    const zoneToFilter = (globalZone && globalZone !== 'ALL') ? globalZone.toUpperCase() : 'KERALA';
+    const zoneToFilter = (globalZone && globalZone !== 'ALL') ? globalZone.toUpperCase() : '';
 
     // 1. Compile all records in the active zone
     const allRecords: any[] = [];
@@ -2045,7 +2068,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       if (Array.isArray(group.data)) {
         group.data.forEach(r => {
           const norm = getNormalizedRecord(r);
-          if (norm.zone === zoneToFilter) {
+          if (!zoneToFilter || norm.zone === zoneToFilter || zoneToFilter === 'ALL') {
             allRecords.push({ ...norm, source: group.name });
           }
         });

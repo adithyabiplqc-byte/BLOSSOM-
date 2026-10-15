@@ -534,14 +534,22 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     if (!Array.isArray(normalizedData)) return [];
     const matched = normalizedData.filter(row => {
       if (!row) return false;
-      // Zone filter
+      // Zone filter with resilient fuzzy matching
       const cleanSelectedZone = (selectedZone || 'ALL').trim().toUpperCase();
+      const clean = (s: string) => String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+      const cSelected = clean(cleanSelectedZone);
+      const cRowZone = clean(row.zone || row.location || '');
+      const cRowUnit = clean(row.unit || '');
       const zoneMatch = cleanSelectedZone === 'ALL' || 
                         cleanSelectedZone === 'SELECT...' || 
                         cleanSelectedZone === '' ||
+                        !cSelected ||
                         (row.zone && String(row.zone).toUpperCase() === cleanSelectedZone) || 
                         (row.location && String(row.location).toUpperCase() === cleanSelectedZone) ||
-                        (row.unit && String(row.unit).toUpperCase() === cleanSelectedZone);
+                        (row.unit && String(row.unit).toUpperCase() === cleanSelectedZone) ||
+                        (cRowZone && cRowZone === cSelected) ||
+                        (cRowUnit && cRowUnit === cSelected) ||
+                        (cRowZone && (cRowZone.includes(cSelected) || cSelected.includes(cRowZone)));
       
       // Item filter
       const itemMatch = selectedItem === 'ALL' || 

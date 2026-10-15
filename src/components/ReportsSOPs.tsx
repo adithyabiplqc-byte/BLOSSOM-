@@ -10,6 +10,7 @@ import {
   getDirectDownloadUrl,
   triggerDirectDownload
 } from '../utils/sopUtils';
+import { INITIAL_DB } from '../data/initialDb';
 // Firebase auth imports removed to prioritize direct Google Drive integration via Apps Script.
 
 interface SOPReport {
@@ -144,8 +145,31 @@ const saveToLocalIndexedDB = (fileName: string, mimeType: string, base64Data: st
   });
 };
 
-// Highly polished preset list
-const PRELOADED_SOPS: SOPReport[] = [];
+// Highly polished preset list initialized from September 2026 corporate documents
+const PRELOADED_SOPS: SOPReport[] = (INITIAL_DB?.reports_sop || []).map((r: any) => ({
+  id: r.id,
+  title: r.title,
+  category: r.category,
+  description: r.description || '',
+  attachmentUrl: extractCleanDocumentUrl(r.attachmentUrl || r.viewUrl, r.driveFileId),
+  attachmentName: r.attachmentName || `${r.title}.pdf`,
+  creator: r.creator || 'ADITHYA',
+  creatorCode: r.creatorCode || 'U011',
+  zone: r.zone || 'COMMON',
+  timestamp: r.timestamp || '2026-09-23T10:21:43.912Z',
+  googleDriveEmail: r.googleDriveEmail || '',
+  department: r.department || 'Quality',
+  version: r.version ? String(r.version) : '1.0',
+  remarks: r.remarks || '',
+  driveFileId: r.driveFileId || '',
+  viewUrl: getDirectViewUrl(r.attachmentUrl || r.viewUrl, r.driveFileId),
+  downloadUrl: getDirectDownloadUrl(r.attachmentUrl || r.downloadUrl, r.driveFileId),
+  fileSize: r.fileSize || '',
+  uploadedBy: r.uploadedBy || 'ADITHYA',
+  uploadDate: r.uploadDate || '2026-09-23',
+  lastModified: r.lastModified || '2026-09-23',
+  status: r.status || 'ACTIVE'
+}));
 
 const getValCaseInsensitive = (obj: any, key: string, fallback: any = "") => {
   if (!obj || typeof obj !== 'object') return fallback;
@@ -416,7 +440,30 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
         });
       }
 
-      // Merge local custom ones from localStorage!
+      // Deduplicate mapped records by unique identifier (id, driveFileId, or title + attachmentUrl)
+      const dedupedMapped: SOPReport[] = [];
+      const seenIds = new Set<string>();
+      const seenDriveIds = new Set<string>();
+      const seenSignatures = new Set<string>();
+
+      for (const report of mapped) {
+        const idKey = report.id ? String(report.id).trim().toLowerCase() : '';
+        const driveKey = report.driveFileId ? String(report.driveFileId).trim().toLowerCase() : '';
+        const titleKey = (report.title || '').trim().toLowerCase();
+        const attachKey = (report.attachmentUrl || report.attachmentName || '').trim().toLowerCase();
+        const signature = `${titleKey}:::${attachKey}`;
+
+        if (idKey && seenIds.has(idKey)) continue;
+        if (driveKey && seenDriveIds.has(driveKey)) continue;
+        if (titleKey && attachKey && seenSignatures.has(signature)) continue;
+
+        if (idKey) seenIds.add(idKey);
+        if (driveKey) seenDriveIds.add(driveKey);
+        if (titleKey && attachKey) seenSignatures.add(signature);
+        dedupedMapped.push(report);
+      }
+
+      // Merge local custom ones from localStorage without creating any duplicates!
       let localCustom: SOPReport[] = [];
       try {
         localCustom = JSON.parse(localStorage.getItem('bqos_local_custom_sops') || '[]');
@@ -433,21 +480,41 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
             viewUrl: extractCleanDocumentUrl(item.viewUrl || item.view_url, driveFileId) || getDirectViewUrl(cleanAttach, driveFileId),
             downloadUrl: extractCleanDocumentUrl(item.downloadUrl || item.download_url, driveFileId) || getDirectDownloadUrl(cleanAttach, driveFileId)
           };
-          if (!mapped.some(r => String(r.id) === String(cleanedItem.id))) {
-            mapped.push(cleanedItem);
+
+          const idKey = cleanedItem.id ? String(cleanedItem.id).trim().toLowerCase() : '';
+          const driveKey = cleanedItem.driveFileId ? String(cleanedItem.driveFileId).trim().toLowerCase() : '';
+          const titleKey = (cleanedItem.title || '').trim().toLowerCase();
+          const attachKey = (cleanedItem.attachmentUrl || cleanedItem.attachmentName || '').trim().toLowerCase();
+          const signature = `${titleKey}:::${attachKey}`;
+
+          const alreadyExists = (idKey && seenIds.has(idKey)) ||
+            (driveKey && seenDriveIds.has(driveKey)) ||
+            (titleKey && attachKey && seenSignatures.has(signature));
+
+          if (!alreadyExists) {
+            if (idKey) seenIds.add(idKey);
+            if (driveKey) seenDriveIds.add(driveKey);
+            if (titleKey && attachKey) seenSignatures.add(signature);
+            dedupedMapped.push(cleanedItem);
           }
         });
       }
 
       // Combine custom uploaded SOP reports and preloaded templates, ensuring no duplicate IDs
-      const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
-      let customMapped = mapped.filter(r => !preloadedIds.has(r.id));
+      const preloadedIds = new Set(PRELOADED_SOPS.map(p => String(p.id).toLowerCase()));
+      const preloadedTitles = new Set(PRELOADED_SOPS.map(p => (p.title || '').trim().toLowerCase()));
+
+      const customMapped = dedupedMapped.filter(r => {
+        const idKey = r.id ? String(r.id).toLowerCase() : '';
+        const titleKey = (r.title || '').trim().toLowerCase();
+        return !preloadedIds.has(idKey) && !preloadedTitles.has(titleKey);
+      });
       
       const finalReports = [...customMapped, ...PRELOADED_SOPS];
 
       // Exclude any deleted ones
-      const deletedSet = new Set(deletedIds);
-      const visibleReports = finalReports.filter(r => !deletedSet.has(r.id));
+      const deletedSet = new Set(deletedIds.map(d => String(d).toLowerCase()));
+      const visibleReports = finalReports.filter(r => !deletedSet.has(String(r.id).toLowerCase()));
       
       setReports(visibleReports);
     } catch (e) {
@@ -460,7 +527,7 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
           deletedIds = localDeleted.map(String);
         }
       } catch (err) {}
-      const deletedSet = new Set(deletedIds);
+      const deletedSet = new Set(deletedIds.map(d => String(d).toLowerCase()));
 
       // Merge local custom in fallback
       let localCustom: SOPReport[] = [];
@@ -469,12 +536,39 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
       } catch (err) {}
       if (!Array.isArray(localCustom)) localCustom = [];
 
-      const preloadedIds = new Set(PRELOADED_SOPS.map(p => p.id));
-      let customMapped = localCustom.filter(r => !preloadedIds.has(r.id));
+      const dedupedFallback: SOPReport[] = [];
+      const seenIds = new Set<string>();
+      const seenDriveIds = new Set<string>();
+      const seenSignatures = new Set<string>();
+
+      for (const item of localCustom) {
+        const idKey = item.id ? String(item.id).trim().toLowerCase() : '';
+        const driveKey = item.driveFileId ? String(item.driveFileId).trim().toLowerCase() : '';
+        const titleKey = (item.title || '').trim().toLowerCase();
+        const attachKey = (item.attachmentUrl || item.attachmentName || '').trim().toLowerCase();
+        const signature = `${titleKey}:::${attachKey}`;
+
+        if (idKey && seenIds.has(idKey)) continue;
+        if (driveKey && seenDriveIds.has(driveKey)) continue;
+        if (titleKey && attachKey && seenSignatures.has(signature)) continue;
+
+        if (idKey) seenIds.add(idKey);
+        if (driveKey) seenDriveIds.add(driveKey);
+        if (titleKey && attachKey) seenSignatures.add(signature);
+        dedupedFallback.push(item);
+      }
+
+      const preloadedIds = new Set(PRELOADED_SOPS.map(p => String(p.id).toLowerCase()));
+      const preloadedTitles = new Set(PRELOADED_SOPS.map(p => (p.title || '').trim().toLowerCase()));
+      let customMapped = dedupedFallback.filter(r => {
+        const idKey = r.id ? String(r.id).toLowerCase() : '';
+        const titleKey = (r.title || '').trim().toLowerCase();
+        return !preloadedIds.has(idKey) && !preloadedTitles.has(titleKey);
+      });
       
       const finalReports = [...customMapped, ...PRELOADED_SOPS];
 
-      setReports(finalReports.filter(r => !deletedSet.has(r.id)));
+      setReports(finalReports.filter(r => !deletedSet.has(String(r.id).toLowerCase())));
     } finally {
       setLoading(false);
     }
@@ -1113,18 +1207,6 @@ const ReportsSOPs: React.FC<ReportsSOPsProps> = ({
                   <span className="hidden sm:inline">Cards View</span>
                 </button>
               </div>
-
-              {/* Live Sync Sheet button */}
-              <button
-                type="button"
-                onClick={() => fetchReports()}
-                disabled={loading}
-                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
-                title="Sync documents list from Google Sheets and Drive"
-              >
-                <Icon name="refresh-cw" size={14} className={loading ? "animate-spin" : ""} />
-                <span>{loading ? "Syncing..." : "Sync Sheet"}</span>
-              </button>
             </div>
           </div>
 
