@@ -8,9 +8,6 @@ import AdminDashboard from './components/AdminDashboard';
 import WorkorderDashboard from './components/WorkorderDashboard';
 import UserDashboard from './components/UserDashboard';
 import SubmoduleContainer from './components/SubmoduleContainer';
-import { MaintenanceScreen } from './components/MaintenanceScreen';
-import { OnlineUsersModal } from './components/OnlineUsersModal';
-import { systemService } from './services/systemService';
 
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
@@ -58,27 +55,6 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showSkip, setShowSkip] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean | null>(true);
-  const [onlineUsersCount, setOnlineUsersCount] = useState<number>(1);
-  const [maintenance, setMaintenance] = useState<any>(() => {
-    try {
-      const cached = localStorage.getItem('bqos_maintenance');
-      return cached ? JSON.parse(cached) : {
-        enabled: false,
-        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-        setAt: '',
-        setBy: ''
-      };
-    } catch (e) {
-      return {
-        enabled: false,
-        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-        setAt: '',
-        setBy: ''
-      };
-    }
-  });
-  const [isCheckingMaintenance, setIsCheckingMaintenance] = useState<boolean>(false);
-  const [showAppOnlineUsersModal, setShowAppOnlineUsersModal] = useState<boolean>(false);
   const [isPermanentlyConnected, setIsPermanentlyConnected] = useState<boolean>(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -156,38 +132,17 @@ const App: React.FC = () => {
   };
 
   const checkConnectivity = useCallback(async () => {
-    setIsCheckingMaintenance(true);
     try {
-      const m = await systemService.fetchMaintenanceStatus();
-      setMaintenance(m);
-      const onlineList = await systemService.fetchOnlineUsers();
-      setOnlineUsersCount(onlineList.length);
-      setIsOnline(true);
+      const res = await api.run('api_ping') as any;
+      setIsOnline(res?.success !== false);
     } catch (e) {
-      console.warn("Status check notice:", e);
       setIsOnline(true);
-    } finally {
-      setIsCheckingMaintenance(false);
     }
-  }, []);
-
-  // Subscribe to real-time maintenance and online presence across all devices & Netlify
-  useEffect(() => {
-    const unsubMaint = systemService.subscribeMaintenance((m) => {
-      setMaintenance(m);
-    });
-    const unsubPresence = systemService.subscribeOnlineUsers((_list, count) => {
-      setOnlineUsersCount(count);
-    });
-    return () => {
-      unsubMaint();
-      unsubPresence();
-    };
   }, []);
 
   useEffect(() => {
     checkConnectivity();
-    const interval = setInterval(checkConnectivity, 15000);
+    const interval = setInterval(checkConnectivity, 30000);
     return () => clearInterval(interval);
   }, [checkConnectivity]);
 
@@ -392,7 +347,6 @@ const App: React.FC = () => {
           const resolvedUser = fresh ? { ...currentSavedSession, ...fresh } : currentSavedSession;
           setUser(resolvedUser);
           try { localStorage.setItem('bqos_session', JSON.stringify(resolvedUser)); } catch (e) {}
-          systemService.registerPresence(resolvedUser).catch(() => {});
 
           setGlobalZone(prev => (prev === 'ALL' && activeZone !== 'ALL' ? activeZone : prev));
           
@@ -427,8 +381,6 @@ const App: React.FC = () => {
         if (!currentSavedSession) {
           setUser(null);
           setView(currentView => (currentView === 'splash' ? 'login' : currentView));
-        } else {
-          systemService.registerPresence(currentSavedSession).catch(() => {});
         }
       } finally {
         clearTimeout(timeoutId);
@@ -448,9 +400,6 @@ const App: React.FC = () => {
     setUser(u);
     const activeZone = u.zone || (u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location);
     setGlobalZone(activeZone);
-    
-    // Immediately register presence into Firestore and REST so other users see them ONLINE instantly!
-    systemService.registerPresence(u).catch(() => {});
 
     if (u.role === 'ADMIN') setView('admin');
     else if (u.role === 'WORKORDER') setView('workorder');
@@ -488,10 +437,6 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // Unregister presence immediately
-    if (user) {
-      systemService.unregisterPresence(user).catch(() => {});
-    }
     try {
       localStorage.removeItem('bqos_session');
       localStorage.removeItem('bqos_active_submodule');

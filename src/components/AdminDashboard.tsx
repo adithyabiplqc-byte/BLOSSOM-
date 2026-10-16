@@ -4,9 +4,6 @@ import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { getDirectViewUrl } from '../utils/sopUtils';
-import { OnlineUsersModal, ActiveUserRecord } from './OnlineUsersModal';
-import { MaintenanceScreen } from './MaintenanceScreen';
-import { systemService } from '../services/systemService';
 
 interface AdminDashboardProps {
   users?: any[];
@@ -66,152 +63,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [restrictingUserCode, setRestrictingUserCode] = useState('');
   const [deletingUserCode, setDeletingUserCode] = useState('');
   const isLocked = useRef(false);
-
-  // Active Online Users tracking - always includes current active administrator
-  const [onlineUsers, setOnlineUsers] = useState<ActiveUserRecord[]>(() => {
-    if (currentUser) {
-      return [{
-        id: String(currentUser.userCode || 'A001').toUpperCase(),
-        userCode: String(currentUser.userCode || 'A001').toUpperCase(),
-        username: String(currentUser.username || 'admin'),
-        role: String(currentUser.role || 'ADMIN').toUpperCase(),
-        zone: String(currentUser.zone || globalZone || 'ALL'),
-        location: String(currentUser.location || 'SYSTEM'),
-        lastSeen: Date.now()
-      }];
-    }
-    return [];
-  });
-  const [loadingOnlineUsers, setLoadingOnlineUsers] = useState<boolean>(false);
-  const [showOnlineUsersModal, setShowOnlineUsersModal] = useState<boolean>(false);
-
-  // Application Availability & Maintenance Mode state
-  const [maintenanceState, setMaintenanceState] = useState<any>(() => {
-    if (maintenance) return maintenance;
-    try {
-      const cached = localStorage.getItem('bqos_maintenance');
-      return cached ? JSON.parse(cached) : {
-        enabled: false,
-        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-        setAt: '',
-        setBy: ''
-      };
-    } catch (e) {
-      return {
-        enabled: false,
-        message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-        setAt: '',
-        setBy: ''
-      };
-    }
-  });
-  const [maintenanceMsg, setMaintenanceMsg] = useState<string>(maintenanceState?.message || '');
-  const [isUpdatingMaintenance, setIsUpdatingMaintenance] = useState<boolean>(false);
-  const [isSavingMessage, setIsSavingMessage] = useState<boolean>(false);
-  const [showMaintenancePreview, setShowMaintenancePreview] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (maintenance) {
-      setMaintenanceState(maintenance);
-      setMaintenanceMsg(maintenance.message || '');
-    }
-  }, [maintenance]);
-
-  const fetchOnlineUsers = async () => {
-    setLoadingOnlineUsers(true);
-    try {
-      const list = await systemService.fetchOnlineUsers();
-      setOnlineUsers(list);
-    } catch (e) {
-      console.warn("Failed to load online users:", e);
-    } finally {
-      setLoadingOnlineUsers(false);
-    }
-  };
-
-  const fetchMaintenance = async () => {
-    try {
-      const mData = await systemService.fetchMaintenanceStatus();
-      setMaintenanceState(mData);
-      if (mData.message) setMaintenanceMsg(mData.message);
-      if (onUpdateMaintenance) onUpdateMaintenance(mData);
-    } catch (e) {
-      console.warn("Failed to fetch maintenance status:", e);
-    }
-  };
-
-  useEffect(() => {
-    const unsubPresence = systemService.subscribeOnlineUsers((usersList) => {
-      setOnlineUsers(usersList);
-      setLoadingOnlineUsers(false);
-    });
-    const unsubMaint = systemService.subscribeMaintenance((mData) => {
-      setMaintenanceState(mData);
-      if (mData.message) setMaintenanceMsg(mData.message);
-      if (onUpdateMaintenance) onUpdateMaintenance(mData);
-    });
-    return () => {
-      unsubPresence();
-      unsubMaint();
-    };
-  }, [onUpdateMaintenance]);
-
-  const handleToggleMaintenance = async () => {
-    const nextState = !maintenanceState.enabled;
-    setIsUpdatingMaintenance(true);
-
-    const payload = {
-      enabled: nextState,
-      message: maintenanceMsg.trim() || 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-      setBy: currentUser?.username || 'ADMIN'
-    };
-
-    try {
-      const updated = await systemService.setMaintenanceStatus(payload);
-      setMaintenanceState(updated);
-      if (onUpdateMaintenance) onUpdateMaintenance(updated);
-
-      // Log to Admin Activity Log
-      await logActivity(
-        'MAINTENANCE', 
-        nextState 
-          ? `Application turned OFF (Maintenance Mode Active) by ${currentUser?.username || 'ADMIN'}`
-          : `Application turned ON (System Live) by ${currentUser?.username || 'ADMIN'}`
-      ).catch(() => {});
-
-      if (triggerSuccess) {
-        triggerSuccess(nextState ? "⚠️ Application Turned OFF — Maintenance Mode is Active" : "✅ Application Turned ON — System is Live");
-      }
-      fetchAdminLogs(true);
-    } catch (e: any) {
-      console.warn("Error toggling maintenance mode:", e);
-    } finally {
-      setIsUpdatingMaintenance(false);
-    }
-  };
-
-  const handleSaveMaintenanceMessage = async () => {
-    if (!maintenanceMsg.trim()) {
-      return;
-    }
-    setIsSavingMessage(true);
-    try {
-      const payload = {
-        enabled: maintenanceState.enabled,
-        message: maintenanceMsg.trim(),
-        setBy: currentUser?.username || 'ADMIN'
-      };
-
-      const updated = await systemService.setMaintenanceStatus(payload);
-      setMaintenanceState(updated);
-      if (onUpdateMaintenance) onUpdateMaintenance(updated);
-      if (triggerSuccess) triggerSuccess("Maintenance notice message updated.");
-    } catch (e: any) {
-      console.warn("Error saving maintenance message:", e);
-    } finally {
-      setIsSavingMessage(false);
-    }
-  };
 
   // Admin Activity Logs state synced with Google Sheets
   const [adminLogs, setAdminLogs] = useState<any[]>([]);
@@ -1054,115 +905,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* SYSTEM AVAILABILITY & MAINTENANCE MODE SWITCH */}
-      <div className={`p-5 rounded-2xl border transition-all duration-300 shadow-sm ${
-        maintenanceState.enabled 
-          ? 'bg-gradient-to-r from-rose-50 via-rose-50/80 to-amber-50/60 border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/60'
-          : 'bg-gradient-to-r from-emerald-50/60 via-slate-50 to-indigo-50/40 border-slate-200 dark:bg-slate-900/50 dark:border-slate-800'
-      }`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md transition-colors ${
-              maintenanceState.enabled 
-                ? 'bg-rose-600 shadow-rose-200' 
-                : 'bg-emerald-600 shadow-emerald-200'
-            }`}>
-              <Icon name={maintenanceState.enabled ? "alert-triangle" : "power"} size={22} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                  Application Availability Switch
-                </h3>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                  maintenanceState.enabled 
-                    ? 'bg-rose-100 text-rose-700 border-rose-200 animate-pulse' 
-                    : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                }`}>
-                  {maintenanceState.enabled ? '🔴 APP TURNED OFF (MAINTENANCE ACTIVE)' : '🟢 APP ACTIVE & OPERATIONAL'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-                {maintenanceState.enabled 
-                  ? 'The app is switched OFF for regular users. Anyone trying to use the app will see the "App Under Maintenance" window. Only Admins can access.'
-                  : 'The app is operational for all factory workers and operators to submit and inspect reports.'}
-              </p>
-              {maintenanceState.enabled && maintenanceState.setAt && (
-                <p className="text-[11px] font-mono text-rose-600 dark:text-rose-400 mt-1 font-semibold">
-                  Turned off: {new Date(maintenanceState.setAt).toLocaleString()} {maintenanceState.setBy ? `by ${maintenanceState.setBy}` : ''}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Controls: Switch button & preview */}
-          <div className="flex items-center gap-3 self-end md:self-center flex-wrap">
-            <button
-              onClick={() => setShowMaintenancePreview(true)}
-              className="px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-              title="Preview what users see when app is off"
-            >
-              <Icon name="eye" size={14} />
-              <span>Preview User Window</span>
-            </button>
-
-            {/* Modern Toggle Switch */}
-            <button
-              type="button"
-              onClick={handleToggleMaintenance}
-              disabled={isUpdatingMaintenance}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border transition-all shadow-md cursor-pointer select-none active:scale-95 ${
-                maintenanceState.enabled 
-                  ? 'bg-rose-600 hover:bg-rose-700 border-rose-500 text-white shadow-rose-200' 
-                  : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500 text-white shadow-emerald-200'
-              }`}
-              title={maintenanceState.enabled ? "Click to Turn ON App" : "Click to Turn OFF App (Maintenance Mode)"}
-            >
-              <div className="flex flex-col text-left">
-                <span className="text-[10px] uppercase tracking-wider font-semibold opacity-90">
-                  {maintenanceState.enabled ? 'App is Offline' : 'App is Live'}
-                </span>
-                <span className="text-xs font-black uppercase tracking-tight">
-                  {maintenanceState.enabled ? 'Turn App ON' : 'Turn App OFF'}
-                </span>
-              </div>
-              <span
-                className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-white/40 bg-black/20 transition-colors duration-200 ease-in-out p-0.5"
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
-                    maintenanceState.enabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Maintenance message customization bar */}
-        <div className="mt-4 pt-3 border-t border-slate-200/70 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold whitespace-nowrap">
-            <Icon name="message-square" size={14} />
-            <span>Notice Message:</span>
-          </div>
-          <input
-            type="text"
-            value={maintenanceMsg}
-            onChange={e => setMaintenanceMsg(e.target.value)}
-            placeholder="Message shown to users when app is off..."
-            className="flex-1 py-1.5 px-3 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500"
-          />
-          <button
-            onClick={handleSaveMaintenanceMessage}
-            disabled={isSavingMessage || maintenanceMsg === maintenanceState.message}
-            className="px-3.5 py-1.5 text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-40 whitespace-nowrap"
-          >
-            {isSavingMessage ? 'Saving...' : 'Save Notice'}
-          </button>
-        </div>
-      </div>
-
-      {/* ADMIN TABS & ONLINE USERS BUTTON */}
+      {/* ADMIN TABS */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
         {[
           { id: 'list', label: 'User List', icon: 'users' },
@@ -1183,30 +926,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
         ))}
 
-        {/* Small icon in admin panel showing how many users are online */}
-        <div className="flex items-center gap-2 ml-auto">
-          <button 
-            onClick={() => { setShowOnlineUsersModal(true); fetchOnlineUsers(); }}
-            className="px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all shadow-sm"
-            title="Click to open Active Online Users Window"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <Icon name="users" size={15} />
-            <span>{onlineUsers.length} Online</span>
-          </button>
-
-          {configOnlyMode && onLogout && (
+        {configOnlyMode && onLogout && (
+          <div className="ml-auto">
             <button 
               onClick={onLogout}
               className="px-4 py-2 rounded-lg font-bold uppercase text-xs flex items-center gap-2 text-rose-500 hover:bg-rose-50"
             >
               <Icon name="log-out" size={16} /> Back to Login
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="glass-card p-6">
@@ -2478,48 +2207,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
       </div>
-
-      {/* Active Online Users Modal Window */}
-      <OnlineUsersModal
-        isOpen={showOnlineUsersModal}
-        onClose={() => setShowOnlineUsersModal(false)}
-        users={onlineUsers}
-        registeredUsers={users}
-        onRefresh={fetchOnlineUsers}
-        isLoading={loadingOnlineUsers}
-      />
-
-      {/* Admin Maintenance Screen Preview */}
-      {showMaintenancePreview && (
-        <div className="relative">
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100000] bg-slate-900 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border border-slate-700">
-            <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-              <Icon name="eye" size={16} />
-              Admin Preview Mode
-            </span>
-            <span className="text-xs text-slate-300 hidden sm:inline">This is what regular users see when app is switched off.</span>
-            <button
-              onClick={() => setShowMaintenancePreview(false)}
-              className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-full transition-colors ml-2"
-            >
-              Close Preview
-            </button>
-          </div>
-          <MaintenanceScreen
-            maintenance={maintenanceState}
-            onCheckStatus={async () => {
-              await fetchMaintenance();
-            }}
-            onTurnOnApp={async () => {
-              await handleToggleMaintenance();
-              setShowMaintenancePreview(false);
-            }}
-            onGoToAdmin={() => setShowMaintenancePreview(false)}
-            currentUser={currentUser}
-            users={users}
-          />
-        </div>
-      )}
     </div>
   );
 };
