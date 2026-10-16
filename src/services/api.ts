@@ -1,6 +1,7 @@
 import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { systemService } from './systemService';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 import { INITIAL_DB } from '../data/initialDb';
 
@@ -75,71 +76,34 @@ function getLocalFallbackData(method: string, args: any[]): any {
       };
     }
     case 'api_getMaintenanceStatus': {
-      let m = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
-      let logs: any[] = [];
-      try {
-        const cached = localStorage.getItem('bqos_maintenance');
-        if (cached) m = JSON.parse(cached);
-        const cachedLogs = localStorage.getItem('bqos_maintenance_logs');
-        if (cachedLogs) logs = JSON.parse(cachedLogs);
-      } catch (e) {}
-      return { success: true, maintenance: m, logs };
+      const m = systemService.getCachedMaintenance();
+      return { success: true, maintenance: m };
     }
     case 'api_setMaintenanceStatus': {
       const param = args[0] || {};
-      const enabled = typeof param === 'boolean' ? param : !!param.enabled;
-      const message = param.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
-      const setBy = param.setBy || args[1] || 'ADMIN';
-      const nowIso = new Date().toISOString();
-      const m = { enabled, message, setAt: nowIso, setBy: String(setBy) };
-      let logs: any[] = [];
-      try {
-        localStorage.setItem('bqos_maintenance', JSON.stringify(m));
-        const cachedLogs = localStorage.getItem('bqos_maintenance_logs');
-        if (cachedLogs) logs = JSON.parse(cachedLogs);
-        logs.unshift({
-          timestamp: nowIso,
-          module: 'SYSTEM',
-          action: 'MAINTENANCE_MODE',
-          details: `Application turned ${enabled ? 'OFF (Maintenance Active)' : 'ON (System Live)'}: ${message}`,
-          admin: String(setBy)
-        });
-        localStorage.setItem('bqos_maintenance_logs', JSON.stringify(logs.slice(0, 50)));
-      } catch (e) {}
-      return { success: true, maintenance: m, logs };
+      systemService.setMaintenanceStatus(param).catch(() => {});
+      const m = systemService.getCachedMaintenance();
+      return { success: true, maintenance: m };
     }
     case 'api_getOnlineUsers': {
-      let currentUser: any = null;
-      try {
-        currentUser = JSON.parse(localStorage.getItem('bqos_session') || 'null');
-      } catch (e) {}
+      const users = systemService.getCachedOnlineUsers();
       return {
         success: true,
-        count: 1,
-        users: [{
-          id: currentUser?.userCode || 'A001',
-          userCode: currentUser?.userCode || 'A001',
-          username: currentUser?.username || 'admin',
-          role: currentUser?.role || 'ADMIN',
-          zone: currentUser?.zone || 'ALL',
-          location: currentUser?.location || 'SYSTEM',
-          lastSeen: Date.now()
-        }]
+        count: users.length,
+        users
       };
     }
     case 'api_heartbeat':
     case 'api_ping': {
-      let m = { enabled: false, message: 'System is currently undergoing scheduled maintenance. Please check back shortly.', setAt: '', setBy: '' };
-      try {
-        const cached = localStorage.getItem('bqos_maintenance');
-        if (cached) m = JSON.parse(cached);
-      } catch (e) {}
+      const m = systemService.getCachedMaintenance();
+      const users = systemService.getCachedOnlineUsers();
       return {
         success: true,
         status: "Connected",
         timestamp: new Date().toISOString(),
         serverTime: new Date().toISOString(),
-        onlineCount: 1,
+        onlineCount: users.length,
+        users,
         maintenance: m
       };
     }
@@ -968,56 +932,41 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(args[0] || {})
           });
-          if (res.ok) return await res.json();
-        } catch (e) {}
-        return { success: true, status: "Connected", timestamp: new Date().toISOString() };
-      }
-
-      case 'api_getOnlineUsers': {
-        try {
-          const res = await fetch('/api/system/online-users');
-          if (res.ok) return await res.json();
-        } catch (e) {}
-        return getLocalFallbackData('api_getOnlineUsers', args);
-      }
-
-      case 'api_getMaintenanceStatus': {
-        try {
-          const res = await fetch('/api/system/maintenance');
           if (res.ok) {
             const data = await res.json();
             if (data?.maintenance) {
               try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
             }
-            if (data?.logs) {
-              try { localStorage.setItem('bqos_maintenance_logs', JSON.stringify(data.logs)); } catch (e) {}
-            }
             return data;
           }
         } catch (e) {}
-        return getLocalFallbackData('api_getMaintenanceStatus', args);
+        throw new Error('SYSTEM_ROUTE_UNAVAILABLE');
+      }
+
+      case 'api_getOnlineUsers': {
+        const users = await systemService.fetchOnlineUsers();
+        return {
+          success: true,
+          count: users.length,
+          users
+        };
+      }
+
+      case 'api_getMaintenanceStatus': {
+        const m = await systemService.fetchMaintenanceStatus();
+        return {
+          success: true,
+          maintenance: m
+        };
       }
 
       case 'api_setMaintenanceStatus': {
         const payload = args[0] || {};
-        try {
-          const res = await fetch('/api/system/maintenance', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.maintenance) {
-              try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
-            }
-            if (data?.logs) {
-              try { localStorage.setItem('bqos_maintenance_logs', JSON.stringify(data.logs)); } catch (e) {}
-            }
-            return data;
-          }
-        } catch (e) {}
-        return getLocalFallbackData('api_setMaintenanceStatus', args);
+        const m = await systemService.setMaintenanceStatus(payload);
+        return {
+          success: true,
+          maintenance: m
+        };
       }
 
       case 'api_getInitialData': {

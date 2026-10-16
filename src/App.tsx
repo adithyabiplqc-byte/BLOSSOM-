@@ -10,6 +10,7 @@ import UserDashboard from './components/UserDashboard';
 import SubmoduleContainer from './components/SubmoduleContainer';
 import { MaintenanceScreen } from './components/MaintenanceScreen';
 import { OnlineUsersModal } from './components/OnlineUsersModal';
+import { systemService } from './services/systemService';
 
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
@@ -157,61 +158,36 @@ const App: React.FC = () => {
   const checkConnectivity = useCallback(async () => {
     setIsCheckingMaintenance(true);
     try {
-      const payload = user ? {
-        userCode: user.userCode,
-        username: user.username,
-        role: user.role,
-        zone: user.zone || user.location || globalZone,
-        location: user.location || user.zone || 'SYSTEM'
-      } : { role: 'GUEST' };
-
-      // 1. Direct REST ping to backend server
-      let gotHeartbeat = false;
-      try {
-        const hbRes = await fetch('/api/system/heartbeat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (hbRes.ok) {
-          const hbData = await hbRes.json();
-          gotHeartbeat = true;
-          setIsOnline(true);
-          if (hbData?.maintenance) {
-            setMaintenance(hbData.maintenance);
-            try { localStorage.setItem('bqos_maintenance', JSON.stringify(hbData.maintenance)); } catch (e) {}
-          }
-          if (typeof hbData?.onlineCount === 'number') {
-            setOnlineUsersCount(hbData.onlineCount);
-          }
-        }
-      } catch (hbErr) {}
-
-      // 2. Also run through api.run pipeline if direct fetch didn't return
-      if (!gotHeartbeat) {
-        const res = await api.run('api_heartbeat', payload) as any;
-        setIsOnline(res?.success !== false);
-        if (res?.maintenance) {
-          setMaintenance(res.maintenance);
-          try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
-        }
-        if (typeof res?.onlineCount === 'number') {
-          setOnlineUsersCount(res.onlineCount);
-        } else if (typeof res?.count === 'number') {
-          setOnlineUsersCount(res.count);
-        }
-      }
+      const m = await systemService.fetchMaintenanceStatus();
+      setMaintenance(m);
+      const onlineList = await systemService.fetchOnlineUsers();
+      setOnlineUsersCount(onlineList.length);
+      setIsOnline(true);
     } catch (e) {
-      console.warn("Heartbeat ping notice:", e);
+      console.warn("Status check notice:", e);
       setIsOnline(true);
     } finally {
       setIsCheckingMaintenance(false);
     }
-  }, [user, globalZone]);
+  }, []);
+
+  // Subscribe to real-time maintenance and online presence across all devices & Netlify
+  useEffect(() => {
+    const unsubMaint = systemService.subscribeMaintenance((m) => {
+      setMaintenance(m);
+    });
+    const unsubPresence = systemService.subscribeOnlineUsers((_list, count) => {
+      setOnlineUsersCount(count);
+    });
+    return () => {
+      unsubMaint();
+      unsubPresence();
+    };
+  }, []);
 
   useEffect(() => {
     checkConnectivity();
-    const interval = setInterval(checkConnectivity, 10000); // Check every 10s
+    const interval = setInterval(checkConnectivity, 15000);
     return () => clearInterval(interval);
   }, [checkConnectivity]);
 
@@ -416,6 +392,7 @@ const App: React.FC = () => {
           const resolvedUser = fresh ? { ...currentSavedSession, ...fresh } : currentSavedSession;
           setUser(resolvedUser);
           try { localStorage.setItem('bqos_session', JSON.stringify(resolvedUser)); } catch (e) {}
+          systemService.registerPresence(resolvedUser).catch(() => {});
 
           setGlobalZone(prev => (prev === 'ALL' && activeZone !== 'ALL' ? activeZone : prev));
           
@@ -450,6 +427,8 @@ const App: React.FC = () => {
         if (!currentSavedSession) {
           setUser(null);
           setView(currentView => (currentView === 'splash' ? 'login' : currentView));
+        } else {
+          systemService.registerPresence(currentSavedSession).catch(() => {});
         }
       } finally {
         clearTimeout(timeoutId);
@@ -470,6 +449,9 @@ const App: React.FC = () => {
     const activeZone = u.zone || (u.location === 'SYSTEM' || !u.location ? 'ALL' : u.location);
     setGlobalZone(activeZone);
     
+    // Immediately register presence into Firestore and REST so other users see them ONLINE instantly!
+    systemService.registerPresence(u).catch(() => {});
+
     if (u.role === 'ADMIN') setView('admin');
     else if (u.role === 'WORKORDER') setView('workorder');
     else setView('user');
@@ -506,6 +488,10 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    // Unregister presence immediately
+    if (user) {
+      systemService.unregisterPresence(user).catch(() => {});
+    }
     try {
       localStorage.removeItem('bqos_session');
       localStorage.removeItem('bqos_active_submodule');
@@ -712,6 +698,20 @@ const App: React.FC = () => {
                     </button>
                   )}
 
+                  {/* Live Online Users indicator button */}
+                  <button
+                    onClick={() => setShowAppOnlineUsersModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all shadow-xs cursor-pointer"
+                    title="Click to view Active Online Users"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <Icon name="users" size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">{onlineUsersCount} Online</span>
+                  </button>
+
                   <button 
                     onClick={() => fetchData()} 
                     disabled={loading}
@@ -900,21 +900,10 @@ const App: React.FC = () => {
             const payload = {
               enabled: false,
               message: maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-              setAt: new Date().toISOString(),
               setBy: user?.username || 'ADMIN'
             };
-            try {
-              await fetch('/api/system/maintenance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
-            } catch (e) {}
-            try {
-              await api.run('api_setMaintenanceStatus', payload);
-            } catch (e) {}
-            setMaintenance(payload);
-            try { localStorage.setItem('bqos_maintenance', JSON.stringify(payload)); } catch (e) {}
+            await systemService.setMaintenanceStatus(payload);
+            setMaintenance(systemService.getCachedMaintenance());
             triggerSuccess("Application Turned ON — System is Live");
           }}
           onGoToAdmin={() => {
@@ -926,6 +915,17 @@ const App: React.FC = () => {
           isChecking={isCheckingMaintenance}
         />
       )}
+
+      {/* Online Users Active Monitor Modal */}
+      <OnlineUsersModal
+        isOpen={showAppOnlineUsersModal}
+        onClose={() => setShowAppOnlineUsersModal(false)}
+        users={systemService.getCachedOnlineUsers()}
+        registeredUsers={users}
+        onRefresh={async () => {
+          await systemService.fetchOnlineUsers();
+        }}
+      />
 
       {renderView()}
     </ErrorBoundary>

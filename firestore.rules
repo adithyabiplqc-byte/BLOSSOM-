@@ -6,8 +6,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // System configurations: read and write by anyone to ensure permanent storage of GAS configs
+    // System configurations: read and write by anyone to ensure permanent storage of GAS configs & maintenance
     match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Online users presence tracking across all client devices & Netlify
+    match /presence/{userId} {
       allow read, write: if true;
     }
   }

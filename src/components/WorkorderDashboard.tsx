@@ -305,6 +305,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
   };
 
   const filteredWorkorders = React.useMemo(() => {
+    const gZone = String(globalZone || 'ALL').toUpperCase().trim();
     return workorders.filter(wo => {
       const wZone = String(wo.zone || wo.location || "").toUpperCase().trim();
       const zoneMatch = gZone === 'ALL' || 

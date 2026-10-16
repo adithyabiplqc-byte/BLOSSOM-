@@ -185,6 +185,10 @@ function doPost(e) {
       'api_updateWorkorder': api_updateWorkorder,
       'api_deleteWorkorder': api_deleteWorkorder,
       'api_ping': api_ping,
+      'api_heartbeat': api_heartbeat,
+      'api_getOnlineUsers': api_getOnlineUsers,
+      'api_getMaintenanceStatus': api_getMaintenanceStatus,
+      'api_setMaintenanceStatus': api_setMaintenanceStatus,
       'api_bulkSave': api_bulkSave,
       'api_saveMaterialReportBulk': api_saveMaterialReportBulk,
       'api_saveMATERIALREPORT': api_saveMATERIALREPORT,
@@ -1159,10 +1163,36 @@ function api_getInitialData(params) {
       settingsResult = api_getGlobalSettings();
     }
 
+    // Register presence if user info is in params
+    if (params && (params.userCode || params.username)) {
+      try {
+        api_heartbeat(params);
+      } catch (e) {}
+    }
+
+    var maintenance = {
+      enabled: false,
+      message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+      setAt: '',
+      setBy: ''
+    };
+    try {
+      var rawM = PropertiesService.getScriptProperties().getProperty('BQOS_MAINTENANCE');
+      if (rawM) maintenance = JSON.parse(rawM);
+    } catch (e) {}
+
+    var onlineCount = 1;
+    try {
+      var onlineRes = api_getOnlineUsers();
+      if (onlineRes && onlineRes.count) onlineCount = onlineRes.count;
+    } catch (e) {}
+
     return {
       users: users,
       workorders: workorders,
       settings: settingsResult,
+      maintenance: maintenance,
+      onlineCount: onlineCount,
       serverTime: new Date().toISOString(),
       success: true
     };
@@ -1578,6 +1608,123 @@ function api_deleteWorkorder(id, zone) {
 
 function api_ping() {
   return { success: true, status: "Connected", timestamp: new Date().toISOString() };
+}
+
+function api_getMaintenanceStatus() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('BQOS_MAINTENANCE');
+    if (raw) {
+      return { success: true, maintenance: JSON.parse(raw) };
+    }
+  } catch (e) {}
+  return {
+    success: true,
+    maintenance: {
+      enabled: false,
+      message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+      setAt: '',
+      setBy: ''
+    }
+  };
+}
+
+function api_setMaintenanceStatus(payload) {
+  var p = payload || {};
+  var enabled = typeof p === 'boolean' ? p : !!p.enabled;
+  var message = (p.message && String(p.message).trim()) || 'System is currently undergoing scheduled maintenance. Please check back shortly.';
+  var setBy = p.setBy || 'ADMIN';
+  var nowIso = new Date().toISOString();
+  var maintenance = {
+    enabled: enabled,
+    message: message,
+    setAt: nowIso,
+    setBy: String(setBy)
+  };
+  try {
+    PropertiesService.getScriptProperties().setProperty('BQOS_MAINTENANCE', JSON.stringify(maintenance));
+  } catch (e) {}
+  return { success: true, maintenance: maintenance };
+}
+
+function api_heartbeat(userData) {
+  var now = new Date().getTime();
+  var users = [];
+  try {
+    var cache = CacheService.getScriptCache();
+    var raw = cache.get('BQOS_ONLINE_USERS');
+    if (raw) {
+      users = JSON.parse(raw);
+    }
+    // Prune entries older than 3 minutes
+    users = users.filter(function(u) {
+      return u && u.lastSeen && (now - u.lastSeen <= 180000);
+    });
+
+    if (userData && typeof userData === 'object') {
+      var rawCode = userData.userCode || userData.username || '';
+      var code = String(rawCode).trim().toUpperCase();
+      if (code && code !== 'LOGIN' && code !== 'GUEST') {
+        var idx = users.findIndex(function(u) {
+          return String(u.userCode || u.username).trim().toUpperCase() === code;
+        });
+        var record = {
+          id: code,
+          userCode: code,
+          username: String(userData.username || code),
+          role: String(userData.role || 'USER').toUpperCase(),
+          zone: String(userData.zone || userData.location || 'ALL'),
+          location: String(userData.location || userData.zone || 'ALL'),
+          lastSeen: now
+        };
+        if (idx !== -1) {
+          users[idx] = record;
+        } else {
+          users.unshift(record);
+        }
+      }
+    }
+    cache.put('BQOS_ONLINE_USERS', JSON.stringify(users), 300);
+  } catch (e) {}
+
+  var maintenance = {
+    enabled: false,
+    message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
+    setAt: '',
+    setBy: ''
+  };
+  try {
+    var rawM = PropertiesService.getScriptProperties().getProperty('BQOS_MAINTENANCE');
+    if (rawM) maintenance = JSON.parse(rawM);
+  } catch (e) {}
+
+  return {
+    success: true,
+    status: "Connected",
+    timestamp: new Date().toISOString(),
+    onlineCount: users.length,
+    users: users,
+    maintenance: maintenance
+  };
+}
+
+function api_getOnlineUsers() {
+  var now = new Date().getTime();
+  var users = [];
+  try {
+    var cache = CacheService.getScriptCache();
+    var raw = cache.get('BQOS_ONLINE_USERS');
+    if (raw) {
+      users = JSON.parse(raw);
+    }
+    users = users.filter(function(u) {
+      return u && u.lastSeen && (now - u.lastSeen <= 180000);
+    });
+  } catch (e) {}
+  return {
+    success: true,
+    count: users.length,
+    users: users
+  };
 }
 
 function api_bulkSave(sheetName, records) {

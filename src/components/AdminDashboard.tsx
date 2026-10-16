@@ -6,6 +6,7 @@ import SearchableSelect from './SearchableSelect';
 import { getDirectViewUrl } from '../utils/sopUtils';
 import { OnlineUsersModal, ActiveUserRecord } from './OnlineUsersModal';
 import { MaintenanceScreen } from './MaintenanceScreen';
+import { systemService } from '../services/systemService';
 
 interface AdminDashboardProps {
   users?: any[];
@@ -119,63 +120,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const fetchOnlineUsers = async () => {
     setLoadingOnlineUsers(true);
     try {
-      const payload = currentUser ? {
-        userCode: currentUser.userCode,
-        username: currentUser.username,
-        role: currentUser.role,
-        zone: currentUser.zone || globalZone || 'ALL',
-        location: currentUser.location || 'SYSTEM'
-      } : { role: 'GUEST' };
-
-      let list: any[] = [];
-      try {
-        const sysRes = await fetch('/api/system/online-users');
-        if (sysRes.ok) {
-          const sysData = await sysRes.json();
-          if (sysData && Array.isArray(sysData.users)) {
-            list = sysData.users;
-          }
-        }
-      } catch (e) {}
-
-      if (list.length === 0) {
-        const res = await api.run('api_getOnlineUsers', payload) as any;
-        if (res && Array.isArray(res.users)) {
-          list = [...res.users];
-        }
-      }
-
-      // Guarantee current active user is always represented in the online list
-      if (currentUser) {
-        const myCode = String(currentUser.userCode || currentUser.username).toUpperCase();
-        const exists = list.some((u: any) => String(u.userCode || u.username).toUpperCase() === myCode);
-        if (!exists) {
-          list.unshift({
-            id: String(currentUser.userCode || 'A001').toUpperCase(),
-            userCode: String(currentUser.userCode || 'A001').toUpperCase(),
-            username: String(currentUser.username || 'admin'),
-            role: String(currentUser.role || 'ADMIN').toUpperCase(),
-            zone: String(currentUser.zone || globalZone || 'ALL'),
-            location: String(currentUser.location || 'SYSTEM'),
-            lastSeen: Date.now()
-          });
-        }
-      }
-
+      const list = await systemService.fetchOnlineUsers();
       setOnlineUsers(list);
     } catch (e) {
       console.warn("Failed to load online users:", e);
-      if (currentUser) {
-        setOnlineUsers([{
-          id: String(currentUser.userCode || 'A001').toUpperCase(),
-          userCode: String(currentUser.userCode || 'A001').toUpperCase(),
-          username: String(currentUser.username || 'admin'),
-          role: String(currentUser.role || 'ADMIN').toUpperCase(),
-          zone: String(currentUser.zone || globalZone || 'ALL'),
-          location: String(currentUser.location || 'SYSTEM'),
-          lastSeen: Date.now()
-        }]);
-      }
     } finally {
       setLoadingOnlineUsers(false);
     }
@@ -183,40 +131,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const fetchMaintenance = async () => {
     try {
-      let mData: any = null;
-      try {
-        const mRes = await fetch('/api/system/maintenance');
-        if (mRes.ok) {
-          const mJson = await mRes.json();
-          if (mJson?.maintenance) mData = mJson.maintenance;
-        }
-      } catch (e) {}
-
-      if (!mData) {
-        const res = await api.run('api_getMaintenanceStatus') as any;
-        if (res && res.maintenance) mData = res.maintenance;
-      }
-
-      if (mData) {
-        setMaintenanceState(mData);
-        setMaintenanceMsg(mData.message || '');
-        try { localStorage.setItem('bqos_maintenance', JSON.stringify(mData)); } catch (e) {}
-        if (onUpdateMaintenance) onUpdateMaintenance(mData);
-      }
+      const mData = await systemService.fetchMaintenanceStatus();
+      setMaintenanceState(mData);
+      if (mData.message) setMaintenanceMsg(mData.message);
+      if (onUpdateMaintenance) onUpdateMaintenance(mData);
     } catch (e) {
       console.warn("Failed to fetch maintenance status:", e);
     }
   };
 
   useEffect(() => {
-    fetchOnlineUsers();
-    fetchMaintenance();
-    const interval = setInterval(() => {
-      fetchOnlineUsers();
-      fetchMaintenance();
-    }, 10000); // Sync every 10s
-    return () => clearInterval(interval);
-  }, []);
+    const unsubPresence = systemService.subscribeOnlineUsers((usersList) => {
+      setOnlineUsers(usersList);
+      setLoadingOnlineUsers(false);
+    });
+    const unsubMaint = systemService.subscribeMaintenance((mData) => {
+      setMaintenanceState(mData);
+      if (mData.message) setMaintenanceMsg(mData.message);
+      if (onUpdateMaintenance) onUpdateMaintenance(mData);
+    });
+    return () => {
+      unsubPresence();
+      unsubMaint();
+    };
+  }, [onUpdateMaintenance]);
 
   const handleToggleMaintenance = async () => {
     const nextState = !maintenanceState.enabled;
@@ -225,34 +163,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const payload = {
       enabled: nextState,
       message: maintenanceMsg.trim() || 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-      setAt: new Date().toISOString(),
       setBy: currentUser?.username || 'ADMIN'
     };
 
-    // Instant optimistic update for 0ms lag
-    setMaintenanceState(payload);
-    try { localStorage.setItem('bqos_maintenance', JSON.stringify(payload)); } catch (e) {}
-    if (onUpdateMaintenance) onUpdateMaintenance(payload);
-
     try {
-      // 1. Direct post to server
-      try {
-        await fetch('/api/system/maintenance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch (e) {}
+      const updated = await systemService.setMaintenanceStatus(payload);
+      setMaintenanceState(updated);
+      if (onUpdateMaintenance) onUpdateMaintenance(updated);
 
-      // 2. Also run through API pipeline
-      const res = await api.run('api_setMaintenanceStatus', payload) as any;
-      if (res && res.maintenance) {
-        setMaintenanceState(res.maintenance);
-        try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
-        if (onUpdateMaintenance) onUpdateMaintenance(res.maintenance);
-      }
-
-      // 3. Log to Admin Activity Log
+      // Log to Admin Activity Log
       await logActivity(
         'MAINTENANCE', 
         nextState 
@@ -280,36 +199,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const payload = {
         enabled: maintenanceState.enabled,
         message: maintenanceMsg.trim(),
-        setAt: maintenanceState.setAt || new Date().toISOString(),
         setBy: currentUser?.username || 'ADMIN'
       };
 
-      try {
-        await fetch('/api/system/maintenance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch (e) {}
-
-      const res = await api.run('api_setMaintenanceStatus', payload) as any;
-      if (res && res.maintenance) {
-        setMaintenanceState(res.maintenance);
-        try { localStorage.setItem('bqos_maintenance', JSON.stringify(res.maintenance)); } catch (e) {}
-        if (onUpdateMaintenance) onUpdateMaintenance(res.maintenance);
-      }
-
-      await logActivity(
-        'MAINTENANCE', 
-        `Updated maintenance message: "${maintenanceMsg.trim()}"`
-      ).catch(() => {});
-
-      if (triggerSuccess) {
-        triggerSuccess("Maintenance notice message updated successfully.");
-      }
-      fetchAdminLogs(true);
+      const updated = await systemService.setMaintenanceStatus(payload);
+      setMaintenanceState(updated);
+      if (onUpdateMaintenance) onUpdateMaintenance(updated);
+      if (triggerSuccess) triggerSuccess("Maintenance notice message updated.");
     } catch (e: any) {
-      console.warn("Error saving notice message:", e);
+      console.warn("Error saving maintenance message:", e);
     } finally {
       setIsSavingMessage(false);
     }
