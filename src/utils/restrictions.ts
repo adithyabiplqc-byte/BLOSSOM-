@@ -29,20 +29,9 @@ export const normalizeRestrictions = (raw: any): string[] => {
     }
   }
 
-  // Seamlessly remap legacy Module B codes ONLY IF B10 is present (indicating legacy 10-module data):
-  // Old B7 (Inspectors) -> omitted
-  // Old B8 (Workorders) -> B7
-  // Old B9 (SOP & Audit Documents) -> B8
-  // Old B10 (Customer Complaints) -> B9
+  // Map legacy B10 to modern B9 without erasing B7
   if (list.includes('B10')) {
-    const remapped = list.map(code => {
-      if (code === 'B7') return null;
-      if (code === 'B8') return 'B7';
-      if (code === 'B9') return 'B8';
-      if (code === 'B10') return 'B9';
-      return code;
-    }).filter(Boolean) as string[];
-    return Array.from(new Set(remapped));
+    list = list.map(code => code === 'B10' ? 'B9' : code);
   }
 
   return Array.from(new Set(list));

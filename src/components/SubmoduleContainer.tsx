@@ -58,10 +58,18 @@ const SubmoduleContainer: React.FC<SubmoduleContainerProps> = ({ id, user, setti
 
     const commonProps = { user, settings, workorders, triggerSuccess, globalZone, refreshData };
 
+    const safeNavigate = (targetId: string) => {
+      if (isModuleRestricted(user, targetId)) {
+        triggerSuccess(`Cannot open #${targetId}: Module restricted for your account.`);
+        return;
+      }
+      if (onNavigate) onNavigate(targetId);
+    };
+
     if (id === 'A1') return <MaterialInspection {...commonProps} />;
     if (id === 'A2') return <CuttingQuality {...commonProps} />;
     if (id === 'A3') return <InlineQuality {...commonProps} />;
-    if (id === 'A4') return <EndlineQuality {...commonProps} users={users} onNavigate={onNavigate} refreshData={refreshData} />;
+    if (id === 'A4') return <EndlineQuality {...commonProps} users={users} onNavigate={safeNavigate} refreshData={refreshData} />;
     if (id === 'A5') return <AQLInspection {...commonProps} />;
     if (id === 'A6') return <FinalAudit {...commonProps} />;
     if (id === 'A7') return <ReportsSOPs user={user} settings={settings} triggerSuccess={triggerSuccess} globalZone={globalZone} mode="entry" />;

@@ -1,16 +1,15 @@
 import { sheetsService, DEFAULT_SETTINGS } from './sheetsService';
 import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { systemService } from './systemService';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 import { INITIAL_DB } from '../data/initialDb';
 
-export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
+export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
 export const MASTER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 // Master Authoritative Google Apps Script endpoints (filters out stale or empty test environment URLs)
 const rawEnvUrl = (import.meta as any).env?.VITE_GAS_URL;
-export const DEFAULT_SHEETS_URL = (rawEnvUrl && !rawEnvUrl.includes("AKfycbwK") && !rawEnvUrl.includes("REPLACE_WITH") && rawEnvUrl.startsWith("https://script.google.com/macros/s/"))
+export const DEFAULT_SHEETS_URL = (rawEnvUrl && !rawEnvUrl.includes("AKfycbwK") && !rawEnvUrl.includes("AKfycbzyJE21jeRLP") && !rawEnvUrl.includes("REPLACE_WITH") && rawEnvUrl.startsWith("https://script.google.com/macros/s/"))
   ? rawEnvUrl
   : MASTER_SHEETS_URL;
 
@@ -48,10 +47,10 @@ function getLocalFallbackData(method: string, args: any[]): any {
         const cachedU = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
         if (Array.isArray(cachedU) && cachedU.length > 0) users = cachedU;
       } catch (e) {}
-      let wos = filterByZone(INITIAL_DB?.workorders || []);
+      let wos = INITIAL_DB?.workorders || [];
       try {
         const cachedW = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
-        if (Array.isArray(cachedW) && cachedW.length > 0) wos = filterByZone(cachedW);
+        if (Array.isArray(cachedW) && cachedW.length > 0) wos = cachedW;
       } catch (e) {}
       let settings = INITIAL_DB?.settings || {};
       try {
@@ -75,36 +74,17 @@ function getLocalFallbackData(method: string, args: any[]): any {
         success: true
       };
     }
-    case 'api_getMaintenanceStatus': {
-      const m = systemService.getCachedMaintenance();
-      return { success: true, maintenance: m };
-    }
-    case 'api_setMaintenanceStatus': {
-      const param = args[0] || {};
-      systemService.setMaintenanceStatus(param).catch(() => {});
-      const m = systemService.getCachedMaintenance();
-      return { success: true, maintenance: m };
-    }
+    case 'api_getMaintenanceStatus':
+    case 'api_setMaintenanceStatus':
     case 'api_getOnlineUsers': {
-      const users = systemService.getCachedOnlineUsers();
-      return {
-        success: true,
-        count: users.length,
-        users
-      };
+      return { success: true };
     }
     case 'api_heartbeat':
     case 'api_ping': {
-      const m = systemService.getCachedMaintenance();
-      const users = systemService.getCachedOnlineUsers();
       return {
         success: true,
         status: "Connected",
-        timestamp: new Date().toISOString(),
-        serverTime: new Date().toISOString(),
-        onlineCount: users.length,
-        users,
-        maintenance: m
+        timestamp: new Date().toISOString()
       };
     }
     case 'api_getUsers': {
@@ -185,7 +165,16 @@ function getLocalFallbackData(method: string, args: any[]): any {
       } catch (e) {}
       return INITIAL_DB?.zone || [];
     }
-    case 'api_getUserSettings':
+    case 'api_getUserSettings': {
+      const targetCode = typeof args[0] === 'string' ? args[0] : (args[0]?.userCode || args[0]?.target || 'GLOBAL');
+      const users = INITIAL_DB?.users || [];
+      const userObj = users.find((u: any) => String(u.userCode || '').toUpperCase() === String(targetCode || '').toUpperCase());
+      const userSettings = (INITIAL_DB?.settings && (INITIAL_DB.settings as any)[targetCode]) || userObj?.userSettings;
+      if (userSettings && Object.keys(userSettings).length > 0) {
+        return { ...(INITIAL_DB?.settings || {}), ...userSettings };
+      }
+      return INITIAL_DB?.settings || {};
+    }
     case 'api_getGlobalSettings': {
       try {
         const cached = JSON.parse(localStorage.getItem('bqos_cache_settings') || '{}');
@@ -261,7 +250,7 @@ function applyLocalMutation(method: string, args: any[]): any {
             id: 'mat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6)
           }));
           INITIAL_DB.material_reports = INITIAL_DB.material_reports || [];
-          INITIAL_DB.material_reports.unshift(...mapped);
+          INITIAL_DB.material_reports.unshift(...(mapped as any));
           try { localStorage.setItem('bqos_cache_material', JSON.stringify(INITIAL_DB.material_reports)); } catch (e) {}
         }
         return { success: true, count: items?.length || 0 };
@@ -926,46 +915,18 @@ export const api = {
     switch (method) {
       case 'api_ping':
       case 'api_heartbeat': {
-        try {
-          const res = await fetch('/api/system/heartbeat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(args[0] || {})
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.maintenance) {
-              try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
-            }
-            return data;
-          }
-        } catch (e) {}
-        throw new Error('SYSTEM_ROUTE_UNAVAILABLE');
-      }
-
-      case 'api_getOnlineUsers': {
-        const users = await systemService.fetchOnlineUsers();
         return {
           success: true,
-          count: users.length,
-          users
+          status: "Connected",
+          timestamp: new Date().toISOString()
         };
       }
 
-      case 'api_getMaintenanceStatus': {
-        const m = await systemService.fetchMaintenanceStatus();
-        return {
-          success: true,
-          maintenance: m
-        };
-      }
-
+      case 'api_getOnlineUsers':
+      case 'api_getMaintenanceStatus':
       case 'api_setMaintenanceStatus': {
-        const payload = args[0] || {};
-        const m = await systemService.setMaintenanceStatus(payload);
         return {
-          success: true,
-          maintenance: m
+          success: true
         };
       }
 
@@ -982,34 +943,6 @@ export const api = {
         }
 
         let workorders = await sheetsService.getData('WORKORDER');
-        if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
-          try {
-            const zoneRows = await sheetsService.getData('ZONE').catch(() => []);
-            const uppercaseZone = String(zone).toUpperCase().trim();
-            const allowedZones = new Set<string>([uppercaseZone]);
-            
-            for (const row of zoneRows) {
-              const z = String(row.zone || '').trim().toUpperCase();
-              const id = String(row.id || '').trim().toUpperCase();
-              if (z === uppercaseZone || id === uppercaseZone || z.replace(/^ZMAP-/, '') === uppercaseZone || id.replace(/^ZMAP-/, '') === uppercaseZone) {
-                if (z) allowedZones.add(z);
-                if (id) allowedZones.add(id);
-                if (z.replace(/^ZMAP-/, '')) allowedZones.add(z.replace(/^ZMAP-/, ''));
-                if (id.replace(/^ZMAP-/, '')) allowedZones.add(id.replace(/^ZMAP-/, ''));
-              }
-            }
-            
-            const filtered = workorders.filter(w => {
-              const zVal = String(w.zone || w.location || '').toUpperCase().trim();
-              return !zVal || zVal === 'ALL' || zVal === 'COMMON' || allowedZones.has(zVal) || allowedZones.has(zVal.replace(/^ZMAP-/, ''));
-            });
-            if (filtered.length > 0) {
-              workorders = filtered;
-            }
-          } catch (err) {
-            console.error("Failed to load zone mapping list in api_getInitialData:", err);
-          }
-        }
 
         let settings = null;
         if (userCode) {
@@ -1018,31 +951,10 @@ export const api = {
           settings = await sheetsService.getSettings('GLOBAL');
         }
 
-        let maintenance = {
-          enabled: false,
-          message: 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-          setAt: '',
-          setBy: ''
-        };
-        try {
-          const mRes = await fetch('/api/system/maintenance');
-          if (mRes.ok) {
-            const mJson = await mRes.json();
-            if (mJson?.maintenance) maintenance = mJson.maintenance;
-          }
-        } catch (e) {
-          try {
-            const cached = localStorage.getItem('bqos_maintenance');
-            if (cached) maintenance = JSON.parse(cached);
-          } catch (ce) {}
-        }
-
         return {
           users,
           workorders,
           settings,
-          maintenance,
-          onlineCount: 1,
           serverTime: new Date().toISOString(),
           success: true
         };
@@ -1157,15 +1069,15 @@ export const api = {
 
       case 'api_saveUserSettings':
       case 'api_saveSettings': {
-        const target = args[0];
-        const settings = args[1];
+        const target = typeof args[0] === 'object' && args[0] !== null ? (args[0].sheetName || args[0].target || 'GLOBAL') : (args[0] || 'GLOBAL');
+        const settings = typeof args[0] === 'object' && args[0] !== null && args[0].settings ? args[0].settings : (args[1] || args[0]);
         await sheetsService.saveSettings(target, settings);
         await sheetsService.saveData('ADMIN', {
           timestamp: new Date().toISOString(),
           module: 'SETTINGS',
           action: 'UPDATE_SETTINGS',
           details: `Updated Settings for ${target}`,
-          admin: args[2] || 'SYSTEM'
+          admin: args[2] || (typeof args[0] === 'object' ? args[0]?.admin : undefined) || 'SYSTEM'
         });
         return { success: true };
       }
@@ -1752,127 +1664,52 @@ export const api = {
         return data;
       }
 
-      case 'api_getMaterialData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('MATERIAL REPORT');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
-      case 'api_getCuttingData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('CUTTING QUALITY');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
-      case 'api_getInlineData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('INLINE');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
-      case 'api_get8ROUNDSYSTEMData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('INLINE');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
-      case 'api_getEndlineData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('ENDLINE QUALITY');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
-      case 'api_getAQLData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('AQL REPORT');
-        const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
-          data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
-          });
-        }
-        return data;
-      }
-
+      case 'api_getMaterialData':
+      case 'api_getCuttingData':
+      case 'api_getInlineData':
+      case 'api_get8ROUNDSYSTEMData':
+      case 'api_getEndlineData':
+      case 'api_getAQLData':
       case 'api_getFinalAuditData': {
-        const zoneArg = typeof args[0] === 'string' ? args[0] : args[0]?.zone;
-        let data = await sheetsService.getData('FINAL AUDIT');
+        const sheetMap: { [k: string]: string } = {
+          'api_getMaterialData': 'MATERIAL REPORT',
+          'api_getCuttingData': 'CUTTING QUALITY',
+          'api_getInlineData': 'INLINE',
+          'api_get8ROUNDSYSTEMData': 'INLINE',
+          'api_getEndlineData': 'ENDLINE QUALITY',
+          'api_getAQLData': 'AQL REPORT',
+          'api_getFinalAuditData': 'FINAL AUDIT'
+        };
+        const sheetName = sheetMap[method] || 'MATERIAL REPORT';
+        let data = await sheetsService.getData(sheetName);
+        const zoneArg = typeof args[0] === 'string' ? args[0] : (args[0]?.zone || args[0]?.location);
         const zClean = String(zoneArg || '').trim().toUpperCase();
-        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+
+        if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
+          const clean = (s: string) => String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+          const cTarget = clean(zClean);
+          const wos = INITIAL_DB?.workorders || [];
+
           data = data.filter(r => {
-            const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-            const rUnit = String(r.unit || '').trim().toUpperCase();
-            if (!rZone || rZone === 'ALL' || rZone === 'COMMON' || rZone === zClean || rUnit === zClean) return true;
-            const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-            const cTarget = clean(zClean);
-            if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
-            return rZone.includes(zClean) || zClean.includes(rZone);
+            let rZone = String(r.zone || r.location || '').trim().toUpperCase();
+            let rUnit = String(r.unit || '').trim().toUpperCase();
+
+            if (!rZone && (r.workorderNumber || r.wo) && Array.isArray(wos)) {
+              const targetWo = String(r.workorderNumber || r.wo).trim();
+              const matchWo = (wos as any[]).find((w: any) => String(w.workorderNumber || w.wo || w.id).trim() === targetWo);
+              if (matchWo) {
+                rZone = String(matchWo.zone || matchWo.location || '').trim().toUpperCase();
+                if (!rUnit) rUnit = String(matchWo.unit || '').trim().toUpperCase();
+              }
+            }
+
+            if (rZone === zClean || rUnit === zClean) return true;
+            const cZone = clean(rZone);
+            const cUnit = clean(rUnit);
+            if (cZone === cTarget || cUnit === cTarget) return true;
+            if (cZone && (cZone.includes(cTarget) || cTarget.includes(cZone))) return true;
+            if (cUnit && (cUnit.includes(cTarget) || cTarget.includes(cUnit))) return true;
+            return false;
           });
         }
         return data;
@@ -2197,6 +2034,15 @@ export const api = {
       // Default proxy routing: fallback to Apps Script (GAS)
       let gasMethod = method;
       let gasArgs = sanitizedArgs;
+      if ((method === 'api_saveSettings' || method === 'api_saveUserSettings') && gasArgs.length > 0) {
+        if (typeof gasArgs[0] === 'object' && gasArgs[0] !== null) {
+          const envelope = gasArgs[0];
+          const target = envelope.sheetName || envelope.target || envelope.userCode || 'GLOBAL';
+          const settings = envelope.settings || envelope.userSettings || envelope;
+          const admin = envelope.admin || gasArgs[1] || 'SYSTEM';
+          gasArgs = [target, settings, admin];
+        }
+      }
 
       const customUrl = localStorage.getItem('VITE_GAS_URL');
       const envUrl = (import.meta as any).env?.VITE_GAS_URL;
@@ -2373,15 +2219,47 @@ export const api = {
           }
           if (Array.isArray(result) && result.length > 0) {
             try {
-              if (method === 'api_getMaterialData') localStorage.setItem('bqos_cache_material', JSON.stringify(result));
-              else if (method === 'api_getCuttingData') localStorage.setItem('bqos_cache_cutting', JSON.stringify(result));
-              else if (method === 'api_getInlineData' || method === 'api_get8ROUNDSYSTEMData') localStorage.setItem('bqos_cache_sewing', JSON.stringify(result));
-              else if (method === 'api_getEndlineData') localStorage.setItem('bqos_cache_endline', JSON.stringify(result));
-              else if (method === 'api_getAQLData') localStorage.setItem('bqos_cache_aql', JSON.stringify(result));
-              else if (method === 'api_getFinalAuditData') localStorage.setItem('bqos_cache_final', JSON.stringify(result));
-              else if (method === 'api_getWorkorders') localStorage.setItem('bqos_cache_wo', JSON.stringify(result));
-              else if (method === 'api_getREPORTS_SOPData') localStorage.setItem('bqos_cache_sop', JSON.stringify(result));
-              else if (method === 'api_getCustomerComplaints') localStorage.setItem('bqos_cache_complaints', JSON.stringify(result));
+              const mergeCache = (key: string, list: any[]) => {
+                try {
+                  const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                  if (!Array.isArray(existing) || existing.length === 0) {
+                    localStorage.setItem(key, JSON.stringify(list));
+                    return;
+                  }
+                  const map = new Map<string, any>();
+                  existing.forEach((item: any) => {
+                    const id = String(item.id || item.workorderNumber || item.wo || item.grn || JSON.stringify(item));
+                    map.set(id, item);
+                  });
+                  list.forEach((item: any) => {
+                    const id = String(item.id || item.workorderNumber || item.wo || item.grn || JSON.stringify(item));
+                    map.set(id, { ...(map.get(id) || {}), ...item });
+                  });
+                  localStorage.setItem(key, JSON.stringify(Array.from(map.values())));
+                } catch (e) {
+                  localStorage.setItem(key, JSON.stringify(list));
+                }
+              };
+
+              const hasZoneArg = sanitizedArgs.some((a: any) => {
+                if (typeof a === 'string') return a && a !== 'ALL' && a !== 'WORKORDER' && a !== 'COMMON';
+                if (a && typeof a === 'object') return a.zone && a.zone !== 'ALL' && a.zone !== 'WORKORDER' && a.zone !== 'COMMON';
+                return false;
+              });
+              const saveToCache = (key: string, list: any[]) => {
+                if (hasZoneArg) mergeCache(key, list);
+                else localStorage.setItem(key, JSON.stringify(list));
+              };
+
+              if (method === 'api_getMaterialData') saveToCache('bqos_cache_material', result);
+              else if (method === 'api_getCuttingData') saveToCache('bqos_cache_cutting', result);
+              else if (method === 'api_getInlineData' || method === 'api_get8ROUNDSYSTEMData') saveToCache('bqos_cache_sewing', result);
+              else if (method === 'api_getEndlineData') saveToCache('bqos_cache_endline', result);
+              else if (method === 'api_getAQLData') saveToCache('bqos_cache_aql', result);
+              else if (method === 'api_getFinalAuditData') saveToCache('bqos_cache_final', result);
+              else if (method === 'api_getWorkorders') saveToCache('bqos_cache_wo', result);
+              else if (method === 'api_getREPORTS_SOPData') saveToCache('bqos_cache_sop', result);
+              else if (method === 'api_getCustomerComplaints') saveToCache('bqos_cache_complaints', result);
             } catch (e) {}
           }
           flushOfflineSyncQueue();

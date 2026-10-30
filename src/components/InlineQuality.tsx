@@ -148,18 +148,10 @@ const saveLocalSubmissions = (reports: any[]) => {
   // no-op: nothing to store in the app
 };
 
+import { parseSettingList, getEffectiveZones, getEffectiveUnits, getDropboxList } from '../utils/settingUtils';
+
 const ensureArray = (val: any, fallback: string[] = []): string[] => {
-  if (Array.isArray(val)) return val;
-  if (typeof val === 'string' && val.trim()) {
-    if (val.includes('\n')) return val.split('\n').map(s => s.trim()).filter(Boolean);
-    if (val.includes(',')) return val.split(',').map(s => s.trim()).filter(Boolean);
-    return [val.trim()];
-  }
-  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
-  if (hasSpreadsheet) {
-    return [];
-  }
-  return fallback;
+  return getDropboxList({ val }, 'val', fallback);
 };
 
 const normalizeStatus = (statusStr: string): string => {
@@ -178,8 +170,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
       return [userZone];
     }
-    const list = ensureArray(settings?.ZONE || settings?.ZONES, ZONES);
-    return list;
+    return getEffectiveZones(settings);
   }, [settings, user]);
   
   const [zoneSettings, setZoneSettings] = useState<any>(settings);
@@ -202,24 +193,27 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   // Sync zoneSettings with parent settings prop upon initial load or edit
   useEffect(() => {
-    setZoneSettings(settings);
+    if (settings) {
+      setZoneSettings(prev => ({ ...prev, ...settings }));
+    }
   }, [settings]);
 
   const fetchZoneSettings = async (zoneName: string) => {
     try {
-      const res = await api.run('api_getUserSettings', `ZONE_${zoneName}`);
+      const res = await api.run('api_getUserSettings', user?.userCode || 'GLOBAL');
       if (res && typeof res === 'object') {
-        setZoneSettings(res);
+        setZoneSettings(prev => ({ ...prev, ...res }));
       }
     } catch (err) {
       console.error("[Inline] Failed to load zone settings", err);
     }
   };
 
-  const currentMachines = useMemo(() => ensureArray(zoneSettings?.MACHINE || zoneSettings?.MACHINES, MACHINES), [zoneSettings]);
-  const currentColors = useMemo(() => ensureArray(zoneSettings?.COLORS || zoneSettings?.COLOR || zoneSettings?.COLOURS || zoneSettings?.COLOUR, COLORS), [zoneSettings]);
-  const currentSizes = useMemo(() => ensureArray(zoneSettings?.SIZES || zoneSettings?.SIZE, SIZES), [zoneSettings]);
-  const currentCups = useMemo(() => ensureArray(zoneSettings?.CUPSIZES || zoneSettings?.CUPSIZE || zoneSettings?.CUPS || zoneSettings?.CUP, CUPSIZES), [zoneSettings]);
+  const effectiveSettings = zoneSettings || settings;
+  const currentMachines = useMemo(() => getDropboxList(effectiveSettings, 'MACHINE', MACHINES), [effectiveSettings]);
+  const currentColors = useMemo(() => getDropboxList(effectiveSettings, 'COLOR', COLORS), [effectiveSettings]);
+  const currentSizes = useMemo(() => getDropboxList(effectiveSettings, 'SIZE', SIZES), [effectiveSettings]);
+  const currentCups = useMemo(() => getDropboxList(effectiveSettings, 'CUPSIZE', CUPSIZES), [effectiveSettings]);
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -271,23 +265,27 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
   const currentUnits = useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
     const userZone = String(user?.zone || '').trim().toUpperCase();
-    const isCommonOrAdmin = user?.role === 'ADMIN' || userZone === 'COMMON' || userLoc === 'COMMON' || userZone === 'SYSTEM';
+    const isNonAdminWithZone = user?.role !== 'ADMIN' && userZone && userZone !== 'COMMON' && userZone !== 'SYSTEM';
 
-    if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
+    const targetZone = isNonAdminWithZone ? userZone : String(form.zone || '').trim().toUpperCase();
+
+    if (zoneMappings.length > 0 && targetZone) {
+      const matched = zoneMappings
+        .filter(z => String(z.zone || '').toUpperCase() === targetZone && z.unit)
+        .map(z => String(z.unit).toUpperCase());
+      const unique = Array.from(new Set(matched));
+      if (unique.length > 0) {
+        return unique;
+      }
+    }
+
+    if (isNonAdminWithZone && userLoc && userLoc !== 'SYSTEM' && userLoc !== userZone) {
       return [userLoc];
     }
 
-    let list: string[] = [];
-    if (zoneMappings.length > 0) {
-      const matched = zoneMappings
-        .filter(z => String(z.zone || '').toUpperCase() === String(form.zone || '').toUpperCase() && z.unit)
-        .map(z => z.unit);
-      if (matched.length > 0) {
-        list = Array.from(new Set(matched));
-      }
-    }
-    if (list.length === 0) {
-      list = ensureArray(zoneSettings?.UNIT || zoneSettings?.UNITS || zoneSettings?.unit, []);
+    let list = ensureArray(zoneSettings?.UNIT || zoneSettings?.UNITS || zoneSettings?.unit, []);
+    if (isNonAdminWithZone) {
+      return Array.from(new Set(list)).map(u => String(u).toUpperCase());
     }
     return Array.from(new Set(['COMMON', ...list])).map(u => String(u).toUpperCase());
   }, [zoneSettings, zoneMappings, form.zone, user]);

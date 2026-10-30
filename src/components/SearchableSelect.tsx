@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Icon from './Icon';
 import { flexibleSearchMatch } from '../utils/search';
 
@@ -32,67 +32,116 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const optionsListRef = useRef<HTMLDivElement>(null);
 
-  // Parse children options recursively unwrapping React Fragments
-  const extractOptions = (nodes: React.ReactNode): { value: string; label: string; disabled: boolean }[] => {
+  // Parse children options recursively unwrapping React Fragments, arrays, and multi-child options
+  const options = useMemo(() => {
     const list: { value: string; label: string; disabled: boolean }[] = [];
-    React.Children.forEach(nodes, child => {
+    const toText = (c: any): string => {
+      if (c === null || c === undefined) return '';
+      if (Array.isArray(c)) return c.map(toText).join('');
+      if (React.isValidElement(c)) return toText((c.props as any)?.children);
+      return String(c);
+    };
+
+    const processChild = (child: any) => {
+      if (!child && child !== 0) return;
+      if (Array.isArray(child)) {
+        child.forEach(processChild);
+        return;
+      }
       if (!React.isValidElement(child)) return;
       if (child.type === React.Fragment) {
-        list.push(...extractOptions((child.props as any)?.children));
-      } else if (child.type === 'option') {
-        const props = child.props as any;
+        processChild((child.props as any)?.children);
+        return;
+      }
+      const props = child.props as any;
+      if (child.type === 'option' || (props && ('value' in props || 'children' in props))) {
+        const val = props.value !== undefined ? String(props.value) : toText(props.children);
+        const lbl = toText(props.children) || val;
         list.push({
-          value: props.value !== undefined ? String(props.value) : String(props.children || ''),
-          label: String(props.children || ''),
+          value: val,
+          label: lbl,
           disabled: !!props.disabled,
         });
       }
-    });
+    };
+
+    React.Children.forEach(children, processChild);
     return list;
-  };
+  }, [children]);
 
-  const options = extractOptions(children);
-
-  // Close dropdown on click outside
+  // Close dropdown on click or touch outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
-  // Focus search input and reset active index when opened
+  // Focus search input on desktop when opened
   useEffect(() => {
     if (isOpen) {
       setActiveIndex(-1);
-      const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
+      if (typeof window !== 'undefined' && window.innerWidth >= 640) {
+        const timer = setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 50);
+        return () => clearTimeout(timer);
+      }
     } else {
       setSearchTerm('');
     }
   }, [isOpen]);
 
   // Find currently selected option
-  const selectedOption = options.find(opt => opt.value === String(value));
+  const currentValStr = (value === undefined || value === null) ? '' : String(value);
+  const selectedOption = currentValStr !== '' 
+    ? options.find(opt => opt.value === currentValStr || String(opt.value).trim().toUpperCase() === currentValStr.trim().toUpperCase())
+    : options.find(opt => opt.value === '');
   
   // Find placeholder option (often value="" or first option)
   const emptyOption = options.find(opt => opt.value === '');
   const displayLabel = selectedOption 
     ? selectedOption.label 
-    : (emptyOption ? emptyOption.label : placeholder);
+    : (currentValStr.trim() !== ''
+        ? currentValStr
+        : (emptyOption ? emptyOption.label : placeholder));
 
   // Filter options based on search query
-  const filteredOptions = options.filter(opt => {
-    if (opt.value === '') {
-      return searchTerm === '';
+  const filteredOptions = useMemo(() => {
+    return options.filter(opt => {
+      if (opt.value === '') {
+        return searchTerm === '';
+      }
+      return flexibleSearchMatch(opt.label, searchTerm) || flexibleSearchMatch(opt.value, searchTerm);
+    });
+  }, [options, searchTerm]);
+
+  // Dynamic scrolling window: initial chunk of 300 items, smoothly loads +300 as user scrolls so all 7,000+ items are accessible
+  const [displayLimit, setDisplayLimit] = useState(300);
+
+  useEffect(() => {
+    setDisplayLimit(300);
+  }, [searchTerm, isOpen]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollTop + clientHeight >= scrollHeight - 200) {
+      if (displayLimit < filteredOptions.length) {
+        setDisplayLimit(prev => Math.min(prev + 300, filteredOptions.length));
+      }
     }
-    return flexibleSearchMatch(opt.label, searchTerm) || flexibleSearchMatch(opt.value, searchTerm);
-  });
+  };
+
+  const displayedOptions = useMemo(() => {
+    return filteredOptions.slice(0, displayLimit);
+  }, [filteredOptions, displayLimit]);
 
   const handleSelect = (optValue: string) => {
     if (disabled) return;
@@ -124,20 +173,19 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex(prev => (prev < filteredOptions.length - 1 ? prev + 1 : prev));
+      setActiveIndex(prev => (prev < displayedOptions.length - 1 ? prev + 1 : prev));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIndex(prev => (prev > 0 ? prev - 1 : 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
-        const selected = filteredOptions[activeIndex];
+      if (activeIndex >= 0 && activeIndex < displayedOptions.length) {
+        const selected = displayedOptions[activeIndex];
         if (!selected.disabled) {
           handleSelect(selected.value);
         }
-      } else if (filteredOptions.length === 1) {
-        // Fallback: If only one item matched, enter selects it
-        const selected = filteredOptions[0];
+      } else if (displayedOptions.length === 1) {
+        const selected = displayedOptions[0];
         if (!selected.disabled) {
           handleSelect(selected.value);
         }
@@ -158,7 +206,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     }
   }, [activeIndex]);
 
-  const buttonStyle = `flex items-center justify-between text-left cursor-pointer transition-all duration-200 ${className}`;
+  const hasPadding = className.includes('p-') || className.includes('py-') || className.includes('px-');
+  const hasBorder = className.includes('border');
+  const hasBg = className.includes('bg-');
+  
+  const defaultStyles = `${!hasBg ? 'bg-white' : ''} ${!hasBorder ? 'border border-slate-200' : ''} ${!hasPadding ? 'px-3.5 py-2.5' : ''} text-slate-800 text-xs font-semibold rounded-xl`;
+  const buttonStyle = `flex items-center justify-between text-left cursor-pointer transition-all duration-200 ${defaultStyles} ${className}`;
   const alignClass = align === 'right' ? 'right-0' : 'left-0';
 
   return (
@@ -178,9 +231,28 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </div>
       </button>
 
+      {required && (
+        <input
+          tabIndex={-1}
+          autoComplete="off"
+          style={{
+            opacity: 0,
+            width: '1px',
+            height: '1px',
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            pointerEvents: 'none',
+          }}
+          value={value || ''}
+          onChange={() => {}}
+          aria-required={required}
+        />
+      )}
+
       {isOpen && (
         <div 
-          className={`absolute z-50 ${alignClass} mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[350px] min-w-full w-max max-w-[calc(100vw-2rem)] md:max-w-[480px]`}
+          className={`absolute z-[99999] ${alignClass} mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[350px] min-w-full w-max max-w-[calc(100vw-2rem)] md:max-w-[480px]`}
         >
           {/* Search bar header */}
           <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
@@ -211,9 +283,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           </div>
 
           {/* Options list */}
-          <div ref={optionsListRef} className="overflow-y-auto flex-1 max-h-[260px] py-1">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, index) => {
+          <div 
+            ref={optionsListRef} 
+            className="overflow-y-auto flex-1 max-h-[280px] py-1"
+            onScroll={handleScroll}
+          >
+            {displayedOptions.length > 0 ? (
+              displayedOptions.map((opt, index) => {
                 const isSelected = opt.value === String(value);
                 const isActive = index === activeIndex;
                 const isPlaceholderItem = opt.value === '';
@@ -240,10 +316,25 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               })
             ) : (
               <div className="px-4 py-4 text-xs text-slate-400 text-center font-medium">
-                No matches found
+                {options.length === 0 ? 'No options available' : `No matches found for "${searchTerm}"`}
               </div>
             )}
           </div>
+
+          {filteredOptions.length > 0 && (
+            <div className="px-3 py-1.5 text-[11px] text-slate-500 bg-slate-50 border-t border-slate-100 flex items-center justify-between font-medium">
+              <span>
+                {displayedOptions.length < filteredOptions.length
+                  ? `Loaded ${displayedOptions.length.toLocaleString()} of ${filteredOptions.length.toLocaleString()} items`
+                  : `All ${filteredOptions.length.toLocaleString()} items available`}
+              </span>
+              {displayedOptions.length < filteredOptions.length ? (
+                <span className="text-[10px] text-indigo-600 font-bold">Scroll down for more &bull; Type to search</span>
+              ) : (
+                <span className="text-[10px] text-emerald-600 font-bold">✓ Complete</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

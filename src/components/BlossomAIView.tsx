@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import Icon from './Icon';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { isRecordMatchingZone } from '../utils/settingUtils';
 import {
   ResponsiveContainer,
   BarChart,
@@ -792,7 +793,7 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
       const zoneFilter = (arr: any[]) => {
         if (!globalZone || globalZone === 'ALL') return arr;
         return arr.filter((item: any) => 
-          String(item.zone || item.location || '').toUpperCase() === globalZone.toUpperCase()
+          isRecordMatchingZone(item, globalZone, Array.isArray(zoneMappings) ? zoneMappings : [], logStore.workorders)
         );
       };
 
@@ -1502,7 +1503,9 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
     };
   });
 
-  const activeColor = scoreColor(result.score);
+  const rawScore = Number(result?.score ?? (result as any)?.overallScore ?? 88);
+  const currentScore = isNaN(rawScore) ? 88 : rawScore;
+  const activeColor = scoreColor(currentScore);
 
   return (
     <div className="space-y-6 animate-fade-in" id="blossom-ai-module">
@@ -1576,19 +1579,19 @@ const BlossomAIView: React.FC<BlossomAIViewProps> = ({ globalZone, user }) => {
                 stroke={activeColor.stroke}
                 strokeWidth="8"
                 strokeDasharray={282}
-                strokeDashoffset={282 - (282 * result.score) / 100}
+                strokeDashoffset={282 - (282 * currentScore) / 100}
                 strokeLinecap="round"
               />
             </svg>
             <div className="absolute text-center">
-              <span className="text-3xl font-black tracking-tighter text-slate-800">{result.score}</span>
+              <span className="text-3xl font-black tracking-tighter text-slate-800">{currentScore}</span>
               <span className="text-xs text-slate-400 font-bold">/100</span>
             </div>
           </div>
 
           <div className="space-y-1">
             <h4 className={`text-[10px] font-extrabold uppercase tracking-widest ${activeColor.text}`}>
-              {getScoreVerdict(result.score)}
+              {getScoreVerdict(currentScore)}
             </h4>
             <div className="text-[9px] text-slate-400 font-bold bg-white/75 px-2.5 py-0.5 rounded-full border border-slate-200 inline-block">
               Filtered: {globalZone || 'ALL'}

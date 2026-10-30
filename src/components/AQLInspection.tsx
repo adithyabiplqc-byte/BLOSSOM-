@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS, DEFECTS } from '../constants';
+import { getEffectiveZones, getEffectiveUnits, getDropboxList } from '../utils/settingUtils';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
@@ -40,15 +41,15 @@ const getAQLParameters = (lotSize: number) => {
 };
 
 const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
-  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+  const [zoneMappings, setZoneMappings] = useState<any[]>([]);
+
   const currentZones = useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
     if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
       return [userZone];
     }
-    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
-    return list;
-  }, [settings, hasSpreadsheet, user]);
+    return getEffectiveZones(settings, zoneMappings);
+  }, [settings, zoneMappings, user]);
 
   const currentUnits = useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
@@ -58,14 +59,11 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
     if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
       return [userLoc];
     }
-
-    const rawUnits = settings?.UNIT || settings?.UNITS || (hasSpreadsheet ? [] : UNITS);
-    const list = Array.isArray(rawUnits) ? rawUnits : [];
-    return Array.from(new Set(['COMMON', ...list.map(u => String(u).toUpperCase())]));
-  }, [settings, user, hasSpreadsheet]);
+    return getEffectiveUnits(settings, zoneMappings, isCommonOrAdmin ? undefined : userZone, user);
+  }, [settings, user, zoneMappings]);
 
   const currentDefects = useMemo(() => {
-    return settings?.DEFECTS || settings?.DEFECT || DEFECTS;
+    return getDropboxList(settings, 'DEFECTS', DEFECTS);
   }, [settings]);
 
   const [form, setForm] = useState({ 
@@ -83,7 +81,6 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
   // Defect logs entered for this inspection
   const [defectLog, setDefectLog] = useState<DefectEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [zoneMappings, setZoneMappings] = useState<any[]>([]);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
 
   const getWorkorderStatus = React.useCallback((w: any) => {

@@ -155,8 +155,9 @@ function generateUuid() {
 
 export const DEFAULT_SETTINGS = {
   ZONE: [],
-  SUPPLIER: ['SUPPLIER A', 'SUPPLIER B'],
-  ITEMS: ['ITEM 1', 'ITEM 2'],
+  SUPPLIER: [],
+  SUPPLIERS: [],
+  ITEMS: [],
   COLOR: ['BLACK', 'WHITE', 'NAVY'],
   DEFECTS: ['STAIN', 'HOLE', 'SHADING'],
   WORKERS: ['WORKER 1', 'WORKER 2'],
@@ -986,9 +987,9 @@ export const sheetsService = {
             }
           }
 
-          // Ultra-fast values endpoint for all standard sheets or fallback
+          // Ultra-fast values endpoint for all standard sheets or fallback (up to 30,000 rows for large item catalogs)
           if (headers.length === 0 || rowValues.length === 0) {
-            const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z5000?valueRenderOption=FORMULA`);
+            const data = await this.request(`${spreadsheetId}/values/${encodeURIComponent(title)}!A1:Z30000?valueRenderOption=FORMULA`);
             if (data.values && data.values.length >= 2) {
               headers = data.values[0];
               rowValues = data.values.slice(1);
@@ -1608,31 +1609,31 @@ export const sheetsService = {
         const users = await this.getData('USERS').catch(() => []);
         const user = users.find(u => String(u.userCode || '').trim() === String(sheetName).trim() || String(u.username || '').trim() === String(sheetName).trim());
         if (user) {
-          // If the user belongs to a specific zone/location, check if there are zone-specific settings
-          const userZone = user.location || user.zone;
-          if (userZone && userZone !== 'ALL' && userZone !== 'SYSTEM') {
-            const zonedSettings = await this.getSettings('SETTINGS - ' + userZone.toUpperCase()).catch(() => null);
-            if (zonedSettings) return zonedSettings;
-          }
-
           const uSheetName = String(sheetName || '').trim().toUpperCase();
           const uUsername = String(user.username || '').trim().toUpperCase();
           const hasUserSheet = sheetTitles.includes(uSheetName) || (user.username && sheetTitles.includes(uUsername));
 
-          if (!hasUserSheet) {
+          if (hasUserSheet) {
+            targetSheet = sheetTitles.includes(uSheetName) ? sheetName : user.username;
+          } else {
             const rawSettings = user.userSettings || user.settings;
             if (rawSettings) {
               try {
                 const val = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
-                if (val && typeof val === 'object') {
+                if (val && typeof val === 'object' && Object.keys(val).length > 0) {
                   return val;
                 }
               } catch (pErr) {
                 console.error("Error parsing user.settings from local users:", pErr);
               }
             }
-          } else {
-            targetSheet = sheetTitles.includes(uSheetName) ? sheetName : user.username;
+
+            // Fallback: Check if there are zone-specific settings
+            const userZone = user.location || user.zone;
+            if (userZone && userZone !== 'ALL' && userZone !== 'SYSTEM') {
+              const zonedSettings = await this.getSettings('SETTINGS - ' + userZone.toUpperCase()).catch(() => null);
+              if (zonedSettings) return zonedSettings;
+            }
           }
         }
       }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { ZONES, UNITS } from '../constants';
+import { getEffectiveZones, getEffectiveUnits } from '../utils/settingUtils';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
@@ -15,15 +16,19 @@ interface FinalAuditProps {
 }
 
 const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
-  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
+  const zoneMappings = React.useMemo(() => {
+    const raw = settings?.ZONE_MAPPINGS || settings?.MAPPINGS || settings?.ZONE_MAPPING;
+    return Array.isArray(raw) ? raw : [];
+  }, [settings]);
+
   const currentZones = React.useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
     if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
       return [userZone];
     }
-    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
-    return list;
-  }, [settings, hasSpreadsheet, user]);
+    return getEffectiveZones(settings, zoneMappings);
+  }, [settings, zoneMappings, user]);
+
   const currentUnits = React.useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
     const userZone = String(user?.zone || '').trim().toUpperCase();
@@ -32,16 +37,8 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
       return [userLoc];
     }
-
-    const rawUnits = settings?.UNIT || settings?.UNITS || (hasSpreadsheet ? [] : UNITS);
-    const list = Array.isArray(rawUnits) ? rawUnits : [];
-    return Array.from(new Set(['COMMON', ...list.map(u => String(u).toUpperCase())]));
-  }, [settings, user, hasSpreadsheet]);
-
-  const zoneMappings = React.useMemo(() => {
-    const raw = settings?.ZONE_MAPPINGS || settings?.MAPPINGS || settings?.ZONE_MAPPING;
-    return Array.isArray(raw) ? raw : [];
-  }, [settings]);
+    return getEffectiveUnits(settings, zoneMappings, isCommonOrAdmin ? undefined : userZone, user);
+  }, [settings, user, zoneMappings]);
 
   const [form, setForm] = useState({ 
     zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''), 

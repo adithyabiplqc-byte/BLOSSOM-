@@ -16,7 +16,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
   workorders = [],
   users = []
 }) => {
-  const isRestricted = (id: string) => isModuleRestricted(user, id);
+  const effectiveUser = useMemo(() => {
+    if (user && Array.isArray(users) && users.length > 0) {
+      const matched = users.find(u => 
+        String(u.userCode || '').trim().toUpperCase() === String(user.userCode || '').trim().toUpperCase() ||
+        String(u.username || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()
+      );
+      if (matched) return { ...user, ...matched };
+    }
+    return user;
+  }, [user, users]);
+
+  const isRestricted = (id: string) => isModuleRestricted(effectiveUser, id);
 
   // Dynamic greeting based on time of day
   const greeting = useMemo(() => {

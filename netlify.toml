@@ -35,11 +35,6 @@
   status = 200
   force = true
 
-[[redirects]]
-  from = "/api/system/*"
-  to = "/.netlify/functions/system"
-  status = 200
-  force = true
 
 [[redirects]]
   from = "/*"

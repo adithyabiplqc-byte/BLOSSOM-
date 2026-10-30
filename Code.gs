@@ -380,7 +380,9 @@ function getCanonicalBase(baseName) {
     'ZONE': 'ZONE', 'ZONES': 'ZONE', 'ZONE_MAPPINGS': 'ZONE',
     'UNIT': 'UNIT', 'UNITS': 'UNIT',
     'SETTINGS': 'SETTINGS', 'GLOBAL': 'SETTINGS',
-    'ADMIN': 'ADMIN'
+    'ADMIN': 'ADMIN',
+    'ITEMS': 'ITEMS', 'ITEM': 'ITEMS',
+    'SUPPLIER': 'SUPPLIER', 'SUPPLIERS': 'SUPPLIER'
   };
   
   return mapping[cleanBase] || cleanBase;
@@ -388,7 +390,7 @@ function getCanonicalBase(baseName) {
 
 function getReportSheetName(baseName, data) {
   const canonical = getCanonicalBase(baseName);
-  const systemSheets = ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS'];
+  const systemSheets = ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'ITEMS', 'ITEM', 'SUPPLIER', 'SUPPLIERS'];
   if (systemSheets.indexOf(canonical) !== -1) {
     return canonical;
   }
@@ -840,6 +842,254 @@ function getConsolidatedUserSheetName() {
   return 'USERS';
 }
 
+// --- DEDICATED MASTER SHEETS FOR ITEMS AND SUPPLIERS ---
+
+function getDedicatedItemsSheet() {
+  const ss = getSS();
+  let sheet = ss.getSheetByName('ITEMS') || ss.getSheetByName('ITEM');
+  if (!sheet) {
+    sheet = ss.insertSheet('ITEMS');
+  }
+  return sheet;
+}
+
+function getDedicatedSupplierSheet() {
+  const ss = getSS();
+  let sheet = ss.getSheetByName('SUPPLIERS') || ss.getSheetByName('SUPPLIER');
+  if (!sheet) {
+    sheet = ss.insertSheet('SUPPLIERS');
+  }
+  return sheet;
+}
+
+function readDedicatedItemsFromSheet() {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName('ITEMS') || ss.getSheetByName('ITEM');
+    if (sheet && sheet.getLastRow() >= 2) {
+      const lastRow = sheet.getLastRow();
+      const lastCol = sheet.getLastColumn();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h || '').trim().toUpperCase(); });
+      let colIdx = headers.findIndex(function(h) { return h === 'ITEMS' || h === 'ITEM' || h === 'ITEM NAME' || h === 'ITEM_NAME' || h === 'ITEMNAME'; });
+      if (colIdx === -1) colIdx = 0;
+      const vals = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues().flat();
+      const items = vals.map(function(v) { return String(v || '').trim(); }).filter(Boolean);
+      if (items.length > 0) return items;
+    }
+
+    // Fallback: If dedicated ITEMS sheet has no entries yet, check MATERIAL REPORT sheet
+    var fallbackItems = [];
+    try {
+      var matData = aggregateZonedData('MATERIAL REPORT');
+      if (matData && matData.length > 0) {
+        for (var i = 0; i < matData.length; i++) {
+          var it = String(matData[i].itemName || matData[i].item || matData[i].ITEMS || '').trim();
+          if (it && it !== 'ITEM 1' && it !== 'ITEM 2' && fallbackItems.indexOf(it) === -1) {
+            fallbackItems.push(it);
+          }
+        }
+      }
+    } catch (err) {}
+
+    if (fallbackItems.length > 0) {
+      saveDedicatedItemsToSheet(fallbackItems);
+      return fallbackItems;
+    }
+    return [];
+  } catch (e) {
+    console.error("Error reading dedicated ITEMS sheet:", e);
+    return [];
+  }
+}
+
+function readDedicatedSuppliersFromSheet() {
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName('SUPPLIERS') || ss.getSheetByName('SUPPLIER');
+    if (sheet && sheet.getLastRow() >= 2) {
+      const lastRow = sheet.getLastRow();
+      const lastCol = sheet.getLastColumn();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h || '').trim().toUpperCase(); });
+      let colIdx = headers.findIndex(function(h) { return h === 'SUPPLIERS' || h === 'SUPPLIER' || h === 'SUPPLIER NAME' || h === 'SUPPLIER_NAME' || h === 'SUPPLIERNAME'; });
+      if (colIdx === -1) colIdx = 0;
+      const vals = sheet.getRange(2, colIdx + 1, lastRow - 1, 1).getValues().flat();
+      const sups = vals.map(function(v) { return String(v || '').trim(); }).filter(Boolean);
+      if (sups.length > 0) return sups;
+    }
+
+    // Fallback: If dedicated SUPPLIERS sheet has no entries yet, check existing users in USERS sheet (like U012/U008)
+    var fallbackSups = [];
+    try {
+      var users = api_getUsers();
+      for (var u = 0; u < users.length; u++) {
+        var uS = users[u].userSettings;
+        if (typeof uS === 'string') {
+          try { uS = JSON.parse(uS); } catch (e) {}
+        }
+        var uList = uS ? (uS.SUPPLIER || uS.SUPPLIERS || []) : [];
+        if (Array.isArray(uList) && uList.length > 0) {
+          for (var s = 0; s < uList.length; s++) {
+            var sName = String(uList[s] || '').trim();
+            if (sName && fallbackSups.indexOf(sName) === -1) {
+              fallbackSups.push(sName);
+            }
+          }
+        }
+      }
+    } catch (err) {}
+
+    if (fallbackSups.length > 0) {
+      saveDedicatedSuppliersToSheet(fallbackSups);
+      return fallbackSups;
+    }
+    return [];
+  } catch (e) {
+    console.error("Error reading dedicated SUPPLIERS sheet:", e);
+    return [];
+  }
+}
+
+function saveDedicatedItemsToSheet(itemsList) {
+  try {
+    const ss = getSS();
+    let sheet = ss.getSheetByName('ITEMS') || ss.getSheetByName('ITEM');
+    if (!sheet) {
+      sheet = ss.insertSheet('ITEMS');
+    }
+    clearSheetCache(sheet.getName());
+    sheet.clear();
+    const cleanItems = Array.isArray(itemsList) 
+      ? itemsList.map(function(i) { return String(i || '').trim(); }).filter(Boolean)
+      : (typeof itemsList === 'string' ? itemsList.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean) : []);
+    
+    const uniqueItems = Array.from(new Set(cleanItems));
+    const rows = [['ITEMS']];
+    for (let i = 0; i < uniqueItems.length; i++) {
+      rows.push([uniqueItems[i]]);
+    }
+    if (rows.length > 0) {
+      sheet.getRange(1, 1, rows.length, 1).setValues(rows);
+    }
+    SpreadsheetApp.flush();
+    return true;
+  } catch (e) {
+    console.error("Error saving dedicated ITEMS sheet:", e);
+    return false;
+  }
+}
+
+function saveDedicatedSuppliersToSheet(suppliersList) {
+  try {
+    const ss = getSS();
+    let sheet = ss.getSheetByName('SUPPLIERS') || ss.getSheetByName('SUPPLIER');
+    if (!sheet) {
+      sheet = ss.insertSheet('SUPPLIERS');
+    } else if (sheet.getName() === 'SUPPLIER' && !ss.getSheetByName('SUPPLIERS')) {
+      try { sheet.setName('SUPPLIERS'); } catch(e) {}
+    }
+    clearSheetCache(sheet.getName());
+    sheet.clear();
+    const cleanSups = Array.isArray(suppliersList) 
+      ? suppliersList.map(function(s) { return String(s || '').trim(); }).filter(Boolean)
+      : (typeof suppliersList === 'string' ? suppliersList.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean) : []);
+    
+    const uniqueSups = Array.from(new Set(cleanSups));
+    const rows = [['SUPPLIERS']];
+    for (let i = 0; i < uniqueSups.length; i++) {
+      rows.push([uniqueSups[i]]);
+    }
+    if (rows.length > 0) {
+      sheet.getRange(1, 1, rows.length, 1).setValues(rows);
+    }
+    SpreadsheetApp.flush();
+    return true;
+  } catch (e) {
+    console.error("Error saving dedicated SUPPLIERS sheet:", e);
+    return false;
+  }
+}
+
+function ensureMasterItemsSheet(ss) {
+  try {
+    let sheet = ss.getSheetByName('ITEMS') || ss.getSheetByName('ITEM');
+    if (!sheet) {
+      sheet = ss.insertSheet('ITEMS');
+    }
+    if (sheet.getLastColumn() === 0) {
+      sheet.getRange(1, 1).setValue('ITEMS');
+    }
+  } catch (e) {
+    console.error("Error ensuring master ITEMS sheet:", e);
+  }
+}
+
+function ensureMasterSupplierSheet(ss) {
+  try {
+    let sheet = ss.getSheetByName('SUPPLIERS') || ss.getSheetByName('SUPPLIER');
+    if (!sheet) {
+      sheet = ss.insertSheet('SUPPLIERS');
+    }
+    if (sheet.getLastColumn() === 0) {
+      sheet.getRange(1, 1).setValue('SUPPLIERS');
+    }
+  } catch (e) {
+    console.error("Error ensuring master SUPPLIERS sheet:", e);
+  }
+}
+
+function ensureUserSheetColumns(sheet) {
+  try {
+    // User sheets must strictly NEVER contain ITEMS or SUPPLIER
+    const USER_CATEGORIES = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+    const lastCol = sheet.getLastColumn();
+    
+    if (lastCol === 0) {
+      // Empty user sheet: initialize ONLY with user-customizable headers
+      sheet.getRange(1, 1, 1, USER_CATEGORIES.length).setValues([USER_CATEGORIES]);
+      return;
+    }
+    
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
+      return String(h || '').trim().toUpperCase();
+    });
+    
+    const hasForbidden = headers.indexOf('ITEMS') !== -1 || headers.indexOf('ITEM') !== -1 ||
+                         headers.indexOf('SUPPLIER') !== -1 || headers.indexOf('SUPPLIERS') !== -1 ||
+                         headers.indexOf('ZONE') !== -1 || headers.indexOf('UNIT') !== -1 || headers.indexOf('WORKERS') !== -1;
+    
+    if (hasForbidden) {
+      // Clean user sheet to avoid ITEMS and SUPPLIER completely
+      const currentData = readSettingsFromSheetColumns(sheet);
+      delete currentData['ITEMS'];
+      delete currentData['ITEM'];
+      delete currentData['SUPPLIER'];
+      delete currentData['SUPPLIERS'];
+      delete currentData['ZONE'];
+      delete currentData['UNIT'];
+      delete currentData['WORKERS'];
+      saveUserSpecificSettingsToSheetColumns(sheet, currentData);
+    } else {
+      let headersMatch = true;
+      if (lastCol === USER_CATEGORIES.length) {
+        for (let i = 0; i < USER_CATEGORIES.length; i++) {
+          if (headers[i] !== USER_CATEGORIES[i]) {
+            headersMatch = false;
+            break;
+          }
+        }
+      } else {
+        headersMatch = false;
+      }
+      if (!headersMatch) {
+        const currentData = readSettingsFromSheetColumns(sheet);
+        saveUserSpecificSettingsToSheetColumns(sheet, currentData);
+      }
+    }
+  } catch (err) {
+    console.error("Error in ensureUserSheetColumns for " + sheet.getName() + ":", err);
+  }
+}
+
 function ensureSheetHasSettingsColumns(sheet) {
   try {
     const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
@@ -872,7 +1122,6 @@ function ensureSheetHasSettingsColumns(sheet) {
     
     if (!headersMatch) {
       // Re-align the sheet!
-      // If the sheet was completely empty, populate with global settings as fallback
       const isEmpty = categories.every(function(cat) {
         return !currentSettings[cat] || currentSettings[cat].length === 0;
       });
@@ -892,6 +1141,11 @@ function ensureSheetHasSettingsColumns(sheet) {
 function ensureAllUserSheetsExist() {
   try {
     const ss = getSS();
+    // 1. Ensure separate dedicated sheets for ITEMS and SUPPLIER exist
+    ensureMasterItemsSheet(ss);
+    ensureMasterSupplierSheet(ss);
+
+    // 2. Ensure each user has a personalized sheet without items and suppliers
     const users = api_getUsers();
     users.forEach(function(u) {
       const uCode = u.userCode ? String(u.userCode).trim().toUpperCase() : '';
@@ -900,7 +1154,7 @@ function ensureAllUserSheetsExist() {
         if (!sh) {
           sh = ss.insertSheet(uCode);
         }
-        ensureSheetHasSettingsColumns(sh);
+        ensureUserSheetColumns(sh);
       }
     });
   } catch (err) {
@@ -994,7 +1248,9 @@ function api_createSheets() {
       'SETTINGS', 
       'ADMIN',
       'ZONE',
-      'UNIT'
+      'UNIT',
+      'ITEMS',
+      'SUPPLIERS'
     ];
     
     let zones = [];
@@ -1075,6 +1331,18 @@ function api_createSheets() {
     const sheet = findExistingSheetBySynonym('SETTINGS') || getSS().getSheetByName('SETTINGS');
     if (sheet && sheet.getLastRow() < 2) {
       api_saveSettings('GLOBAL', settings);
+    }
+
+    // Ensure dedicated ITEMS sheet exists with header
+    const itemsSheet = findExistingSheetBySynonym('ITEMS') || getSS().getSheetByName('ITEMS');
+    if (itemsSheet && itemsSheet.getLastColumn() === 0) {
+      itemsSheet.getRange(1, 1).setValue('ITEMS');
+    }
+
+    // Ensure dedicated SUPPLIERS sheet exists with header
+    const supplierSheet = findExistingSheetBySynonym('SUPPLIERS') || findExistingSheetBySynonym('SUPPLIER') || getSS().getSheetByName('SUPPLIERS');
+    if (supplierSheet && supplierSheet.getLastColumn() === 0) {
+      supplierSheet.getRange(1, 1).setValue('SUPPLIERS');
     }
 
     // Ensure all individual user sheets exist after creation
@@ -1213,9 +1481,37 @@ function api_getAdminLogs() {
 
 function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dropdown Update') {
   try {
+    // Robustly handle single object argument e.g. { sheetName: 'GLOBAL', settings: { ITEMS: [...] } }
+    if (target && typeof target === 'object') {
+      if (!settings && (target.settings || target.userSettings)) {
+        settings = target.settings || target.userSettings;
+      }
+      if (target.admin && admin === 'SYSTEM') admin = target.admin;
+      if (target.details && details === 'Dropdown Update') details = target.details;
+      target = target.sheetName || target.target || target.userCode || 'GLOBAL';
+    }
+
     const isGlobal = (target === 'GLOBAL' || target === 'SETTINGS');
     const isZone = String(target).startsWith('ZONE_');
+    const isItemsTarget = (target === 'ITEMS' || target === 'ITEM');
+    const isSupplierTarget = (target === 'SUPPLIER' || target === 'SUPPLIERS');
     
+    // 1. If target is ITEMS or settings has ITEMS, feed directly to dedicated ITEMS sheet!
+    if (isItemsTarget || (settings && settings.ITEMS)) {
+      const itemsList = isItemsTarget ? (settings.ITEMS || settings) : settings.ITEMS;
+      if (itemsList) {
+        saveDedicatedItemsToSheet(itemsList);
+      }
+    }
+
+    // 2. If target is SUPPLIER or settings has SUPPLIER, feed directly to dedicated SUPPLIERS sheet!
+    if (isSupplierTarget || (settings && (settings.SUPPLIERS || settings.SUPPLIER))) {
+      const supList = isSupplierTarget ? (settings.SUPPLIERS || settings.SUPPLIER || settings) : (settings.SUPPLIERS || settings.SUPPLIER);
+      if (supList) {
+        saveDedicatedSuppliersToSheet(supList);
+      }
+    }
+
     if (isGlobal) {
       const ss = getSS();
       const sheetName = 'SETTINGS';
@@ -1237,16 +1533,26 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
       }
       saveSettingsToSheetColumns(sheet, settings);
       SpreadsheetApp.flush();
-    } else {
-      // It is a user-specific settings update. Save inside the USERS sheet row as fallback
+    } else if (!isItemsTarget && !isSupplierTarget) {
+      // It is a user-specific settings update.
+      // AVOID supplier and items from the user sheet and user settings!
+      const userCleanSettings = { ...settings };
+      delete userCleanSettings.ITEMS;
+      delete userCleanSettings.ITEM;
+      delete userCleanSettings.SUPPLIER;
+      delete userCleanSettings.SUPPLIERS;
+      delete userCleanSettings.ZONE;
+      delete userCleanSettings.UNIT;
+      delete userCleanSettings.WORKERS;
+
       const users = api_getUsers();
       const user = users.find(u => String(u.userCode || '').trim() === String(target).trim() || String(u.username || '').trim() === String(target).trim());
       if (user) {
-        user.userSettings = settings;
+        user.userSettings = userCleanSettings;
         api_updateUser(user, admin);
       }
       
-      // And ALSO feed directly to the dedicated sheet for this user!
+      // And ALSO feed directly to the dedicated sheet for this user (strictly user-customizable options only)!
       const ss = getSS();
       const sheetName = String(target).trim().toUpperCase();
       clearSheetCache(sheetName);
@@ -1254,7 +1560,7 @@ function api_saveUserSettings(target, settings, admin = 'SYSTEM', details = 'Dro
       if (!sheet) {
         sheet = ss.insertSheet(sheetName);
       }
-      saveUserSpecificSettingsToSheetColumns(sheet, settings);
+      saveUserSpecificSettingsToSheetColumns(sheet, userCleanSettings);
       SpreadsheetApp.flush();
     }
     
@@ -1296,6 +1602,11 @@ function saveSettingsToSheetColumns(sheet, settings) {
     }
   });
 
+  if (maxLen === 0) {
+    sheet.getRange(1, 1, 1, categories.length).setValues([categories]);
+    return;
+  }
+
   const rows = [categories];
   for (let i = 0; i < maxLen; i++) {
     const row = categories.map(function(cat) {
@@ -1310,7 +1621,45 @@ function saveSettingsToSheetColumns(sheet, settings) {
 }
 
 function saveUserSpecificSettingsToSheetColumns(sheet, settings) {
-  saveSettingsToSheetColumns(sheet, settings);
+  sheet.clear();
+  // Strictly user-customizable categories only - AVOID ITEMS AND SUPPLIERS
+  const categories = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+  
+  const normalizedSettings = {};
+  categories.forEach(function(cat) {
+    let raw = settings[cat];
+    let arr = [];
+    if (typeof raw === 'string') {
+      arr = raw.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean);
+    } else if (Array.isArray(raw)) {
+      arr = raw.map(function(s) { return String(s).trim(); }).filter(Boolean);
+    }
+    normalizedSettings[cat] = arr;
+  });
+
+  let maxLen = 0;
+  categories.forEach(function(cat) {
+    if (normalizedSettings[cat].length > maxLen) {
+      maxLen = normalizedSettings[cat].length;
+    }
+  });
+
+  if (maxLen === 0) {
+    sheet.getRange(1, 1, 1, categories.length).setValues([categories]);
+    return;
+  }
+
+  const rows = [categories];
+  for (let i = 0; i < maxLen; i++) {
+    const row = categories.map(function(cat) {
+      const val = normalizedSettings[cat][i];
+      return val !== undefined && val !== null ? val : "";
+    });
+    rows.push(row);
+  }
+
+  const range = sheet.getRange(1, 1, rows.length, categories.length);
+  range.setValues(rows);
 }
 
 // Alias for compatibility
@@ -1320,6 +1669,15 @@ function api_saveSettings(target, settings, admin, details) {
 
 // User Management
 function api_saveUser(user, admin = 'SYSTEM') { 
+  const cleanUserSettings = { ...(user.userSettings || {}) };
+  delete cleanUserSettings.ITEMS;
+  delete cleanUserSettings.ITEM;
+  delete cleanUserSettings.SUPPLIER;
+  delete cleanUserSettings.SUPPLIERS;
+  delete cleanUserSettings.ZONE;
+  delete cleanUserSettings.UNIT;
+  delete cleanUserSettings.WORKERS;
+
   const structuredUser = {
     userCode: user.userCode,
     username: user.username,
@@ -1329,7 +1687,7 @@ function api_saveUser(user, admin = 'SYSTEM') {
     zone: user.zone || "",
     restrictions: user.restrictions || [],
     canDownload: user.canDownload !== false,
-    userSettings: user.userSettings || {}
+    userSettings: cleanUserSettings
   };
 
   const sheetName = getConsolidatedUserSheetName();
@@ -1521,6 +1879,17 @@ function aggregateZonedData(baseName) {
       if (matches) {
         const sheetData = getDataFromSheet(sheetName);
         if (sheetData && sheetData.length > 0) {
+          let inferredZone = "";
+          if (sheetNameUpper.indexOf(" - ") !== -1) {
+            inferredZone = sheetNameUpper.split(" - ")[1].trim();
+          }
+          if (inferredZone) {
+            sheetData.forEach(function(row) {
+              if (!row.zone && !row.ZONE && !row.location && !row.LOCATION) {
+                row.zone = inferredZone;
+              }
+            });
+          }
           allData = allData.concat(sheetData);
         }
       }
@@ -2199,43 +2568,54 @@ function api_getMISData(sheetName) {
   return getDataFromSheet(sheetName);
 }
 
+function filterModuleRecordsByZone(data, params) {
+  if (!Array.isArray(data)) return [];
+  const zoneArg = (params && typeof params === 'object') ? (params.zone || params.location) : params;
+  const targetZone = String(zoneArg || '').trim().toUpperCase();
+  if (!targetZone || targetZone === 'ALL' || targetZone === 'COMMON' || targetZone === 'SYSTEM' || targetZone === 'SELECT...') {
+    return data;
+  }
+  const clean = function(s) {
+    return String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
+  };
+  const cTarget = clean(targetZone);
+  if (!cTarget || cTarget === 'ALL') return data;
+
+  const KNOWN_ZONES = ['KERALA', 'TIRUPUR', 'BANGALORE'];
+
+  return data.filter(function(row) {
+    if (!row) return false;
+    const rZone = String(row.zone || row.location || row.ZONE || row.LOCATION || '').trim().toUpperCase();
+    const rUnit = String(row.unit || row.UNIT || '').trim().toUpperCase();
+    const cZone = clean(rZone);
+    const cUnit = clean(rUnit);
+
+    // If explicitly assigned to a known zone and target is another known zone, reject
+    if (cZone && KNOWN_ZONES.indexOf(cZone) !== -1 && KNOWN_ZONES.indexOf(cTarget) !== -1 && cZone !== cTarget) {
+      return false;
+    }
+
+    if (cZone === cTarget || cUnit === cTarget) return true;
+    if (cZone && cZone.length >= 3 && (cZone.indexOf(cTarget) !== -1 || cTarget.indexOf(cZone) !== -1)) return true;
+    if (cUnit && cUnit.length >= 3 && (cUnit.indexOf(cTarget) !== -1 || cTarget.indexOf(cUnit) !== -1)) return true;
+    return false;
+  });
+}
+
 function api_getMaterialData(params) { 
   const baseName = 'MATERIAL REPORT';
-  let data = aggregateZonedData(baseName);
-  
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    data = data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  
-  return data;
+  const data = aggregateZonedData(baseName);
+  return filterModuleRecordsByZone(data, params);
 }
 function api_getCuttingData(params) { 
   const baseName = 'CUTTING QUALITY';
   const data = aggregateZonedData(baseName);
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    return data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  return data;
+  return filterModuleRecordsByZone(data, params);
 }
 function api_getInlineData(params) { 
   const baseName = 'INLINE';
   const data = aggregateZonedData(baseName);
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    return data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  return data;
+  return filterModuleRecordsByZone(data, params);
 }
 function api_get8ROUNDSYSTEMData(params) { 
   return api_getInlineData(params);
@@ -2243,38 +2623,17 @@ function api_get8ROUNDSYSTEMData(params) {
 function api_getEndlineData(params) { 
   const baseName = 'ENDLINE QUALITY';
   const data = aggregateZonedData(baseName);
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    return data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  return data;
+  return filterModuleRecordsByZone(data, params);
 }
 function api_getAQLData(params) { 
   const baseName = 'AQL REPORT';
   const data = aggregateZonedData(baseName);
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    return data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  return data;
+  return filterModuleRecordsByZone(data, params);
 }
 function api_getFinalAuditData(params) { 
   const baseName = 'FINAL AUDIT';
   const data = aggregateZonedData(baseName);
-  const zone = params?.zone;
-  if (zone && zone !== 'ALL') {
-    return data.filter(row => {
-      const zVal = (row.zone || row.location || row.ZONE || row.LOCATION || "").toString().toUpperCase();
-      return zVal === zone.toUpperCase();
-    });
-  }
-  return data;
+  return filterModuleRecordsByZone(data, params);
 }
 
 function api_deleteMaterialData(id) { return api_deleteDataBySheet('MATERIAL REPORT', id); }
@@ -2305,9 +2664,18 @@ function api_getUserSettings(userCode) {
       }
     }
 
-    // Search for user in the consolidated USERS list as the primary source of truth
+    // 1. Check for dedicated user-specific sheet tab first (e.g., U008, U002, U012, U013, U015, U016, U019)
+    if (!settings && userCode) {
+      const uCodeUpper = String(userCode).trim().toUpperCase();
+      const userSheet = ss.getSheetByName(uCodeUpper);
+      if (userSheet) {
+        settings = readSettingsFromSheetColumns(userSheet);
+      }
+    }
+
+    // 2. Search for user in the consolidated USERS list as secondary lookup
     const users = api_getUsers();
-    const user = users.find(u => String(u.userCode || '').trim() === String(userCode).trim());
+    const user = users.find(u => String(u.userCode || '').trim().toUpperCase() === String(userCode).trim().toUpperCase() || String(u.username || '').trim().toUpperCase() === String(userCode).trim().toUpperCase());
     
     if (!settings && user) {
       // Check if user belongs to a zone/location and if there's a common settings sheet for that zone
@@ -2318,15 +2686,6 @@ function api_getUserSettings(userCode) {
         if (sheet) {
           settings = readSettingsFromSheetColumns(sheet);
         }
-      }
-    }
-
-    if (!settings) {
-      // Check for user-specific sheet
-      const uCodeUpper = String(userCode).trim().toUpperCase();
-      const userSheet = ss.getSheetByName(uCodeUpper);
-      if (userSheet) {
-        settings = readSettingsFromSheetColumns(userSheet);
       }
     }
 
@@ -2341,25 +2700,80 @@ function api_getUserSettings(userCode) {
       }
     }
     
-    if (!settings) {
-      return api_getGlobalSettings();
-    }
-
-    // Merge with global settings so any missing categories get global values
     const globalSettings = api_getGlobalSettings();
-    const categories = ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'];
-    categories.forEach(function(cat) {
-      if (!settings[cat] || settings[cat].length === 0) {
-        settings[cat] = globalSettings[cat] || [];
-      }
-    });
 
-    if (globalSettings.ZONE && Array.isArray(globalSettings.ZONE) && globalSettings.ZONE.length > 0) {
-      settings.ZONE = globalSettings.ZONE;
-      settings.ZONES = globalSettings.ZONE;
+    // Dedicated ITEMS and SUPPLIERS sheets are strictly common and work based on their separate sheets!
+    const masterItems = readDedicatedItemsFromSheet();
+    const masterSuppliers = readDedicatedSuppliersFromSheet();
+
+    const userRole = String(user?.role || '').toUpperCase();
+    const userResult = {
+      ITEMS: masterItems,
+      SUPPLIER: masterSuppliers,
+      SUPPLIERS: masterSuppliers
+    };
+
+    const CUSTOMIZABLE_KEYS = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+    
+    if (user && userRole !== 'ADMIN') {
+      CUSTOMIZABLE_KEYS.forEach(function(cat) {
+        const val = settings ? settings[cat] : undefined;
+        if (Array.isArray(val)) {
+          userResult[cat] = val.map(function(s) { return String(s || '').trim(); }).filter(Boolean);
+        } else if (typeof val === 'string' && val.trim()) {
+          userResult[cat] = val.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+        } else {
+          // If not given options in dropbox for this user, show empty!
+          userResult[cat] = [];
+        }
+      });
+      userResult.__isUserSettings = true;
+    } else {
+      CUSTOMIZABLE_KEYS.forEach(function(cat) {
+        const val = settings ? settings[cat] : undefined;
+        if (Array.isArray(val) && val.length > 0) {
+          userResult[cat] = val.map(function(s) { return String(s || '').trim(); }).filter(Boolean);
+        } else if (typeof val === 'string' && val.trim()) {
+          userResult[cat] = val.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+        } else {
+          userResult[cat] = globalSettings[cat] || [];
+        }
+      });
     }
 
-    return settings;
+    // Dynamic Zone & Unit restrictions
+    userResult.ZONE = globalSettings.ZONE || [];
+    userResult.ZONES = globalSettings.ZONE || [];
+    userResult.UNIT = globalSettings.UNIT || [];
+    userResult.UNITS = globalSettings.UNIT || [];
+    userResult.WORKERS = globalSettings.WORKERS || [];
+
+    const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
+    if (user && userRole !== 'ADMIN' && userZone && userZone !== 'ALL' && userZone !== 'SYSTEM' && userZone !== 'COMMON') {
+      userResult.ZONE = [userZone];
+      userResult.ZONES = [userZone];
+      
+      const zoneRows = api_getZoneMappings() || [];
+      const zoneUnits = Array.from(new Set(
+        zoneRows
+          .filter(function(z) { return String(z.zone || '').trim().toUpperCase() === userZone && String(z.unit || '').trim(); })
+          .map(function(z) { return String(z.unit || '').trim().toUpperCase(); })
+      ));
+      if (zoneUnits.length > 0) {
+        userResult.UNIT = zoneUnits;
+        userResult.UNITS = zoneUnits;
+      }
+      const zoneWorkers = Array.from(new Set(
+        zoneRows
+          .filter(function(z) { return String(z.zone || '').trim().toUpperCase() === userZone && String(z.worker || '').trim(); })
+          .map(function(z) { return String(z.worker || '').trim(); })
+      ));
+      if (zoneWorkers.length > 0) {
+        userResult.WORKERS = zoneWorkers;
+      }
+    }
+
+    return userResult;
   } catch (e) {
     console.error("Error getting settings for " + userCode + ":", e);
     return api_getGlobalSettings();
@@ -2422,19 +2836,163 @@ function api_getGlobalSettings() {
     const sheetNames = sheets.map(s => s.getName());
     
     const defaults = {
-      ZONE: [],
-      SUPPLIER: ['SUPPLIER A', 'SUPPLIER B'],
-      ITEMS: ['ITEM 1', 'ITEM 2'],
-      COLOR: ['BLACK', 'WHITE', 'NAVY'],
-      DEFECTS: ['STAIN', 'HOLE', 'SHADING'],
-      WORKERS: ['WORKER 1', 'WORKER 2'],
-      MACHINE: ['M001', 'M002'],
-      OPERATION: ['OP 1', 'OP 2'],
-      SIZE: ['S', 'M', 'L', 'XL'],
-      CUPSIZE: ['A', 'B', 'C'],
-      UNIT: [],
-      LINE: ['LINE 1', 'LINE 2'],
-      STYLE_NAME: ['STYLE A', 'STYLE B', 'STYLE C', 'STYLE 1', 'STYLE 2']
+      "ZONE": [
+        "KERALA",
+        "TIRUPUR",
+        "BANGALORE"
+      ],
+      "SUPPLIER": [],
+      "ITEMS": [],
+      "COLOR": [
+        "BLACK",
+        "WHITE",
+        "NUDE",
+        "MIXED",
+        "NAVY",
+        "RED",
+        "GREEN",
+        "GREY",
+        "BLUE",
+        "SKIN",
+        "MAROON"
+      ],
+      "DEFECTS": [
+        "STAIN",
+        "HOLE",
+        "SHADING",
+        "BROKEN STITCH",
+        "SHADE VARIATION",
+        "MEASUREMENT",
+        "NEEDLE CUT",
+        "SKIP STITCH",
+        "DIRTY MARK",
+        "OPEN SEAM",
+        "PUCKERING",
+        "OIL STAIN",
+        "UNEVEN HEM",
+        "RAW EDGE",
+        "OTHER"
+      ],
+      "WORKERS": [
+        "WORKER 1",
+        "WORKER 2",
+        "WORKER 3",
+        "WORKER 4",
+        "WORKER 5"
+      ],
+      "MACHINE": [
+        "M001",
+        "M002",
+        "SNLS",
+        "DNLS",
+        "O/L",
+        "F/L",
+        "K/S",
+        "BARTACK",
+        "ZIGZAG",
+        "FEED OF ARM",
+        "BUTTON HOLE",
+        "OTHER"
+      ],
+      "OPERATION": [
+        "OP 1",
+        "OP 2",
+        "FRONT ATTACH",
+        "BACK ATTACH",
+        "SLEEVE ATTACH",
+        "HEMMING",
+        "NECK ATTACH",
+        "CUP ATTACH",
+        "STRAP ATTACH",
+        "BOTTOM ELASTIC",
+        "LABEL ATTACH",
+        "SIDE SEAM",
+        "HOOK & EYE ATTACH",
+        "OTHER"
+      ],
+      "SIZE": [
+        "30",
+        "32",
+        "34",
+        "36",
+        "38",
+        "40",
+        "42",
+        "44",
+        "46",
+        "S",
+        "M",
+        "L",
+        "XL",
+        "28",
+        "XS",
+        "XXL"
+      ],
+      "CUPSIZE": [
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A"
+      ],
+      "UNIT": [
+        "MUVATTUPUZHA",
+        "ANGAMALY",
+        "RAW MATERIAL STORE",
+        "RAW MATERIAL STORE - TUP",
+        "RAW MATERIAL STORE - BNGLR"
+      ],
+      "LINE": [
+        "LINE 1",
+        "LINE 2",
+        "LINE 3",
+        "LINE 4",
+        "LINE 5",
+        "SAMPLE ROOM",
+        "TRAINING LINE"
+      ],
+      "STYLE_NAME": [
+        "A 6",
+        "A6 THIN",
+        "ABSOLUTE PLUS",
+        "AUTHENTIC BRA",
+        "BRIDAL FOAM",
+        "CARE U",
+        "CIRCET BRA",
+        "COOL FOAM",
+        "ESSENTIAL BRA",
+        "ETHNIC BRA",
+        "FAVOURITE",
+        "FULL MOON",
+        "HAKO DSA",
+        "HAKO LIFT",
+        "HONEST BRA",
+        "JASMINE",
+        "LOVELY PAD",
+        "MADAMS",
+        "MAGNA FIT",
+        "MAX SUPPORT",
+        "MERCY SSU",
+        "PLUS SIZE",
+        "PRETTY PLUS",
+        "PRIYA MOHINI",
+        "PRIYA SAJINI",
+        "PRIYA SP",
+        "RINGLET",
+        "RUBY",
+        "SAREE BRA",
+        "STYLE 1",
+        "STYLE 2",
+        "STYLE A",
+        "STYLE B",
+        "STYLE C",
+        "TRUST ME",
+        "TUNIC DSA",
+        "WELL SUPPORT",
+        "WOVEN RINGS"
+      ]
     };
 
     const finalSettings = { ...defaults };
@@ -2515,6 +3073,14 @@ function api_getGlobalSettings() {
         }
       }
     });
+
+    // Dedicated ITEMS and SUPPLIERS sheets take direct priority for common master data
+    const dedicatedItems = readDedicatedItemsFromSheet();
+    finalSettings.ITEMS = (dedicatedItems && dedicatedItems.length > 0) ? dedicatedItems : [];
+    const dedicatedSuppliers = readDedicatedSuppliersFromSheet();
+    const cleanSuppliersList = (dedicatedSuppliers && dedicatedSuppliers.length > 0) ? dedicatedSuppliers : [];
+    finalSettings.SUPPLIER = cleanSuppliersList;
+    finalSettings.SUPPLIERS = cleanSuppliersList;
 
     // If UNIT is still empty, try to populate it from the 'ZONE' mapping sheet
     if ((!finalSettings['UNIT'] || finalSettings['UNIT'].length === 0) && sheetNames.includes('ZONE')) {
@@ -3418,7 +3984,7 @@ function api_resetAllDatabase() {
   try {
     const ss = getSS();
     const sheets = ss.getSheets();
-    const standardSheets = ['USERS', 'SETTINGS', 'ADMIN', 'ZONE', 'UNIT'];
+    const standardSheets = ['USERS', 'SETTINGS', 'ADMIN', 'ZONE', 'UNIT', 'ITEMS', 'SUPPLIERS'];
     
     // 1. Delete all unit-specific worker sheets and other dynamically added sheets (including any legacy UNIT sheet)
     sheets.forEach(function(sh) {
@@ -3471,7 +4037,10 @@ function api_resetAllDatabase() {
       'UNIT': ['id', 'unit', 'zone', 'timestamp'],
       'USERS': ['userCode', 'username', 'password', 'role', 'location', 'zone', 'restrictions', 'canDownload', 'userSettings'],
       'ADMIN': ['timestamp', 'module', 'action', 'details', 'admin'],
-      'SETTINGS': ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME']
+      'SETTINGS': ['ZONE', 'SUPPLIER', 'ITEMS', 'COLOR', 'DEFECTS', 'WORKERS', 'MACHINE', 'OPERATION', 'SIZE', 'CUPSIZE', 'UNIT', 'LINE', 'STYLE_NAME'],
+      'ITEMS': ['ITEMS'],
+      'SUPPLIERS': ['SUPPLIERS'],
+      'SUPPLIER': ['SUPPLIERS']
     };
 
     // Recreate/re-align standard sheets

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
-import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES } from '../constants';
+import { ZONES, UNITS, ROLES, MAIN_MODULES, SUBMODULES, SUPPLIERS, ITEMS, COLORS, SIZES, CUPSIZES, DEFECTS, OPERATIONS, MACHINES, STYLES, LINES } from '../constants';
+import { INITIAL_DB } from '../data/initialDb';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { getDirectViewUrl } from '../utils/sopUtils';
+import { normalizeRestrictions } from '../utils/restrictions';
 
 interface AdminDashboardProps {
   users?: any[];
@@ -16,8 +18,6 @@ interface AdminDashboardProps {
   configOnlyMode?: boolean;
   onLogout?: () => void;
   settings?: any;
-  maintenance?: any;
-  onUpdateMaintenance?: (newMaintenance: any) => void;
 }
 
 const UserRow = React.memo(({ u, onEdit }: { u: any, onEdit: () => void }) => (
@@ -54,9 +54,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   workorders = [],
   configOnlyMode = false,
   onLogout,
-  settings,
-  maintenance,
-  onUpdateMaintenance
+  settings
 }) => {
   const [tab, setTab] = useState('list');
   const [editingUserCode, setEditingUserCode] = useState('');
@@ -193,9 +191,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [driveServerUrl, setDriveServerUrl] = useState(localStorage.getItem('VITE_GAS_DRIVE_URL') || '');
   const [deleteReason, setDeleteReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
-  const [settingsSubTab, setSettingsSubTab] = useState<'hierarchy' | 'userwise'>('hierarchy');
 
   // Track Google Account credentials state via simple Local App Configuration
   const [gDriveEmail, setGDriveEmail] = useState(localStorage.getItem('gdrive_email') || '');
@@ -330,18 +325,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  React.useEffect(() => {
-    if (tab === 'server' && serverUrl) {
-      const checkStatus = async () => {
-        try {
-          const res = await api.run('api_getInitialData');
-          if (res && res.success) setConnectionStatus('success');
-        } catch (e) {}
-      };
-      checkStatus();
-    }
-  }, [tab]);
-
   // Sync newUser location with globalZone when it changes
   React.useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
@@ -349,24 +332,212 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [globalZone]);
 
-  const INITIAL_USER_SETTINGS = {
-    ZONE: ZONES.join('\n'),
-    UNIT: 'UNIT A\nUNIT B\nUNIT C\nUNIT D',
-    SUPPLIER: 'SUPPLIER A\nSUPPLIER B\nSUPPLIER C',
-    ITEMS: 'T-SHIRT\nPOLO\nHOODIE',
-    COLOR: 'WHITE\nBLACK\nNAVY\nRED\nGREEN',
-    SIZE: 'XS\nS\nM\nL\nXL\nXXL',
-    CUPSIZE: 'B\nC\nD',
-    DEFECTS: 'STAIN\nHOLE\nBROKEN STITCH\nSHADE VARIATION',
-    OPERATION: 'FRONT ATTACH\nBACK ATTACH\nSLEEVE ATTACH',
-    MACHINE: 'SNLS\nDNLS\nO/L\nF/L',
-    WORKERS: 'WORKER 1\nWORKER 2\nWORKER 3\nWORKER 4',
-    LINE: 'LINE 1\nLINE 2',
-    STYLE_NAME: 'STYLE A\nSTYLE B\nSTYLE C'
-  };
+  const INITIAL_USER_SETTINGS = React.useMemo(() => ({
+    ZONE: (settings?.ZONE && Array.isArray(settings.ZONE) ? settings.ZONE : ZONES).join('\n'),
+    UNIT: (settings?.UNIT && Array.isArray(settings.UNIT) ? settings.UNIT : UNITS).join('\n'),
+    SUPPLIER: (settings?.SUPPLIER && Array.isArray(settings.SUPPLIER) ? settings.SUPPLIER : SUPPLIERS).join('\n'),
+    ITEMS: (settings?.ITEMS && Array.isArray(settings.ITEMS) ? settings.ITEMS : ITEMS).join('\n'),
+    COLOR: (settings?.COLOR && Array.isArray(settings.COLOR) ? settings.COLOR : COLORS).join('\n'),
+    SIZE: (settings?.SIZE && Array.isArray(settings.SIZE) ? settings.SIZE : SIZES).join('\n'),
+    CUPSIZE: (settings?.CUPSIZE && Array.isArray(settings.CUPSIZE) ? settings.CUPSIZE : CUPSIZES).join('\n'),
+    DEFECTS: (settings?.DEFECTS && Array.isArray(settings.DEFECTS) ? settings.DEFECTS : DEFECTS).join('\n'),
+    OPERATION: (settings?.OPERATION && Array.isArray(settings.OPERATION) ? settings.OPERATION : OPERATIONS).join('\n'),
+    MACHINE: (settings?.MACHINE && Array.isArray(settings.MACHINE) ? settings.MACHINE : MACHINES).join('\n'),
+    WORKERS: (settings?.WORKERS && Array.isArray(settings.WORKERS) ? settings.WORKERS : ['WORKER 1', 'WORKER 2', 'WORKER 3', 'WORKER 4', 'WORKER 5']).join('\n'),
+    LINE: (settings?.LINE && Array.isArray(settings.LINE) ? settings.LINE : LINES).join('\n'),
+    STYLE_NAME: (settings?.STYLE_NAME && Array.isArray(settings.STYLE_NAME) ? settings.STYLE_NAME : STYLES).join('\n')
+  }), [settings]);
 
   const [selectedUserCode, setSelectedUserCode] = useState('');
   const [isResettingDb, setIsResettingDb] = useState(false);
+
+  // Common Master Items & Suppliers state
+  const [commonItems, setCommonItems] = useState<string[]>([]);
+  const [commonSuppliers, setCommonSuppliers] = useState<string[]>([]);
+  const [newItemName, setNewItemName] = useState('');
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+  const [showBulkItems, setShowBulkItems] = useState(false);
+  const [showBulkSuppliers, setShowBulkSuppliers] = useState(false);
+  const [bulkItemsText, setBulkItemsText] = useState('');
+  const [bulkSuppliersText, setBulkSuppliersText] = useState('');
+
+  const fetchCommonMasters = async () => {
+    try {
+      const res = await api.run('api_getUserSettings', 'GLOBAL') as any;
+      const s = res?.settings || res || {};
+      const itms = (Array.isArray(s.ITEMS) && s.ITEMS.length > 0) 
+        ? s.ITEMS 
+        : ((Array.isArray(settings?.ITEMS) && settings.ITEMS.length > 0) ? settings.ITEMS : []);
+      const supps = (Array.isArray(s.SUPPLIER) && s.SUPPLIER.length > 0) 
+        ? s.SUPPLIER 
+        : ((Array.isArray(s.SUPPLIERS) && s.SUPPLIERS.length > 0) 
+          ? s.SUPPLIERS 
+          : ((Array.isArray(settings?.SUPPLIER) && settings.SUPPLIER.length > 0) ? settings.SUPPLIER : []));
+      setCommonItems(itms);
+      setCommonSuppliers(supps);
+    } catch (e) {
+      if (Array.isArray(settings?.ITEMS)) setCommonItems(settings.ITEMS);
+      if (Array.isArray(settings?.SUPPLIER)) setCommonSuppliers(settings.SUPPLIER);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'settings') {
+      const code = selectedUserCode || (filteredUsers[0]?.userCode || '');
+      if (code && code !== 'GLOBAL') {
+        fetchUserSettings(code);
+      }
+      fetchCommonMasters();
+    }
+  }, [tab, filteredUsers]);
+
+  const filteredItemsList = React.useMemo(() => {
+    if (!itemSearch.trim()) return commonItems;
+    const q = itemSearch.trim().toLowerCase();
+    return commonItems.filter(i => String(i || '').toLowerCase().includes(q));
+  }, [commonItems, itemSearch]);
+
+  const filteredSuppliersList = React.useMemo(() => {
+    if (!supplierSearch.trim()) return commonSuppliers;
+    const q = supplierSearch.trim().toLowerCase();
+    return commonSuppliers.filter(s => String(s || '').toLowerCase().includes(q));
+  }, [commonSuppliers, supplierSearch]);
+
+  const handleAddItem = async () => {
+    if (isSavingItem) return;
+    const clean = newItemName.trim().toUpperCase();
+    if (!clean) return alert("Please enter an item name.");
+    if (commonItems.some(i => i.toUpperCase() === clean)) {
+      return alert("Item already exists in the common master list.");
+    }
+    setIsSavingItem(true);
+    try {
+      const updated = [clean, ...commonItems];
+      setCommonItems(updated);
+      setNewItemName('');
+      await api.run('api_saveSettings', 'ITEMS', updated);
+      await api.run('api_saveSettings', 'GLOBAL', { ITEMS: updated });
+      await logActivity('ADD COMMON ITEM', `Added common item: ${clean}`);
+      if (triggerSuccess) triggerSuccess(`Common item "${clean}" added successfully!`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to add item: " + (e.message || e));
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
+
+  const handleDeleteItem = async (item: string) => {
+    if (!window.confirm(`Are you sure you want to delete common item "${item}"?`)) return;
+    try {
+      const updated = commonItems.filter(i => i.toUpperCase() !== item.trim().toUpperCase());
+      setCommonItems(updated);
+      await api.run('api_saveSettings', 'ITEMS', updated);
+      await api.run('api_saveSettings', 'GLOBAL', { ITEMS: updated });
+      await logActivity('DELETE COMMON ITEM', `Deleted common item: ${item}`);
+      if (triggerSuccess) triggerSuccess(`Common item "${item}" deleted successfully.`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to delete item: " + (e.message || e));
+    }
+  };
+
+  const handleSaveBulkItems = async () => {
+    setIsSavingItem(true);
+    try {
+      const parsed = bulkItemsText
+        .split('\n')
+        .map(s => s.trim().toUpperCase())
+        .filter(Boolean);
+      const unique = Array.from(new Set(parsed));
+      if (unique.length === 0) {
+        alert("Please enter at least one item.");
+        setIsSavingItem(false);
+        return;
+      }
+      setCommonItems(unique);
+      await api.run('api_saveSettings', 'ITEMS', unique);
+      await api.run('api_saveSettings', 'GLOBAL', { ITEMS: unique });
+      await logActivity('BULK EDIT COMMON ITEMS', `Updated ${unique.length} common items`);
+      setShowBulkItems(false);
+      if (triggerSuccess) triggerSuccess(`Saved ${unique.length} common items successfully!`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to save bulk items: " + (e.message || e));
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
+
+  const handleAddSupplier = async () => {
+    if (isSavingSupplier) return;
+    const clean = newSupplierName.trim().toUpperCase();
+    if (!clean) return alert("Please enter a supplier name.");
+    if (commonSuppliers.some(s => s.toUpperCase() === clean)) {
+      return alert("Supplier already exists in the common master list.");
+    }
+    setIsSavingSupplier(true);
+    try {
+      const updated = [clean, ...commonSuppliers];
+      setCommonSuppliers(updated);
+      setNewSupplierName('');
+      await api.run('api_saveSettings', 'SUPPLIERS', updated);
+      await api.run('api_saveSettings', 'GLOBAL', { SUPPLIER: updated });
+      await logActivity('ADD COMMON SUPPLIER', `Added common supplier: ${clean}`);
+      if (triggerSuccess) triggerSuccess(`Common supplier "${clean}" added successfully!`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to add supplier: " + (e.message || e));
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
+  const handleDeleteSupplier = async (supplier: string) => {
+    if (!window.confirm(`Are you sure you want to delete common supplier "${supplier}"?`)) return;
+    try {
+      const updated = commonSuppliers.filter(s => s.toUpperCase() !== supplier.trim().toUpperCase());
+      setCommonSuppliers(updated);
+      await api.run('api_saveSettings', 'SUPPLIERS', updated);
+      await api.run('api_saveSettings', 'GLOBAL', { SUPPLIER: updated });
+      await logActivity('DELETE COMMON SUPPLIER', `Deleted common supplier: ${supplier}`);
+      if (triggerSuccess) triggerSuccess(`Common supplier "${supplier}" deleted successfully.`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to delete supplier: " + (e.message || e));
+    }
+  };
+
+  const handleSaveBulkSuppliers = async () => {
+    setIsSavingSupplier(true);
+    try {
+      const parsed = bulkSuppliersText
+        .split('\n')
+        .map(s => s.trim().toUpperCase())
+        .filter(Boolean);
+      const unique = Array.from(new Set(parsed));
+      if (unique.length === 0) {
+        alert("Please enter at least one supplier.");
+        setIsSavingSupplier(false);
+        return;
+      }
+      setCommonSuppliers(unique);
+      await api.run('api_saveSettings', 'SUPPLIERS', unique);
+      await api.run('api_saveSettings', 'GLOBAL', { SUPPLIER: unique });
+      await logActivity('BULK EDIT COMMON SUPPLIERS', `Updated ${unique.length} common suppliers`);
+      setShowBulkSuppliers(false);
+      if (triggerSuccess) triggerSuccess(`Saved ${unique.length} common suppliers successfully!`);
+      if (refreshData) await refreshData().catch(() => {});
+    } catch (e: any) {
+      alert("Failed to save bulk suppliers: " + (e.message || e));
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
 
   const handleFactoryReset = async () => {
     const confirmation1 = window.confirm("🚨 WARNING: This will delete ALL zones, units, operators, and quality data from the connected spreadsheet!\n\nAre you sure you want to perform a full factory reset?");
@@ -665,8 +836,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )
       .map(z => z.worker);
   }, [zoneMappings]);
+  const [settingsSubTab, setSettingsSubTab] = useState<'userwise' | 'hierarchy'>('userwise');
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [userSettings, setUserSettings] = useState(INITIAL_USER_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups(prev => prev.includes(groupId) ? prev.filter(g => g !== groupId) : [...prev, groupId]);
+  };
 
   const logActivity = async (action: string, details: string) => {
     try {
@@ -839,15 +1016,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const toggleRestriction = async (userToUpdate: any, moduleId: string) => {
-    const restrictions = userToUpdate.restrictions || [];
+    const currentRestrictions = normalizeRestrictions(userToUpdate.restrictions);
     let updatedUser: any;
 
     if (moduleId === 'DOWNLOAD_RESTRICTION') {
-      updatedUser = { ...userToUpdate, canDownload: !userToUpdate.canDownload };
+      updatedUser = { ...userToUpdate, canDownload: !userToUpdate.canDownload, restrictions: currentRestrictions };
     } else {
-      const newRestrictions = restrictions.includes(moduleId)
-        ? restrictions.filter((id: string) => id !== moduleId)
-        : [...restrictions, moduleId];
+      const isRestricted = currentRestrictions.includes(moduleId);
+      const newRestrictions = isRestricted
+        ? currentRestrictions.filter((id: string) => id !== moduleId)
+        : [...currentRestrictions, moduleId];
       updatedUser = { ...userToUpdate, restrictions: newRestrictions };
     }
 
@@ -858,46 +1036,87 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       logActivity('RESTRICTION CHANGE', `Updated ${moduleId} for ${userToUpdate.userCode}`);
     } catch (err) {
       console.error("Save failed, reverting UI:", err);
-      await refreshData();
+      if (refreshData) await refreshData();
     }
   };
 
   const fetchUserSettings = async (code: string) => {
-    setSelectedUserCode(code);
-    if (!code) {
-      setUserSettings(INITIAL_USER_SETTINGS);
+    const target = code || (filteredUsers[0]?.userCode || '');
+    setSelectedUserCode(target);
+    if (!target) {
+      setUserSettings({
+        STYLE_NAME: '',
+        SIZE: '',
+        CUPSIZE: '',
+        COLOR: '',
+        LINE: '',
+        MACHINE: '',
+        OPERATION: '',
+        DEFECTS: ''
+      } as any);
       return;
     }
     try {
-      const settings = await api.run('api_getUserSettings', code);
-      if (settings) {
-        const formatted: any = {};
-        Object.keys(INITIAL_USER_SETTINGS).forEach(key => {
-          formatted[key] = Array.isArray(settings[key]) ? settings[key].join('\n') : '';
-        });
-        setUserSettings(formatted);
-      } else {
-        setUserSettings(INITIAL_USER_SETTINGS);
-      }
+      const res = await api.run('api_getUserSettings', target) as any;
+      const s = res?.settings || res || {};
+      const formatted: any = {};
+      const USER_CUSTOM_KEYS = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+      USER_CUSTOM_KEYS.forEach(key => {
+        const val = s[key] || s[key.toLowerCase()];
+        if (Array.isArray(val) && val.length > 0) {
+          formatted[key] = val.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n');
+        } else if (typeof val === 'string' && val.trim()) {
+          formatted[key] = val.trim();
+        } else {
+          // If no options configured, leave EMPTY string so the user sees an empty dropbox
+          formatted[key] = '';
+        }
+      });
+      setUserSettings(formatted);
     } catch (e) {
       console.error("Fetch Settings Error:", e);
-      setUserSettings(INITIAL_USER_SETTINGS);
+      setUserSettings({
+        STYLE_NAME: '',
+        SIZE: '',
+        CUPSIZE: '',
+        COLOR: '',
+        LINE: '',
+        MACHINE: '',
+        OPERATION: '',
+        DEFECTS: ''
+      } as any);
     }
   };
 
   const handleSaveSettings = async () => {
-    if (!selectedUserCode) return alert("Select a user first");
+    const targetCode = selectedUserCode || (filteredUsers[0]?.userCode || '');
+    if (!targetCode) return alert("Please select a user to configure.");
     setSavingSettings(true);
     try {
       const settingsToSave: any = {};
-      Object.keys(userSettings).forEach(key => {
-        settingsToSave[key] = userSettings[key].split('\n').map((s: string) => s.trim()).filter((s: string) => s !== '');
+      const USER_CUSTOM_KEYS = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+      USER_CUSTOM_KEYS.forEach(key => {
+        const raw = userSettings[key as keyof typeof userSettings];
+        if (typeof raw === 'string') {
+          settingsToSave[key] = raw.split('\n').map((s: string) => s.trim()).filter((s: string) => s !== '');
+        } else if (Array.isArray(raw)) {
+          settingsToSave[key] = raw;
+        } else {
+          settingsToSave[key] = [];
+        }
       });
-      await api.run('api_saveUserSettings', selectedUserCode, settingsToSave);
-      await logActivity('DROPDOWN SETTINGS', `Updated settings for ${selectedUserCode}`);
-      alert('Settings Saved Successfully');
+      await api.run('api_saveUserSettings', targetCode, settingsToSave);
+      await logActivity('USERWISE DROPBOX SETTINGS', `Updated dropdown options for user ${targetCode}`);
+      if (refreshData) {
+        await refreshData().catch(() => {});
+      }
+      if (triggerSuccess) {
+        triggerSuccess(`Dropdown options saved successfully for user ${targetCode}!`);
+      } else {
+        alert(`Dropdown options saved successfully for user ${targetCode}!`);
+      }
     } catch (e) {
-      alert('Error saving settings');
+      alert('Error saving userwise settings');
     } finally {
       setSavingSettings(false);
     }
@@ -912,7 +1131,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'add', label: 'Add User', icon: 'user-plus' },
           { id: 'edit', label: 'Edit User', icon: 'edit' },
           { id: 'restrictions', label: 'Restrictions', icon: 'shield-off' },
-          { id: 'settings', label: 'User Data', icon: 'database' },
+          { id: 'settings', label: 'Dropdown Settings', icon: 'sliders' },
           { id: 'delete', label: 'Delete User', icon: 'user-minus' },
           { id: 'delete_data', label: 'Delete Data', icon: 'trash-2' },
           { id: 'logs', label: 'Activity Logs', icon: 'file-text' }
@@ -1215,9 +1434,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button 
                           onClick={() => toggleRestriction(restrictingUser, m.id)}
                           disabled={isSubmitting}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${!(restrictingUser.restrictions || []).includes(m.id) ? 'bg-green-500' : 'bg-slate-200'} disabled:opacity-50`}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${!normalizeRestrictions(restrictingUser.restrictions).includes(m.id) ? 'bg-green-500' : 'bg-slate-200'} disabled:opacity-50`}
                         >
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${!(restrictingUser.restrictions || []).includes(m.id) ? 'left-7' : 'left-1'}`}></div>
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${!normalizeRestrictions(restrictingUser.restrictions).includes(m.id) ? 'left-7' : 'left-1'}`}></div>
                         </button>
                       </div>
                       
@@ -1228,9 +1447,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <button 
                               onClick={() => toggleRestriction(restrictingUser, s.id)}
                               disabled={isSubmitting}
-                              className={`w-10 h-5 rounded-full transition-colors relative ${!(restrictingUser.restrictions || []).includes(s.id) ? 'bg-indigo-400' : 'bg-slate-200'} disabled:opacity-50`}
+                              className={`w-10 h-5 rounded-full transition-colors relative ${!normalizeRestrictions(restrictingUser.restrictions).includes(s.id) ? 'bg-indigo-400' : 'bg-slate-200'} disabled:opacity-50`}
                             >
-                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${!(restrictingUser.restrictions || []).includes(s.id) ? 'left-6' : 'left-1'}`}></div>
+                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${!normalizeRestrictions(restrictingUser.restrictions).includes(s.id) ? 'left-6' : 'left-1'}`}></div>
                             </button>
                           </div>
                         ))}
@@ -1244,423 +1463,778 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {tab === 'settings' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Sub-tabs toggler inside User Data */}
-            <div className="flex border-b border-slate-200 pb-px gap-6">
+          <div className="space-y-6 animate-fade-in">
+            {/* Top Sub-tabs */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
               <button
-                type="button"
-                onClick={() => setSettingsSubTab('hierarchy')}
-                className={`pb-3 text-sm font-black uppercase tracking-wider transition-all border-b-2 ${
-                  settingsSubTab === 'hierarchy'
-                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
-                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                onClick={() => setSettingsSubTab('userwise')}
+                className={`px-5 py-2.5 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all ${
+                  settingsSubTab === 'userwise'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                1. Zone, Unit & Worker Setup
+                <Icon name="database" size={16} />
+                1. Userwise Dropbox Settings
               </button>
               <button
-                type="button"
-                onClick={() => setSettingsSubTab('userwise')}
-                className={`pb-3 text-sm font-black uppercase tracking-wider transition-all border-b-2 ${
-                  settingsSubTab === 'userwise'
-                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
-                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                onClick={() => setSettingsSubTab('hierarchy')}
+                className={`px-5 py-2.5 rounded-xl font-black uppercase text-xs flex items-center gap-2 transition-all ${
+                  settingsSubTab === 'hierarchy'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                2. Userwise Dropbox Settings (Old Style)
+                <Icon name="layers" size={16} />
+                2. Common Dropbox Setup (Zone, Unit, Worker, Items &amp; Suppliers)
               </button>
             </div>
 
-            {settingsSubTab === 'hierarchy' && (
-              <div className="space-y-6">
-                {/* Zone, Unit & Worker Hierarchy Settings Panel */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in duration-200">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <Icon name="layers" size={20} className="text-indigo-600" />
-                      Zone, Unit & Worker Hierarchy Dropbox Settings
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Manage the hierarchical association of zones, units, and workers. These configurations are persisted globally to the <strong>ZONE</strong> sheet, and individual unit-specific sheets.
-                    </p>
-                  </div>
-
-                  {/* 3 Forms Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                    
-                    {/* Option 1: Add Zone */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Option 1: Add Zone</span>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Zone Name</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. KERALA, TIRUPUR" 
-                            value={newZoneName}
-                            onChange={e => setNewZoneName(e.target.value)}
-                            className="bg-white border-slate-200"
-                          />
-                        </div>
-                        <button 
-                          onClick={handleSaveZone}
-                          disabled={isSavingZone || !newZoneName.trim()}
-                          className="btn-primary text-[10px] uppercase font-black py-3 mt-1 w-full"
-                        >
-                          {isSavingZone ? 'Adding Zone...' : 'Add Zone'}
-                        </button>
-
-                        <div className="pt-3 border-t border-slate-200">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Existing Zones ({currentZones.length})</span>
-                          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                            {currentZones.map(zone => (
-                              <div key={zone} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
-                                <span className="text-[11px] font-bold text-slate-700">{zone}</span>
-                                <button 
-                                  onClick={() => handleDeleteZone(zone)}
-                                  className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
-                                  title={`Delete zone ${zone} and all its units`}
-                                >
-                                  <Icon name="trash-2" size={11} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Option 2: Add Unit */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block">Option 2: Add Unit</span>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
-                          <SearchableSelect 
-                            value={newUnitZone} 
-                            onChange={e => setNewUnitZone(e.target.value)}
-                            className="bg-white border-slate-200"
-                          >
-                            <option value="">Select Zone...</option>
-                            {currentZones.map(z => (
-                              <option key={z} value={z}>{z}</option>
-                            ))}
-                          </SearchableSelect>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Unit Name</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. UNIT A, UNIT B" 
-                            value={newUnitName}
-                            onChange={e => setNewUnitName(e.target.value)}
-                            className="bg-white border-slate-200"
-                          />
-                        </div>
-                        <button 
-                          onClick={handleSaveUnit}
-                          disabled={isSavingUnit || !newUnitName.trim() || !newUnitZone}
-                          className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-[10px] uppercase font-black py-3 mt-1 w-full"
-                        >
-                          {isSavingUnit ? 'Adding Unit...' : 'Add Unit'}
-                        </button>
-
-                        {newUnitZone && (
-                          <div className="pt-3 border-t border-slate-200">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Units in {newUnitZone} ({getUnitsForZone(newUnitZone).length})</span>
-                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                              {getUnitsForZone(newUnitZone).length === 0 ? (
-                                <span className="text-[10px] text-slate-400 italic">No units registered in this zone yet.</span>
-                              ) : (
-                                getUnitsForZone(newUnitZone).map(unit => (
-                                  <div key={unit} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
-                                    <span className="text-[11px] font-medium text-slate-700">{unit}</span>
-                                    <button 
-                                      onClick={() => handleDeleteUnit(newUnitZone, unit)}
-                                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
-                                      title={`Delete unit ${unit} and all its workers`}
-                                    >
-                                      <Icon name="trash-2" size={11} />
-                                    </button>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Option 3: Add Worker */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 block">Option 3: Add Worker</span>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Zone</label>
-                          <SearchableSelect 
-                            value={newWorkerZone} 
-                            onChange={e => {
-                              const val = e.target.value;
-                              setNewWorkerZone(val);
-                              const units = getUnitsForZone(val);
-                              setNewWorkerUnit(units.length > 0 ? units[0] : '');
-                            }}
-                            className="bg-white border-slate-200"
-                          >
-                            <option value="">Select Zone...</option>
-                            {currentZones.map(z => (
-                              <option key={z} value={z}>{z}</option>
-                            ))}
-                          </SearchableSelect>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select Unit</label>
-                          <SearchableSelect 
-                            value={newWorkerUnit} 
-                            onChange={e => setNewWorkerUnit(e.target.value)}
-                            className="bg-white border-slate-200"
-                            disabled={!newWorkerZone}
-                          >
-                            <option value="">Select Unit...</option>
-                            {getUnitsForZone(newWorkerZone).map(u => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </SearchableSelect>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Worker Name</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. JOHN SMITH" 
-                            value={newWorkerName}
-                            onChange={e => setNewWorkerName(e.target.value)}
-                            className="bg-white border-slate-200"
-                            disabled={!newWorkerUnit}
-                          />
-                        </div>
-                        <button 
-                          onClick={handleSaveWorker}
-                          disabled={isSavingWorker || !newWorkerName.trim() || !newWorkerZone || !newWorkerUnit}
-                          className="btn-primary bg-amber-600 hover:bg-amber-700 text-[10px] uppercase font-black py-3 mt-1 w-full"
-                        >
-                          {isSavingWorker ? 'Adding Worker...' : 'Add Worker'}
-                        </button>
-
-                        {newWorkerZone && newWorkerUnit && (
-                          <div className="pt-3 border-t border-slate-200">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Workers in {newWorkerUnit} ({getWorkersForUnit(newWorkerZone, newWorkerUnit).length})</span>
-                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                              {getWorkersForUnit(newWorkerZone, newWorkerUnit).length === 0 ? (
-                                <span className="text-[10px] text-slate-400 italic">No workers mapped to this unit yet.</span>
-                              ) : (
-                                getWorkersForUnit(newWorkerZone, newWorkerUnit).map(worker => (
-                                  <div key={worker} className="flex justify-between items-center bg-white border border-slate-100 rounded-xl px-2.5 py-1.5">
-                                    <span className="text-[11px] font-mono text-slate-600">{worker}</span>
-                                    <button 
-                                      onClick={() => handleDeleteWorker(newWorkerZone, newWorkerUnit, worker)}
-                                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors"
-                                      title={`Delete worker ${worker}`}
-                                    >
-                                      <Icon name="trash-2" size={11} />
-                                    </button>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Grouped Hierarchy Table */}
-                  <div className="pt-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                        Current Sheet Mappings ({zoneMappings.length})
-                      </h4>
-                      <button 
-                        onClick={fetchZoneMappings}
-                        className="text-[10px] uppercase font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                      >
-                        <Icon name="refresh-cw" size={12} className={loadingZoneMappings ? 'animate-spin' : ''} />
-                        Refresh
-                      </button>
-                    </div>
-
-                    <div className="border border-slate-100 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black tracking-wider">
-                          <tr>
-                            <th className="p-3">Zone</th>
-                            <th className="p-3">Unit</th>
-                            <th className="p-3">Worker / Operator</th>
-                            <th className="p-3 text-right">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {zoneMappings.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="p-8 text-center text-slate-400 italic">
-                                No custom hierarchies mapped yet in the ZONE and Unit-specific sheets.
-                              </td>
-                            </tr>
-                          ) : (
-                            zoneMappings.map((item) => (
-                              <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-3 font-bold text-slate-700">{item.zone}</td>
-                                <td className="p-3 text-slate-600">{item.unit || <span className="text-slate-300 italic">- None -</span>}</td>
-                                <td className="p-3 font-mono text-slate-500">{item.worker || <span className="text-slate-300 italic">- None -</span>}</td>
-                                <td className="p-3 text-right">
-                                  <button 
-                                    onClick={() => handleDeleteZoneMapping(item)}
-                                    className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
-                                    title="Delete Mapping"
-                                  >
-                                    <Icon name="trash-2" size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {settingsSubTab === 'userwise' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in duration-200">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Icon name="database" size={20} className="text-indigo-600" />
-                    User Wise Settings (Dropdown Options)
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Configure standard drop-down options for individual users or system-wide global values. Note that <strong>Zone</strong>, <strong>Unit</strong>, and <strong>Workers</strong> are managed dynamically through the Zone, Unit & Worker Setup module.
+              <div className="space-y-6 animate-fade-in">
+                {/* Header */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <Icon name="database" size={22} className="text-indigo-600" />
+                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                      User Wise Settings (Dropdown Options)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-4xl">
+                    Configure personalized drop-down options for individual user accounts. If options are not given for a category, that dropdown will be empty for that user. Common dropdowns (Zone, Unit, Worker, Items &amp; Suppliers) are managed in Tab 2.
                   </p>
                 </div>
 
-                <div className="max-w-xs">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Select User to Configure</label>
+                {/* Select User to Configure */}
+                <div className="max-w-md space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                    SELECT USER TO CONFIGURE
+                  </label>
                   <SearchableSelect 
-                    value={selectedUserCode} 
+                    value={selectedUserCode || (filteredUsers[0]?.userCode || '')} 
                     onChange={e => fetchUserSettings(e.target.value)}
-                    className="bg-white border-slate-200 w-full rounded-xl animate-none shadow-none focus:ring-0"
+                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 w-full rounded-xl py-2.5 text-xs font-semibold shadow-sm"
                   >
-                    <option value="">Select Target...</option>
-                    <option value="GLOBAL">🌐 SYSTEM GLOBAL SETTINGS</option>
                     {filteredUsers.map(u => (
-                      <option key={u.userCode} value={u.userCode}>{u.username} ({u.userCode})</option>
+                      <option key={u.userCode} value={u.userCode}>👤 {u.username} ({u.userCode})</option>
                     ))}
                   </SearchableSelect>
                 </div>
 
-                {selectedUserCode && (
-                  <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        Settings Categories (Grouped & Collapsed by Default)
+                {/* Category Bar: Title + Expand/Collapse Buttons */}
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    USER-SPECIFIC CATEGORIES (GROUPED &amp; COLLAPSED BY DEFAULT)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setOpenGroups(['product', 'factory', 'floor', 'quality'])}
+                      className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                      EXPAND ALL
+                    </button>
+                    <button 
+                      onClick={() => setOpenGroups([])}
+                      className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                      COLLAPSE ALL
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Collapsible Accordion Groups */}
+                <div className="space-y-4">
+                  {/* Group 1: Product Details */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup('product')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon name="tag" size={18} className="text-indigo-600" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          PRODUCT DETAILS (STYLES, SIZES, CUPSIZES, COLORS)
+                        </span>
+                      </div>
+                      <Icon 
+                        name={openGroups.includes('product') ? "chevron-up" : "chevron-down"} 
+                        size={18} 
+                        className="text-slate-400" 
+                      />
+                    </button>
+
+                    {openGroups.includes('product') && (
+                      <div className="p-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 animate-fade-in">
+                        {[
+                          { key: 'STYLE_NAME', label: 'STYLE NAME' },
+                          { key: 'SIZE', label: 'SIZE' },
+                          { key: 'CUPSIZE', label: 'CUPSIZE' },
+                          { key: 'COLOR', label: 'COLOR' }
+                        ].map(({ key, label }) => {
+                          const count = userSettings[key as keyof typeof userSettings] 
+                            ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length 
+                            : 0;
+                          return (
+                            <div key={key} className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
+                              <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>{label}</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-bold">
+                                  ({count} items)
+                                </span>
+                              </label>
+                              <textarea 
+                                rows={6} 
+                                className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 rounded-xl w-full p-2.5 leading-relaxed"
+                                value={userSettings[key as keyof typeof userSettings] || ''} 
+                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                                placeholder={`Enter ${label.toLowerCase()} items, one per line...`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Group 2: Factory Organization */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup('factory')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon name="layers" size={18} className="text-indigo-600" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          FACTORY ORGANIZATION (LINES ONLY)
+                        </span>
+                      </div>
+                      <Icon 
+                        name={openGroups.includes('factory') ? "chevron-up" : "chevron-down"} 
+                        size={18} 
+                        className="text-slate-400" 
+                      />
+                    </button>
+
+                    {openGroups.includes('factory') && (
+                      <div className="p-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 animate-fade-in">
+                        {[
+                          { key: 'LINE', label: 'LINE' }
+                        ].map(({ key, label }) => {
+                          const count = userSettings[key as keyof typeof userSettings] 
+                            ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length 
+                            : 0;
+                          return (
+                            <div key={key} className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
+                              <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>{label}</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-bold">
+                                  ({count} items)
+                                </span>
+                              </label>
+                              <textarea 
+                                rows={6} 
+                                className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 rounded-xl w-full p-2.5 leading-relaxed"
+                                value={userSettings[key as keyof typeof userSettings] || ''} 
+                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                                placeholder={`Enter ${label.toLowerCase()} items, one per line...`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Group 3: Workshop Floor */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup('floor')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon name="tool" size={18} className="text-indigo-600" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          WORKSHOP FLOOR (MACHINES, OPERATIONS ONLY)
+                        </span>
+                      </div>
+                      <Icon 
+                        name={openGroups.includes('floor') ? "chevron-up" : "chevron-down"} 
+                        size={18} 
+                        className="text-slate-400" 
+                      />
+                    </button>
+
+                    {openGroups.includes('floor') && (
+                      <div className="p-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 animate-fade-in">
+                        {[
+                          { key: 'MACHINE', label: 'MACHINE' },
+                          { key: 'OPERATION', label: 'OPERATION' }
+                        ].map(({ key, label }) => {
+                          const count = userSettings[key as keyof typeof userSettings] 
+                            ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length 
+                            : 0;
+                          return (
+                            <div key={key} className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
+                              <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>{label}</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-bold">
+                                  ({count} items)
+                                </span>
+                              </label>
+                              <textarea 
+                                rows={6} 
+                                className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 rounded-xl w-full p-2.5 leading-relaxed"
+                                value={userSettings[key as keyof typeof userSettings] || ''} 
+                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                                placeholder={`Enter ${label.toLowerCase()} items, one per line...`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Group 4: Quality Controls */}
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup('quality')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon name="shield" size={18} className="text-indigo-600" />
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          QUALITY CONTROLS (DEFECTS ONLY)
+                        </span>
+                      </div>
+                      <Icon 
+                        name={openGroups.includes('quality') ? "chevron-up" : "chevron-down"} 
+                        size={18} 
+                        className="text-slate-400" 
+                      />
+                    </button>
+
+                    {openGroups.includes('quality') && (
+                      <div className="p-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-5 animate-fade-in">
+                        {[
+                          { key: 'DEFECTS', label: 'DEFECTS' }
+                        ].map(({ key, label }) => {
+                          const count = userSettings[key as keyof typeof userSettings] 
+                            ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length 
+                            : 0;
+                          return (
+                            <div key={key} className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60">
+                              <label className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>{label}</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-bold">
+                                  ({count} items)
+                                </span>
+                              </label>
+                              <textarea 
+                                rows={6} 
+                                className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 rounded-xl w-full p-2.5 leading-relaxed"
+                                value={userSettings[key as keyof typeof userSettings] || ''} 
+                                onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
+                                placeholder={`Enter ${label.toLowerCase()} items, one per line...`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-4">
+                  <button 
+                    onClick={handleSaveSettings} 
+                    disabled={savingSettings}
+                    className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none"
+                  >
+                    {savingSettings ? 'SAVING CONFIG...' : 'SAVE CONFIGURATION'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {settingsSubTab === 'hierarchy' && (
+              <div className="space-y-6 animate-fade-in">
+                {/* Header */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <Icon name="layers" size={22} className="text-indigo-600" />
+                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                      Zone, Unit &amp; Worker Hierarchy Dropbox Settings
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-4xl">
+                    Manage the hierarchical association of zones, units, and workers. These configurations are persisted globally to the <span className="font-bold text-slate-700 dark:text-slate-300">ZONE</span> sheet, and individual unit-specific sheets.
+                  </p>
+                </div>
+
+                {/* 3 Forms Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                  {/* Option 1: Add Zone */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                    <div className="space-y-3.5">
+                      <span className="text-[11px] font-black uppercase tracking-widest text-indigo-600 block">
+                        OPTION 1: ADD ZONE
                       </span>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => setOpenGroups(['product', 'factory', 'workshop', 'defects'])}
-                          className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-indigo-600 hover:bg-slate-50 transition-colors"
-                        >
-                          Expand All
-                        </button>
-                        <button 
-                          onClick={() => setOpenGroups([])}
-                          className="text-[10px] uppercase font-black tracking-widest bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
-                        >
-                          Collapse All
-                        </button>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          ZONE NAME
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. KERALA, TIRUPUR" 
+                          value={newZoneName}
+                          onChange={e => setNewZoneName(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleSaveZone}
+                        disabled={isSavingZone || !newZoneName.trim()}
+                        className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-[10px] uppercase font-black py-3 rounded-xl w-full"
+                      >
+                        {isSavingZone ? 'Adding Zone...' : 'ADD ZONE'}
+                      </button>
+
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-2.5">
+                          EXISTING ZONES ({currentZones.length})
+                        </span>
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {currentZones.map(zone => (
+                            <div key={zone} className="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase">{zone}</span>
+                              <button 
+                                onClick={() => handleDeleteZone(zone)}
+                                className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                                title={`Delete zone ${zone} and all its units`}
+                              >
+                                <Icon name="trash-2" size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
+                  </div>
 
-                    {[
-                      {
-                        id: 'product',
-                        name: 'Product Details (Styles, Sizes, Items, Colors)',
-                        keys: ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'ITEMS'],
-                        icon: 'shirt'
-                      },
-                      {
-                        id: 'factory',
-                        name: 'Factory Organization (Lines Only)',
-                        keys: ['LINE'],
-                        icon: 'milestone'
-                      },
-                      {
-                        id: 'workshop',
-                        name: 'Workshop Floor (Machines, Operations Only)',
-                        keys: ['MACHINE', 'OPERATION'],
-                        icon: 'wrench'
-                      },
-                      {
-                        id: 'defects',
-                        name: 'Quality Controls (Defects, Suppliers)',
-                        keys: ['DEFECTS', 'SUPPLIER'],
-                        icon: 'shield-alert'
-                      }
-                    ].map(group => {
-                      const isOpen = openGroups.includes(group.id);
-                      return (
-                        <div key={group.id} className="border border-slate-150 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenGroups(prev => 
-                                prev.includes(group.id) ? prev.filter(id => id !== group.id) : [...prev, group.id]
-                              );
-                            }}
-                            className="w-full text-left p-4 bg-slate-50 flex items-center justify-between border-b border-slate-100 font-bold text-slate-700 hover:bg-slate-100/70 transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Icon name={group.icon} size={18} className="text-indigo-600 shrink-0" />
-                              <span className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-700">{group.name}</span>
-                            </div>
-                            <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={16} className="text-slate-400" />
-                          </button>
-
-                          {isOpen && (
-                            <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-                              {group.keys.map(key => (
-                                <div key={key} className="space-y-2">
-                                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                                    <span>{key.replace('_', ' ')} (One per line)</span>
-                                    <span className="text-indigo-600 font-mono text-[10px]">
-                                      ({(userSettings[key as keyof typeof userSettings] ? String(userSettings[key as keyof typeof userSettings]).split('\n').filter(Boolean).length : 0)} items)
-                                    </span>
-                                  </label>
-                                  <textarea 
-                                    rows={6} 
-                                    className="text-sm font-mono border-slate-200 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl w-full"
-                                    value={userSettings[key as keyof typeof userSettings] || ''} 
-                                    onChange={e => setUserSettings({...userSettings, [key]: e.target.value})}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    <div className="pt-6 border-t border-slate-100 flex justify-end">
+                  {/* Option 2: Add Unit */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                    <div className="space-y-3.5">
+                      <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600 block">
+                        OPTION 2: ADD UNIT
+                      </span>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          SELECT ZONE
+                        </label>
+                        <SearchableSelect 
+                          value={newUnitZone} 
+                          onChange={e => setNewUnitZone(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                        >
+                          <option value="">Select Zone...</option>
+                          {currentZones.map(z => (
+                            <option key={z} value={z}>{z}</option>
+                          ))}
+                        </SearchableSelect>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          UNIT NAME
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. UNIT A, UNIT B" 
+                          value={newUnitName}
+                          onChange={e => setNewUnitName(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                        />
+                      </div>
                       <button 
-                        onClick={handleSaveSettings} 
-                        disabled={savingSettings}
-                        className="btn-primary px-12 py-4"
+                        onClick={handleSaveUnit}
+                        disabled={isSavingUnit || !newUnitName.trim() || !newUnitZone}
+                        className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-[10px] uppercase font-black py-3 rounded-xl w-full"
                       >
-                        {savingSettings ? 'SAVING CONFIG...' : 'SAVE CONFIGURATION'}
+                        {isSavingUnit ? 'Adding Unit...' : 'ADD UNIT'}
                       </button>
+
+                      {newUnitZone && (
+                        <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-2.5">
+                            Units in {newUnitZone} ({getUnitsForZone(newUnitZone).length})
+                          </span>
+                          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                            {getUnitsForZone(newUnitZone).length === 0 ? (
+                              <span className="text-xs text-slate-400 italic">No units registered in this zone yet.</span>
+                            ) : (
+                              getUnitsForZone(newUnitZone).map(unit => (
+                                <div key={unit} className="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
+                                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase">{unit}</span>
+                                  <button 
+                                    onClick={() => handleDeleteUnit(newUnitZone, unit)}
+                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                                    title={`Delete unit ${unit} and all its workers`}
+                                  >
+                                    <Icon name="trash-2" size={13} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+
+                  {/* Option 3: Add Worker */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                    <div className="space-y-3.5">
+                      <span className="text-[11px] font-black uppercase tracking-widest text-amber-600 block">
+                        OPTION 3: ADD WORKER
+                      </span>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          SELECT ZONE
+                        </label>
+                        <SearchableSelect 
+                          value={newWorkerZone} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewWorkerZone(val);
+                            const units = getUnitsForZone(val);
+                            setNewWorkerUnit(units.length > 0 ? units[0] : '');
+                          }}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                        >
+                          <option value="">Select Zone...</option>
+                          {currentZones.map(z => (
+                            <option key={z} value={z}>{z}</option>
+                          ))}
+                        </SearchableSelect>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          SELECT UNIT
+                        </label>
+                        <SearchableSelect 
+                          value={newWorkerUnit} 
+                          onChange={e => setNewWorkerUnit(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                          disabled={!newWorkerZone}
+                        >
+                          <option value="">Select Unit...</option>
+                          {getUnitsForZone(newWorkerZone).map(u => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </SearchableSelect>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                          WORKER NAME
+                        </label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. JOHN SMITH" 
+                          value={newWorkerName}
+                          onChange={e => setNewWorkerName(e.target.value)}
+                          className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                          disabled={!newWorkerUnit}
+                        />
+                      </div>
+                      <button 
+                        onClick={handleSaveWorker}
+                        disabled={isSavingWorker || !newWorkerName.trim() || !newWorkerZone || !newWorkerUnit}
+                        className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-[10px] uppercase font-black py-3 rounded-xl w-full"
+                      >
+                        {isSavingWorker ? 'Adding Worker...' : 'ADD WORKER'}
+                      </button>
+
+                      {newWorkerZone && newWorkerUnit && (
+                        <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-2.5">
+                            Workers in {newWorkerUnit} ({getWorkersForUnit(newWorkerZone, newWorkerUnit).length})
+                          </span>
+                          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                            {getWorkersForUnit(newWorkerZone, newWorkerUnit).length === 0 ? (
+                              <span className="text-xs text-slate-400 italic">No workers mapped to this unit yet.</span>
+                            ) : (
+                              getWorkersForUnit(newWorkerZone, newWorkerUnit).map(worker => (
+                                <div key={worker} className="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3.5 py-2.5 shadow-sm">
+                                  <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-300">{worker}</span>
+                                  <button 
+                                    onClick={() => handleDeleteWorker(newWorkerZone, newWorkerUnit, worker)}
+                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                                    title={`Delete worker ${worker}`}
+                                  >
+                                    <Icon name="trash-2" size={13} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Common Items & Suppliers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  {/* Option 4: Common Items */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-purple-600 block">
+                          OPTION 4: COMMON ITEMS
+                        </span>
+                        <button
+                          onClick={() => {
+                            setBulkItemsText(commonItems.join('\n'));
+                            setShowBulkItems(!showBulkItems);
+                          }}
+                          className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
+                        >
+                          {showBulkItems ? 'Close Bulk Edit' : 'Bulk Edit / View All'}
+                        </button>
+                      </div>
+
+                      {showBulkItems ? (
+                        <div className="space-y-2 pt-1 animate-fade-in">
+                          <textarea
+                            rows={10}
+                            className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 rounded-xl w-full p-2.5 leading-relaxed"
+                            value={bulkItemsText}
+                            onChange={e => setBulkItemsText(e.target.value)}
+                            placeholder="One item per line..."
+                          />
+                          <button
+                            onClick={handleSaveBulkItems}
+                            disabled={isSavingItem}
+                            className="btn-primary bg-purple-600 hover:bg-purple-700 text-[10px] uppercase font-black py-2.5 rounded-xl w-full"
+                          >
+                            {isSavingItem ? 'Saving...' : 'SAVE ALL ITEMS'}
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                              ITEM NAME
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. COTTON SPANDEX RIB 220GSM" 
+                              value={newItemName}
+                              onChange={e => setNewItemName(e.target.value)}
+                              className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                            />
+                          </div>
+                          <button 
+                            onClick={handleAddItem}
+                            disabled={isSavingItem || !newItemName.trim()}
+                            className="btn-primary bg-purple-600 hover:bg-purple-700 text-[10px] uppercase font-black py-3 rounded-xl w-full"
+                          >
+                            {isSavingItem ? 'Adding Item...' : 'ADD COMMON ITEM'}
+                          </button>
+
+                          <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                COMMON ITEMS ({commonItems.length})
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="Search..."
+                                value={itemSearch}
+                                onChange={e => setItemSearch(e.target.value)}
+                                className="w-28 text-[10px] py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-normal"
+                              />
+                            </div>
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                              {filteredItemsList.slice(0, 50).map(item => (
+                                <div key={item} className="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm text-xs">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase truncate max-w-[280px]" title={item}>{item}</span>
+                                  <button 
+                                    onClick={() => handleDeleteItem(item)}
+                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors ml-2 shrink-0"
+                                    title={`Delete item ${item}`}
+                                  >
+                                    <Icon name="trash-2" size={13} />
+                                  </button>
+                                </div>
+                              ))}
+                              {filteredItemsList.length > 50 && (
+                                <p className="text-[10px] text-slate-400 text-center italic pt-1">
+                                  Showing first 50 of {filteredItemsList.length} items (use search to filter)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Option 5: Common Suppliers */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600 block">
+                          OPTION 5: COMMON SUPPLIERS
+                        </span>
+                        <button
+                          onClick={() => {
+                            setBulkSuppliersText(commonSuppliers.join('\n'));
+                            setShowBulkSuppliers(!showBulkSuppliers);
+                          }}
+                          className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                        >
+                          {showBulkSuppliers ? 'Close Bulk Edit' : 'Bulk Edit / View All'}
+                        </button>
+                      </div>
+
+                      {showBulkSuppliers ? (
+                        <div className="space-y-2 pt-1 animate-fade-in">
+                          <textarea
+                            rows={10}
+                            className="text-xs font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-emerald-500 rounded-xl w-full p-2.5 leading-relaxed"
+                            value={bulkSuppliersText}
+                            onChange={e => setBulkSuppliersText(e.target.value)}
+                            placeholder="One supplier per line..."
+                          />
+                          <button
+                            onClick={handleSaveBulkSuppliers}
+                            disabled={isSavingSupplier}
+                            className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-[10px] uppercase font-black py-2.5 rounded-xl w-full"
+                          >
+                            {isSavingSupplier ? 'Saving...' : 'SAVE ALL SUPPLIERS'}
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 block">
+                              SUPPLIER NAME
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. TEXTILE KNIT MILLS" 
+                              value={newSupplierName}
+                              onChange={e => setNewSupplierName(e.target.value)}
+                              className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-xs py-2.5 font-semibold"
+                            />
+                          </div>
+                          <button 
+                            onClick={handleAddSupplier}
+                            disabled={isSavingSupplier || !newSupplierName.trim()}
+                            className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-[10px] uppercase font-black py-3 rounded-xl w-full"
+                          >
+                            {isSavingSupplier ? 'Adding Supplier...' : 'ADD COMMON SUPPLIER'}
+                          </button>
+
+                          <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                COMMON SUPPLIERS ({commonSuppliers.length})
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="Search..."
+                                value={supplierSearch}
+                                onChange={e => setSupplierSearch(e.target.value)}
+                                className="w-28 text-[10px] py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-normal"
+                              />
+                            </div>
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                              {filteredSuppliersList.slice(0, 50).map(supplier => (
+                                <div key={supplier} className="flex justify-between items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm text-xs">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase truncate max-w-[280px]" title={supplier}>{supplier}</span>
+                                  <button 
+                                    onClick={() => handleDeleteSupplier(supplier)}
+                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition-colors ml-2 shrink-0"
+                                    title={`Delete supplier ${supplier}`}
+                                  >
+                                    <Icon name="trash-2" size={13} />
+                                  </button>
+                                </div>
+                              ))}
+                              {filteredSuppliersList.length > 50 && (
+                                <p className="text-[10px] text-slate-400 text-center italic pt-1">
+                                  Showing first 50 of {filteredSuppliersList.length} suppliers (use search to filter)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grouped Hierarchy Table */}
+                <div className="pt-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                      Current Sheet Mappings ({zoneMappings.length})
+                    </h4>
+                    <button 
+                      onClick={fetchZoneMappings}
+                      className="text-[10px] uppercase font-bold text-indigo-600 hover:underline flex items-center gap-1.5"
+                    >
+                      <Icon name="refresh-cw" size={12} className={loadingZoneMappings ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
+                  </div>
+
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden max-h-80 overflow-y-auto shadow-sm">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-wider">
+                        <tr>
+                          <th className="p-3">Zone</th>
+                          <th className="p-3">Unit</th>
+                          <th className="p-3">Worker / Operator</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {zoneMappings.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="p-8 text-center text-slate-400 italic">
+                              No custom hierarchies mapped yet in the ZONE and Unit-specific sheets.
+                            </td>
+                          </tr>
+                        ) : (
+                          zoneMappings.map((item) => (
+                            <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                              <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{item.zone}</td>
+                              <td className="p-3 text-slate-600 dark:text-slate-300">{item.unit || <span className="text-slate-400 italic">- None -</span>}</td>
+                              <td className="p-3 font-mono text-slate-500 dark:text-slate-400">{item.worker || <span className="text-slate-400 italic">- None -</span>}</td>
+                              <td className="p-3 text-right">
+                                <button 
+                                  onClick={() => handleDeleteZoneMapping(item)}
+                                  className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                                  title="Delete Mapping"
+                                >
+                                  <Icon name="trash-2" size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </div>

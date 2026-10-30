@@ -22,16 +22,16 @@ const normalizeStatus = (statusStr: string): string => {
     .replace(/[^A-Z0-9]/g, "");
 };
 
+import { getEffectiveZones } from '../utils/settingUtils';
+
 const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workorders, triggerSuccess, globalZone, refreshData }) => {
-  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
   const currentZones = React.useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
     if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
       return [userZone];
     }
-    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
-    return list;
-  }, [settings, hasSpreadsheet, user]);
+    return getEffectiveZones(settings);
+  }, [settings, user]);
 
   // Tab state: 'PRECUTTING' or 'CUTTING'
   const [activeSubmodule, setActiveSubmodule] = useState<'PRECUTTING' | 'CUTTING'>('PRECUTTING');

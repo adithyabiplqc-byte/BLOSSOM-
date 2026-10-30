@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { api } from '../services/api';
-import { ZONES, COLORS, SIZES, CUPSIZES } from '../constants';
+import { ZONES, COLORS, SIZES, CUPSIZES, STYLES } from '../constants';
+import { getDropboxList, getEffectiveZones } from '../utils/settingUtils';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 
@@ -37,32 +38,13 @@ const normalizeStatus = (statusStr: string): string => {
 };
 
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
-  const getParsedSettingList = (keys: string[], defaultVal: string[] = []) => {
-    const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
-    const fallbackVal = hasSpreadsheet ? [] : defaultVal;
-    if (!settings) return fallbackVal;
-    for (const key of keys) {
-      const raw = settings[key] || settings[key.toUpperCase()] || settings[key.toLowerCase()];
-      if (raw !== undefined && raw !== null) {
-        if (typeof raw === 'string') {
-          return raw.split('\n').map((s: string) => s.trim()).filter(Boolean);
-        }
-        if (Array.isArray(raw)) {
-          return raw.map((s: any) => String(s).trim()).filter(Boolean);
-        }
-      }
-    }
-    return fallbackVal;
-  };
-
   const currentZones = React.useMemo(() => {
-    const list = getParsedSettingList(['ZONE', 'ZONES'], ZONES);
-    return list;
+    return getEffectiveZones(settings);
   }, [settings]);
-  const currentSizes = React.useMemo(() => getParsedSettingList(['SIZE', 'SIZES', 'SIZE_RANGE', 'SIZE RANGE'], SIZES), [settings]);
-  const currentCups = React.useMemo(() => getParsedSettingList(['CUPSIZE', 'CUPSIZES', 'CUP', 'CUPS'], CUPSIZES), [settings]);
-  const currentColors = React.useMemo(() => getParsedSettingList(['COLOR', 'COLORS', 'COLOUR', 'COLOURS'], COLORS), [settings]);
-  const currentStyles = React.useMemo(() => getParsedSettingList(['STYLE_NAME', 'STYLE NAME', 'STYLE NAMES', 'STYLE_NAMES', 'STYLE', 'STYLES'], ['STYLE A', 'STYLE B', 'STYLE C']), [settings]);
+  const currentSizes = React.useMemo(() => getDropboxList(settings, 'SIZE', SIZES), [settings]);
+  const currentCups = React.useMemo(() => getDropboxList(settings, 'CUPSIZE', CUPSIZES), [settings]);
+  const currentColors = React.useMemo(() => getDropboxList(settings, 'COLOR', COLORS), [settings]);
+  const currentStyles = React.useMemo(() => getDropboxList(settings, 'STYLE_NAME', STYLES), [settings]);
   const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (user?.zone || (user?.location !== 'SYSTEM' ? user?.location : (currentZones && currentZones.length > 0 ? currentZones[0] : '')));
 
   const getStyleLabel = () => {

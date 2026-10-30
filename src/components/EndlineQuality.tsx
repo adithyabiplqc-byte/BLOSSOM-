@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { ZONES, UNITS, DEFECTS, OPERATIONS, WORKERS, MACHINES, SIZES, COLORS } from '../constants';
+import { ZONES, UNITS, DEFECTS, OPERATIONS, WORKERS, MACHINES, SIZES, COLORS, LINES, CUPSIZES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
+import { getDropboxList, getEffectiveZones, getEffectiveUnits } from '../utils/settingUtils';
 
 interface EndlineQualityProps {
   user: any;
@@ -72,17 +73,7 @@ const normalizeDateToYYYYMMDD = (val: any): string => {
 };
 
 const ensureArray = (val: any, fallback: string[] = []): string[] => {
-  if (Array.isArray(val)) return val;
-  if (typeof val === 'string' && val.trim()) {
-    if (val.includes('\n')) return val.split('\n').map(s => s.trim()).filter(Boolean);
-    if (val.includes(',')) return val.split(',').map(s => s.trim()).filter(Boolean);
-    return [val.trim()];
-  }
-  const hasSpreadsheet = localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL');
-  if (hasSpreadsheet) {
-    return [];
-  }
-  return fallback;
+  return getDropboxList({ val }, 'val', fallback);
 };
 
 const normalizeStatus = (statusStr: string): string => {
@@ -120,41 +111,21 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
     loadZoneMappings();
   }, []);
 
-  // Retrieve settings lists with robust fallbacks
+  // Retrieve settings lists connected to user sheet columns with master fallbacks
   const currentZones = useMemo(() => {
     const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
     if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
       return [userZone];
     }
-    const list = ensureArray(settings?.ZONE || settings?.ZONES, ZONES);
-    return list;
+    return getEffectiveZones(settings);
   }, [settings, user]);
-  const currentDefects = useMemo(() => ensureArray(settings?.DEFECTS || settings?.DEFECT, [
-    'SHOULDER STRAP DAMAGE', 
-    'STAIN', 
-    'BROKEN STITCH', 
-    'UNEVEN HEM', 
-    'REJECT', 
-    'LABEL MISMATCH', 
-    'PUCKERING'
-  ]), [settings]);
-  const currentOperations = useMemo(() => ensureArray(settings?.OPERATION || settings?.OPERATIONS, [
-    'FRONT ATTACH', 
-    'SHOULDER JOIN', 
-    'HEMMING', 
-    'BACK CLOSURE', 
-    'STRAP ASSEMBLY'
-  ]), [settings]);
-  const currentMachines = useMemo(() => ensureArray(settings?.MACHINE || settings?.MACHINES, [
-    'SNLS', 
-    'OVERLOCK', 
-    'FLATLOCK', 
-    'ZIGZAG'
-  ]), [settings]);
-  const currentLines = useMemo(() => ensureArray(settings?.LINE || settings?.LINES, ['1', '2', '3', '4', '5']), [settings]);
-  const currentCupSizes = useMemo(() => ensureArray(settings?.CUPSIZE || settings?.CUPSIZES, ['A', 'B', 'C', 'D', 'E', 'F']), [settings]);
-  const currentSizes = useMemo(() => ensureArray(settings?.SIZE || settings?.SIZES, ['28', '30', '32', '34', '36', '38', '40', '42', '44']), [settings]);
-  const currentColors = useMemo(() => ensureArray(settings?.COLORS || settings?.COLOR || settings?.COLOURS || settings?.COLOUR, COLORS), [settings]);
+  const currentDefects = useMemo(() => getDropboxList(settings, 'DEFECTS', DEFECTS), [settings]);
+  const currentOperations = useMemo(() => getDropboxList(settings, 'OPERATION', OPERATIONS), [settings]);
+  const currentMachines = useMemo(() => getDropboxList(settings, 'MACHINE', MACHINES), [settings]);
+  const currentLines = useMemo(() => getDropboxList(settings, 'LINE', LINES), [settings]);
+  const currentCupSizes = useMemo(() => getDropboxList(settings, 'CUPSIZE', CUPSIZES), [settings]);
+  const currentSizes = useMemo(() => getDropboxList(settings, 'SIZE', SIZES), [settings]);
+  const currentColors = useMemo(() => getDropboxList(settings, 'COLOR', COLORS), [settings]);
 
   // Form State
   const [form, setForm] = useState({ 
@@ -171,23 +142,27 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
   const currentUnits = useMemo(() => {
     const userLoc = String(user?.location || '').trim().toUpperCase();
     const userZone = String(user?.zone || '').trim().toUpperCase();
-    const isCommonOrAdmin = user?.role === 'ADMIN' || userZone === 'COMMON' || userLoc === 'COMMON' || userZone === 'SYSTEM';
+    const isNonAdminWithZone = user?.role !== 'ADMIN' && userZone && userZone !== 'COMMON' && userZone !== 'SYSTEM';
 
-    if (!isCommonOrAdmin && userLoc && userLoc !== 'SYSTEM') {
+    const targetZone = isNonAdminWithZone ? userZone : String(form.zone || '').trim().toUpperCase();
+
+    if (zoneMappings.length > 0 && targetZone) {
+      const matched = zoneMappings
+        .filter(z => String(z.zone || '').toUpperCase() === targetZone && z.unit)
+        .map(z => String(z.unit).toUpperCase());
+      const unique = Array.from(new Set(matched));
+      if (unique.length > 0) {
+        return unique;
+      }
+    }
+
+    if (isNonAdminWithZone && userLoc && userLoc !== 'SYSTEM' && userLoc !== userZone) {
       return [userLoc];
     }
 
-    let list: string[] = [];
-    if (zoneMappings.length > 0) {
-      const matched = zoneMappings
-        .filter(z => String(z.zone || '').toUpperCase() === String(form.zone || '').toUpperCase() && z.unit)
-        .map(z => z.unit);
-      if (matched.length > 0) {
-        list = Array.from(new Set(matched));
-      }
-    }
-    if (list.length === 0) {
-      list = ensureArray(settings?.UNIT || settings?.UNITS || settings?.UNIT_NAME, UNITS);
+    let list = ensureArray(settings?.UNIT || settings?.UNITS || settings?.UNIT_NAME, UNITS);
+    if (isNonAdminWithZone) {
+      return Array.from(new Set(list)).map(u => String(u).toUpperCase());
     }
     return Array.from(new Set(['COMMON', ...list])).map(u => String(u).toUpperCase());
   }, [settings, zoneMappings, form.zone, user]);

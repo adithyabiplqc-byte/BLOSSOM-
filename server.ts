@@ -2,13 +2,14 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
-import { INITIAL_DB } from "./src/data/initialDb";
+import { INITIAL_DB } from "./src/data/initialDb.ts";
+import { ZONES, UNITS, SUPPLIERS, ITEMS, COLORS, SIZES, CUPSIZES, DEFECTS, OPERATIONS, MACHINES, STYLES, LINES } from "./src/constants.ts";
 
 const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 
-const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbzyJE21jeRLP-9ZIjjpJsm0SoSsdIluEGu0Ma0GR8jH93aD-3B9qCbOQxFeNrFMrrygnA/exec";
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
 const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 const HARDCODED_GAS_URLS = [USER_SHEET_URL];
@@ -17,7 +18,7 @@ const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
 
 // Auto-initialize connection configuration files on container boot so every device works out of the box
 try {
-  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbxd") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
+  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzyJE21jeRLP") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbxd") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
     fs.writeFileSync(CONFIG_FILE, USER_SHEET_URL);
     console.log("[BOOT CONFIG] Auto-initialized permanent Google Sheets URL:", USER_SHEET_URL);
   }
@@ -159,11 +160,34 @@ function markUrlHealth(url: string, ok: boolean, errorMsg?: string) {
   urlHealthMap.set(url, existing);
 }
 
+function mergeServerRecords(existing: any[] = [], incoming: any[] = []) {
+  const map = new Map<string, any>();
+  (existing || []).forEach((r: any) => {
+    if (!r) return;
+    const key = String(r.id || `${r.billNo || ''}_${r.grn || ''}_${r.itemName || ''}_${r.workorderNumber || r.wo || ''}_${r.checkingDate || r.date || ''}_${r.timestamp || ''}_${r.round || ''}_${r.bundleNo || ''}_${r.worker || ''}`);
+    map.set(key, r);
+  });
+  (incoming || []).forEach((r: any) => {
+    if (!r) return;
+    const key = String(r.id || `${r.billNo || ''}_${r.grn || ''}_${r.itemName || ''}_${r.workorderNumber || r.wo || ''}_${r.checkingDate || r.date || ''}_${r.timestamp || ''}_${r.round || ''}_${r.bundleNo || ''}_${r.worker || ''}`);
+    map.set(key, { ...(map.get(key) || {}), ...r });
+  });
+  return Array.from(map.values());
+}
+
 // Background sync from Google Sheets into local mirror to ensure 100% data freshness and availability
 async function syncGoogleSheetsData(quiet: boolean = false) {
   try {
-    const url = USER_SHEET_URL;
-    if (!quiet) console.log("[SYNC] Performing live data sync from Google Sheets...");
+    let url = USER_SHEET_URL;
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        const fileUrl = fs.readFileSync(CONFIG_FILE, 'utf8').trim();
+        if (fileUrl && fileUrl.startsWith("https://script.google.com/macros/s/")) {
+          url = fileUrl;
+        }
+      }
+    } catch (e) {}
+    if (!quiet) console.log("[SYNC] Performing live data sync from Google Sheets via", url);
 
     async function callSheet(action: string, params: any[] = [{ zone: "ALL" }]) {
       const controller = new AbortController();
@@ -227,37 +251,37 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
 
     const mat = await callSheet("api_getMaterialData");
     if (Array.isArray(mat) && mat.length > 0) {
-      db.material_reports = mat;
+      db.material_reports = mergeServerRecords(db.material_reports, mat);
     }
 
     const cut = await callSheet("api_getCuttingData");
     if (Array.isArray(cut) && cut.length > 0) {
-      db.cutting_reports = cut;
+      db.cutting_reports = mergeServerRecords(db.cutting_reports, cut);
     }
 
     const inline = await callSheet("api_getInlineData");
     if (Array.isArray(inline) && inline.length > 0) {
-      db.sewing_reports = inline;
+      db.sewing_reports = mergeServerRecords(db.sewing_reports, inline);
     }
 
     const endline = await callSheet("api_getEndlineData");
     if (Array.isArray(endline) && endline.length > 0) {
-      db.endline_reports = endline;
+      db.endline_reports = mergeServerRecords(db.endline_reports, endline);
     }
 
     const aql = await callSheet("api_getAQLData");
     if (Array.isArray(aql) && aql.length > 0) {
-      db.aql_reports = aql;
+      db.aql_reports = mergeServerRecords(db.aql_reports, aql);
     }
 
     const finalAudit = await callSheet("api_getFinalAuditData");
     if (Array.isArray(finalAudit) && finalAudit.length > 0) {
-      db.final_reports = finalAudit;
+      db.final_reports = mergeServerRecords(db.final_reports, finalAudit);
     }
 
     const sop = await callSheet("api_getREPORTS_SOPData");
     if (Array.isArray(sop) && sop.length > 0) {
-      db.reports_sop = sop;
+      db.reports_sop = mergeServerRecords(db.reports_sop, sop);
     }
 
     const zones = await callSheet("api_getZoneMappings");
@@ -267,12 +291,12 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
 
     const logs = await callSheet("api_getAdminLogs");
     if (Array.isArray(logs) && logs.length > 0) {
-      db.admin_logs = logs;
+      db.admin_logs = mergeServerRecords(db.admin_logs, logs);
     }
 
     const complaints = await callSheet("api_getCustomerComplaints");
     if (Array.isArray(complaints)) {
-      db.customer_complaints = complaints;
+      db.customer_complaints = mergeServerRecords(db.customer_complaints, complaints);
     }
 
     writeLocalDb(db);
@@ -501,6 +525,22 @@ function readLocalDb(): any {
           if ((!parsed.settings || Object.keys(parsed.settings).length === 0) && INITIAL_DB?.settings) {
             parsed.settings = JSON.parse(JSON.stringify(INITIAL_DB.settings));
           }
+
+          // Master common ITEMS and SUPPLIERS are purely dynamic and fed via dedicated sheets
+          if (parsed.settings) {
+            parsed.settings.SETTINGS = parsed.settings.SETTINGS || {};
+            parsed.settings.GLOBAL = parsed.settings.GLOBAL || {};
+            parsed.settings.ITEMS = parsed.settings.ITEMS || parsed.settings.SETTINGS.ITEMS || parsed.settings.GLOBAL.ITEMS || [];
+            parsed.settings.SUPPLIERS = parsed.settings.SUPPLIERS || parsed.settings.SUPPLIER || parsed.settings.SETTINGS.SUPPLIERS || parsed.settings.SETTINGS.SUPPLIER || [];
+            parsed.settings.SUPPLIER = parsed.settings.SUPPLIERS;
+            parsed.settings.SETTINGS.ITEMS = parsed.settings.ITEMS;
+            parsed.settings.SETTINGS.SUPPLIERS = parsed.settings.SUPPLIERS;
+            parsed.settings.SETTINGS.SUPPLIER = parsed.settings.SUPPLIERS;
+            parsed.settings.GLOBAL.ITEMS = parsed.settings.ITEMS;
+            parsed.settings.GLOBAL.SUPPLIERS = parsed.settings.SUPPLIERS;
+            parsed.settings.GLOBAL.SUPPLIER = parsed.settings.SUPPLIERS;
+          }
+
           if (parsed.zone.length === 0 && INITIAL_DB?.zone?.length > 0) {
             parsed.zone = JSON.parse(JSON.stringify(INITIAL_DB.zone));
           }
@@ -620,7 +660,7 @@ function getOnlineUsersList(): ActiveUserRecord[] {
  * Resilient helper to match a database record against a target zone.
  * Prevents reports or workorders from disappearing when a zone or unit filter is active.
  */
-function isRecordMatchingZone(r: any, targetZone: string, zoneRows: any[] = []): boolean {
+function isRecordMatchingZone(r: any, targetZone: string, zoneRows: any[] = [], workorders: any[] = []): boolean {
   if (!r) return false;
   if (!targetZone || targetZone === 'ALL' || targetZone === 'SELECT...' || targetZone === '') return true;
 
@@ -628,31 +668,59 @@ function isRecordMatchingZone(r: any, targetZone: string, zoneRows: any[] = []):
   const cTarget = clean(targetZone);
   if (!cTarget || cTarget === 'ALL') return true;
 
-  const rZone = String(r.zone || r.location || '').trim().toUpperCase();
-  const rUnit = String(r.unit || '').trim().toUpperCase();
+  let rZone = String(r.zone || r.location || '').trim().toUpperCase();
+  let rUnit = String(r.unit || '').trim().toUpperCase();
 
-  // If record has no zone or unit specified, keep it visible (never drop untagged data)
-  if (!rZone && !rUnit) return true;
-  // If record is tagged as COMMON, SYSTEM, or ALL, it belongs to all zones
-  if (rZone === 'COMMON' || rZone === 'SYSTEM' || rZone === 'ALL') return true;
+  // If zone missing on record, attempt resolution from associated workorder
+  if (!rZone && (r.workorderNumber || r.wo) && Array.isArray(workorders) && workorders.length > 0) {
+    const targetWo = String(r.workorderNumber || r.wo).trim();
+    const matchWo = workorders.find((w: any) => String(w.workorderNumber || w.wo || w.id).trim() === targetWo);
+    if (matchWo) {
+      rZone = String(matchWo.zone || matchWo.location || '').trim().toUpperCase();
+      if (!rUnit) rUnit = String(matchWo.unit || '').trim().toUpperCase();
+    }
+  }
 
-  // Direct matches
-  if (rZone === targetZone || rUnit === targetZone) return true;
+  // If still no zone, check if unit can resolve zone via zone mappings
+  if (!rZone && rUnit && Array.isArray(zoneRows) && zoneRows.length > 0) {
+    const cUnit = clean(rUnit);
+    const matchedZm = zoneRows.find((zm: any) => {
+      const u = clean(zm.unit || '');
+      return u && (u === cUnit || u.includes(cUnit) || cUnit.includes(u));
+    });
+    if (matchedZm && matchedZm.zone) {
+      rZone = String(matchedZm.zone || '').trim().toUpperCase();
+    }
+  }
 
+  const KNOWN_ZONES = ['KERALA', 'TIRUPUR', 'BANGALORE'];
   const cZone = clean(rZone);
   const cUnit = clean(rUnit);
-  if (cZone && (cZone === cTarget || cZone.includes(cTarget) || cTarget.includes(cZone))) return true;
-  if (cUnit && (cUnit === cTarget || cUnit.includes(cTarget) || cTarget.includes(cUnit))) return true;
+
+  // If the record is explicitly assigned to a known zone and target is a different known zone, it cannot match
+  if (cZone && KNOWN_ZONES.includes(cZone) && KNOWN_ZONES.includes(cTarget) && cZone !== cTarget) {
+    return false;
+  }
+
+  // Direct exact zone or unit match
+  if (rZone === targetZone || rUnit === targetZone) return true;
+  if (cZone && cZone === cTarget) return true;
+  if (cUnit && cUnit === cTarget) return true;
+
+  // Substring match for non-trivial strings (length >= 3)
+  if (cZone && cZone.length >= 3 && (cZone.includes(cTarget) || cTarget.includes(cZone))) return true;
+  if (cUnit && cUnit.length >= 3 && (cUnit.includes(cTarget) || cTarget.includes(cUnit))) return true;
 
   // Check zone mappings: if the record's unit belongs to the target zone
   if (Array.isArray(zoneRows) && zoneRows.length > 0) {
     for (const zm of zoneRows) {
       const zmZone = clean(zm.zone || zm.id || '');
       const zmUnit = clean(zm.unit || '');
-      if (zmZone === cTarget && cUnit && (zmUnit === cUnit || zmUnit.includes(cUnit) || cUnit.includes(zmUnit))) {
+      // Guard: zmUnit MUST be non-empty string to avoid matching all records
+      if (zmZone === cTarget && zmUnit && cUnit && (zmUnit === cUnit || zmUnit.includes(cUnit) || cUnit.includes(zmUnit))) {
         return true;
       }
-      if (zmUnit === cTarget && cZone && (zmZone === cZone || zmZone.includes(cZone) || cZone.includes(zmZone))) {
+      if (zmUnit === cTarget && zmZone && cZone && (zmZone === cZone || zmZone.includes(cZone) || cZone.includes(zmZone))) {
         return true;
       }
     }
@@ -1417,6 +1485,55 @@ function writeLocalDb(data: any) {
   }
 }
 
+function getMasterCommonItems(db: any): string[] {
+  if (Array.isArray(db?.settings?.ITEMS) && db.settings.ITEMS.length > 0) {
+    return db.settings.ITEMS;
+  }
+  if (Array.isArray(db?.settings?.SETTINGS?.ITEMS) && db.settings.SETTINGS.ITEMS.length > 0) {
+    return db.settings.SETTINGS.ITEMS;
+  }
+  if (Array.isArray(db?.material_reports) && db.material_reports.length > 0) {
+    const list: string[] = Array.from(new Set(db.material_reports.map((m: any) => String(m.itemName || m.item || m.ITEMS || '').trim()).filter((s: string) => s && s !== 'ITEM 1' && s !== 'ITEM 2')));
+    if (list.length > 0) {
+      db.settings = db.settings || {};
+      db.settings.ITEMS = list;
+      return list;
+    }
+  }
+  return [];
+}
+
+function getMasterCommonSuppliers(db: any): string[] {
+  if (Array.isArray(db?.settings?.SUPPLIERS) && db.settings.SUPPLIERS.length > 0) {
+    return db.settings.SUPPLIERS;
+  }
+  if (Array.isArray(db?.settings?.SUPPLIER) && db.settings.SUPPLIER.length > 0) {
+    return db.settings.SUPPLIER;
+  }
+  if (Array.isArray(db?.settings?.SETTINGS?.SUPPLIER) && db.settings.SETTINGS.SUPPLIER.length > 0) {
+    return db.settings.SETTINGS.SUPPLIER;
+  }
+  const supsFromUsers: string[] = [];
+  (db?.users || []).forEach((u: any) => {
+    let uS = u.userSettings;
+    if (typeof uS === 'string') {
+      try { uS = JSON.parse(uS); } catch (e) {}
+    }
+    const list = uS ? (uS.SUPPLIER || uS.SUPPLIERS || []) : [];
+    if (Array.isArray(list) && list.length > 5) {
+      supsFromUsers.push(...list);
+    }
+  });
+  const unique: string[] = Array.from(new Set(supsFromUsers.map(s => String(s || '').trim()).filter(Boolean)));
+  if (unique.length > 0) {
+    db.settings = db.settings || {};
+    db.settings.SUPPLIERS = unique;
+    db.settings.SUPPLIER = unique;
+    return unique;
+  }
+  return [];
+}
+
 function getDynamicSettingsForServer(settings: any, db: any): any {
   const finalSettings = { ...(settings || {}) };
   const zoneRows = db.zone || [];
@@ -1453,10 +1570,42 @@ function getDynamicSettingsForServer(settings: any, db: any): any {
         .filter(Boolean)
     )
   );
-  finalSettings.ZONE = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONE && finalSettings.ZONE.length > 0 ? finalSettings.ZONE : []);
-  finalSettings.ZONES = dynamicZones.length > 0 ? dynamicZones : (finalSettings.ZONES && finalSettings.ZONES.length > 0 ? finalSettings.ZONES : []);
-  finalSettings.UNIT = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNIT && finalSettings.UNIT.length > 0 ? finalSettings.UNIT : []);
-  finalSettings.UNITS = dynamicUnits.length > 0 ? dynamicUnits : (finalSettings.UNITS && finalSettings.UNITS.length > 0 ? finalSettings.UNITS : []);
+  finalSettings.ZONE = dynamicZones.length > 0 ? dynamicZones : (Array.isArray(finalSettings.ZONE) && finalSettings.ZONE.length > 0 ? finalSettings.ZONE : ZONES);
+  finalSettings.ZONES = dynamicZones.length > 0 ? dynamicZones : (Array.isArray(finalSettings.ZONES) && finalSettings.ZONES.length > 0 ? finalSettings.ZONES : ZONES);
+  finalSettings.UNIT = dynamicUnits.length > 0 ? dynamicUnits : (Array.isArray(finalSettings.UNIT) && finalSettings.UNIT.length > 0 ? finalSettings.UNIT : UNITS);
+  finalSettings.UNITS = dynamicUnits.length > 0 ? dynamicUnits : (Array.isArray(finalSettings.UNITS) && finalSettings.UNITS.length > 0 ? finalSettings.UNITS : UNITS);
+
+  const resolvedSuppliers = Array.isArray(finalSettings.SUPPLIERS) && finalSettings.SUPPLIERS.length > 0
+    ? finalSettings.SUPPLIERS
+    : (Array.isArray(finalSettings.SUPPLIER) && finalSettings.SUPPLIER.length > 0
+      ? finalSettings.SUPPLIER
+      : getMasterCommonSuppliers(db));
+  finalSettings.SUPPLIER = resolvedSuppliers;
+  finalSettings.SUPPLIERS = resolvedSuppliers;
+
+  const masterStylesList = (db?.settings?.SETTINGS?.STYLE_NAME && Array.isArray(db.settings.SETTINGS.STYLE_NAME) && db.settings.SETTINGS.STYLE_NAME.length > 10)
+    ? db.settings.SETTINGS.STYLE_NAME
+    : ((db?.settings?.GLOBAL?.STYLE_NAME && Array.isArray(db.settings.GLOBAL.STYLE_NAME) && db.settings.GLOBAL.STYLE_NAME.length > 10) ? db.settings.GLOBAL.STYLE_NAME : STYLES);
+  const isDummyStyles = !Array.isArray(finalSettings.STYLE_NAME) || finalSettings.STYLE_NAME.length === 0 || 
+    (finalSettings.STYLE_NAME.length <= 2 && (finalSettings.STYLE_NAME[0] === 'STYLE A' || finalSettings.STYLE_NAME[0] === 'STYLE 1'));
+  finalSettings.STYLE_NAME = isDummyStyles ? masterStylesList : finalSettings.STYLE_NAME;
+
+  const resolvedItems = Array.isArray(finalSettings.ITEMS) && finalSettings.ITEMS.length > 0
+    ? finalSettings.ITEMS
+    : getMasterCommonItems(db);
+  finalSettings.ITEMS = resolvedItems;
+
+  const isDummyDefects = !Array.isArray(finalSettings.DEFECTS) || finalSettings.DEFECTS.length === 0 || 
+    (finalSettings.DEFECTS.length <= 2 && (finalSettings.DEFECTS[0] === 'DEFECT 1' || finalSettings.DEFECTS[0] === 'DEFECT A'));
+  finalSettings.DEFECTS = isDummyDefects ? DEFECTS : finalSettings.DEFECTS;
+
+  finalSettings.COLOR = (Array.isArray(finalSettings.COLOR) && finalSettings.COLOR.length > 0 && finalSettings.COLOR[0] !== 'COLOR 1') ? finalSettings.COLOR : COLORS;
+  finalSettings.SIZE = (Array.isArray(finalSettings.SIZE) && finalSettings.SIZE.length > 0) ? finalSettings.SIZE : SIZES;
+  finalSettings.CUPSIZE = (Array.isArray(finalSettings.CUPSIZE) && finalSettings.CUPSIZE.length > 0) ? finalSettings.CUPSIZE : CUPSIZES;
+  finalSettings.OPERATION = (Array.isArray(finalSettings.OPERATION) && finalSettings.OPERATION.length > 0 && finalSettings.OPERATION[0] !== 'OP 1') ? finalSettings.OPERATION : OPERATIONS;
+  finalSettings.MACHINE = (Array.isArray(finalSettings.MACHINE) && finalSettings.MACHINE.length > 0 && finalSettings.MACHINE[0] !== 'M001') ? finalSettings.MACHINE : MACHINES;
+  finalSettings.LINE = (Array.isArray(finalSettings.LINE) && finalSettings.LINE.length > 0) ? finalSettings.LINE : LINES;
+  finalSettings.WORKERS = Array.isArray(finalSettings.WORKERS) && finalSettings.WORKERS.length > 0 ? finalSettings.WORKERS : ['WORKER 1', 'WORKER 2', 'WORKER 3', 'WORKER 4', 'WORKER 5'];
   return finalSettings;
 }
 
@@ -1548,16 +1697,89 @@ function executeLocalAction(action: string, params: any[]): any {
       
     case 'api_getInitialData': {
       if (params[0]) registerUserPresence(params[0]);
+      if (params[0]?.forceRefresh) {
+        clearApiReadCache();
+      }
       const zone = params[0]?.zone;
       const userCode = params[0]?.userCode;
       const allWOs = db.workorders || [];
-      db.settings = db.settings || {};
-      const rawSettings = userCode ? (db.settings[userCode] || db.settings['GLOBAL'] || {}) : (db.settings['GLOBAL'] || {});
+      const userObj = (db.users || []).find((u: any) => 
+        String(u.userCode || '').trim().toUpperCase() === String(userCode || '').trim().toUpperCase() ||
+        String(u.username || '').trim().toUpperCase() === String(userCode || '').trim().toUpperCase()
+      );
+      const userSpecificSettings = (userCode && db.settings ? db.settings[userCode] : null) || userObj?.userSettings;
+      const masterGlobal = db.settings?.['SETTINGS'] || db.settings?.['GLOBAL'] || {};
+      const globalSettings = db.settings?.['GLOBAL'] || masterGlobal;
+
+      // Start with global settings
+      const rawSettings: any = { ...masterGlobal, ...globalSettings };
+
+      // ITEMS and SUPPLIER are strictly COMMON across all users - always populate from master dataset
+      const masterItems = getMasterCommonItems(db);
+      const masterSuppliers = getMasterCommonSuppliers(db);
+      rawSettings.ITEMS = masterItems;
+      rawSettings.SUPPLIER = masterSuppliers;
+      rawSettings.SUPPLIERS = masterSuppliers;
+
+      // User-customizable categories: STYLE_NAME, SIZE, CUPSIZE, COLOR, LINE, MACHINE, OPERATION, DEFECTS
+      const userRole = String(userObj?.role || params[0]?.role || '').toUpperCase();
+      const CUSTOMIZABLE_KEYS = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+      
+      if (userObj && userRole !== 'ADMIN') {
+        CUSTOMIZABLE_KEYS.forEach(cat => {
+          const val = userSpecificSettings ? userSpecificSettings[cat] : undefined;
+          if (Array.isArray(val)) {
+            rawSettings[cat] = val.map((s: any) => String(s || '').trim()).filter(Boolean);
+          } else if (typeof val === 'string' && val.trim()) {
+            rawSettings[cat] = val.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+          } else {
+            // If not given options in dropbox for this user, show empty
+            rawSettings[cat] = [];
+          }
+        });
+        rawSettings.__isUserSettings = true;
+      } else {
+        CUSTOMIZABLE_KEYS.forEach(cat => {
+          const val = userSpecificSettings ? userSpecificSettings[cat] : undefined;
+          if (Array.isArray(val) && val.length > 0) {
+            rawSettings[cat] = val.map((s: any) => String(s || '').trim()).filter(Boolean);
+          } else if (typeof val === 'string' && val.trim()) {
+            rawSettings[cat] = val.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+          }
+        });
+      }
       const settings = getDynamicSettingsForServer(rawSettings, db);
+
+      // If user was created with a specific zone, lock ZONE and UNIT dropdowns to ONLY that zone and units under it!
+      const userZone = String(userObj?.zone || userObj?.location || zone || '').trim().toUpperCase();
+      if (userObj && userRole !== 'ADMIN' && userZone && userZone !== 'ALL' && userZone !== 'SYSTEM' && userZone !== 'COMMON') {
+        settings.ZONE = [userZone];
+        settings.ZONES = [userZone];
+        const zoneRows = db.zone || [];
+        const zoneUnits = Array.from(new Set(
+          zoneRows
+            .filter((z: any) => String(z.zone || '').trim().toUpperCase() === userZone && String(z.unit || '').trim())
+            .map((z: any) => String(z.unit || '').trim().toUpperCase())
+        ));
+        if (zoneUnits.length > 0) {
+          settings.UNIT = zoneUnits;
+          settings.UNITS = zoneUnits;
+        }
+        const zoneWorkers = Array.from(new Set(
+          zoneRows
+            .filter((z: any) => String(z.zone || '').trim().toUpperCase() === userZone && String(z.worker || '').trim())
+            .map((z: any) => String(z.worker || '').trim())
+        ));
+        if (zoneWorkers.length > 0) {
+          settings.WORKERS = zoneWorkers;
+        }
+      }
+
       return {
         users: db.users || [],
         workorders: allWOs,
         settings: settings,
+        zone: db.zone || [],
         serverTime: new Date().toISOString(),
         maintenance: db.maintenance || {
           enabled: false,
@@ -1592,7 +1814,8 @@ function executeLocalAction(action: string, params: any[]): any {
         username: user.username,
         password: user.password,
         role: user.role,
-        location: user.location,
+        zone: user.zone || user.location || '',
+        location: user.location || '',
         restrictions: remappedRestrictions,
         canDownload: user.canDownload !== false
       };
@@ -1611,24 +1834,32 @@ function executeLocalAction(action: string, params: any[]): any {
       const idx = db.users.findIndex((u: any) => u.userCode === user.userCode);
       if (idx !== -1) {
         let remappedRestrictions = db.users[idx].restrictions;
-        if (user.restrictions) {
+        if (user.restrictions !== undefined) {
           const raw = user.restrictions;
-          remappedRestrictions = raw.includes('B10')
-            ? Array.from(new Set(
-                raw.map((code: string) => {
-                  if (code === 'B7') return null;
-                  if (code === 'B8') return 'B7';
-                  if (code === 'B9') return 'B8';
-                  if (code === 'B10') return 'B9';
-                  return code;
-                }).filter(Boolean)
-              ))
-            : Array.from(new Set(raw.filter(Boolean)));
+          let list: string[] = [];
+          if (Array.isArray(raw)) {
+            list = raw.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
+          } else if (typeof raw === 'string') {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                list = parsed.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
+              }
+            } catch (e) {}
+            if (list.length === 0) {
+              list = raw.split(/[,;|\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+            }
+          }
+          if (list.includes('B10')) {
+            list = list.map(c => c === 'B10' ? 'B9' : c);
+          }
+          remappedRestrictions = Array.from(new Set(list));
         }
 
         db.users[idx] = { 
           ...db.users[idx], 
           ...user,
+          zone: user.zone !== undefined ? user.zone : (db.users[idx].zone || user.location || ''),
           restrictions: remappedRestrictions
         };
         writeLocalDb(db);
@@ -1666,7 +1897,7 @@ function executeLocalAction(action: string, params: any[]): any {
       if (wo.wo && !wo.workorderNumber) wo.workorderNumber = wo.wo;
       if (!wo.status) wo.status = 'PRECUTTING';
       db.workorders = db.workorders || [];
-      db.workorders.push(wo);
+      db.workorders.unshift(wo);
       writeLocalDb(db);
       return { success: true };
     }
@@ -1696,20 +1927,167 @@ function executeLocalAction(action: string, params: any[]): any {
       return { success: true };
     }
     
-    case 'api_getUserSettings': {
-      const target = params[0] || 'GLOBAL';
+    case 'api_getUserSettings':
+    case 'api_getSettings': {
+      let target = params[0] || 'GLOBAL';
+      if (typeof target === 'object' && target !== null) {
+        target = target.userCode || target.target || target.sheetName || 'GLOBAL';
+      }
+      const targetClean = String(target).trim().toUpperCase();
       db.settings = db.settings || {};
-      const rawSettings = db.settings[target] || db.settings['GLOBAL'] || {};
-      return getDynamicSettingsForServer(rawSettings, db);
+      const masterGlobal = db.settings['SETTINGS'] || db.settings['GLOBAL'] || {};
+      const globalSettings = db.settings['GLOBAL'] || masterGlobal;
+
+      // Master common items & suppliers - all users connect to the same dedicated master list
+      const masterItems = getMasterCommonItems(db);
+      const masterSuppliers = getMasterCommonSuppliers(db);
+
+      if (targetClean === 'GLOBAL' || targetClean === 'SETTINGS') {
+        const fullGlobal = getDynamicSettingsForServer({ ...masterGlobal, ...globalSettings, ITEMS: masterItems, SUPPLIER: masterSuppliers, SUPPLIERS: masterSuppliers }, db);
+        return { success: true, settings: fullGlobal, ...fullGlobal };
+      }
+
+      const userObj = (db.users || []).find((u: any) => 
+        String(u.userCode || '').trim().toUpperCase() === targetClean ||
+        String(u.username || '').trim().toUpperCase() === targetClean
+      );
+      const userSettings = (db.settings ? db.settings[target] : null) || userObj?.userSettings || {};
+
+      const CUSTOMIZABLE_KEYS = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+      const userResult: any = {
+        ITEMS: masterItems,
+        SUPPLIER: masterSuppliers,
+        SUPPLIERS: masterSuppliers
+      };
+
+      CUSTOMIZABLE_KEYS.forEach(key => {
+        const val = userSettings[key];
+        if (Array.isArray(val)) {
+          userResult[key] = val.map((s: any) => String(s || '').trim()).filter(Boolean);
+        } else if (typeof val === 'string' && val.trim()) {
+          userResult[key] = val.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+        } else {
+          // If not configured for this user, show EMPTY list
+          userResult[key] = [];
+        }
+      });
+
+      // Apply dynamic zone and unit restrictions
+      const zoneRows = db.zone || [];
+      const dynamicZones = Array.from(new Set(zoneRows.map((z: any) => String(z.zone || '').trim().toUpperCase()).filter(Boolean)));
+      userResult.ZONE = dynamicZones.length > 0 ? dynamicZones : (masterGlobal.ZONE || ZONES);
+      userResult.UNIT = Array.from(new Set(zoneRows.map((z: any) => String(z.unit || '').trim().toUpperCase()).filter(Boolean)));
+      userResult.WORKERS = Array.from(new Set(zoneRows.map((z: any) => String(z.worker || '').trim()).filter(Boolean)));
+
+      if (userObj && userObj.role !== 'ADMIN') {
+        const uZone = String(userObj.zone || userObj.location || '').trim().toUpperCase();
+        if (uZone && uZone !== 'ALL' && uZone !== 'SYSTEM' && uZone !== 'COMMON') {
+          userResult.ZONE = [uZone];
+          userResult.ZONES = [uZone];
+          const zoneUnits = Array.from(new Set(
+            zoneRows
+              .filter((z: any) => String(z.zone || '').trim().toUpperCase() === uZone && String(z.unit || '').trim())
+              .map((z: any) => String(z.unit || '').trim().toUpperCase())
+          ));
+          if (zoneUnits.length > 0) {
+            userResult.UNIT = zoneUnits;
+            userResult.UNITS = zoneUnits;
+          }
+          const zoneWorkers = Array.from(new Set(
+            zoneRows
+              .filter((z: any) => String(z.zone || '').trim().toUpperCase() === uZone && String(z.worker || '').trim())
+              .map((z: any) => String(z.worker || '').trim())
+          ));
+          if (zoneWorkers.length > 0) {
+            userResult.WORKERS = zoneWorkers;
+          }
+        }
+      }
+
+      return { success: true, settings: userResult, ...userResult };
     }
     
     case 'api_saveUserSettings':
     case 'api_saveSettings': {
-      const target = params[0] || 'GLOBAL';
-      const settings = params[1];
+      let target = params[0] || 'GLOBAL';
+      let payloadSettings: any = params[1] || {};
+      if (typeof target === 'object' && target !== null) {
+        payloadSettings = target.settings || target.userSettings || payloadSettings;
+        target = target.target || target.sheetName || target.userCode || 'GLOBAL';
+      }
+      const targetClean = String(target).trim().toUpperCase();
       db.settings = db.settings || {};
-      db.settings[target] = settings;
+
+      if (targetClean === 'ITEMS' || targetClean === 'ITEM') {
+        const newItems = Array.isArray(payloadSettings) ? payloadSettings : (payloadSettings.ITEMS || payloadSettings);
+        const cleanItems = Array.isArray(newItems) ? newItems.map((s: any) => String(s || '').trim()).filter(Boolean) : [];
+        db.settings.ITEMS = cleanItems;
+        db.settings.SETTINGS = db.settings.SETTINGS || {};
+        db.settings.GLOBAL = db.settings.GLOBAL || {};
+        db.settings.SETTINGS.ITEMS = cleanItems;
+        db.settings.GLOBAL.ITEMS = cleanItems;
+      } else if (targetClean === 'SUPPLIER' || targetClean === 'SUPPLIERS') {
+        const newSuppliers = Array.isArray(payloadSettings) ? payloadSettings : (payloadSettings.SUPPLIER || payloadSettings.SUPPLIERS || payloadSettings);
+        const cleanSuppliers = Array.isArray(newSuppliers) ? newSuppliers.map((s: any) => String(s || '').trim()).filter(Boolean) : [];
+        db.settings.SUPPLIERS = cleanSuppliers;
+        db.settings.SUPPLIER = cleanSuppliers;
+        db.settings.SETTINGS = db.settings.SETTINGS || {};
+        db.settings.GLOBAL = db.settings.GLOBAL || {};
+        db.settings.SETTINGS.SUPPLIERS = cleanSuppliers;
+        db.settings.SETTINGS.SUPPLIER = cleanSuppliers;
+        db.settings.GLOBAL.SUPPLIERS = cleanSuppliers;
+        db.settings.GLOBAL.SUPPLIER = cleanSuppliers;
+      } else if (targetClean === 'GLOBAL' || targetClean === 'SETTINGS') {
+        const currentGlobal = db.settings.GLOBAL || db.settings.SETTINGS || {};
+        const updated = { ...currentGlobal, ...payloadSettings };
+        if (payloadSettings.ITEMS && Array.isArray(payloadSettings.ITEMS)) {
+          const cleanItems = payloadSettings.ITEMS.map((s: any) => String(s || '').trim()).filter(Boolean);
+          updated.ITEMS = cleanItems;
+          db.settings.ITEMS = cleanItems;
+        }
+        if (payloadSettings.SUPPLIERS && Array.isArray(payloadSettings.SUPPLIERS)) {
+          const cleanSuppliers = payloadSettings.SUPPLIERS.map((s: any) => String(s || '').trim()).filter(Boolean);
+          updated.SUPPLIERS = cleanSuppliers;
+          updated.SUPPLIER = cleanSuppliers;
+          db.settings.SUPPLIERS = cleanSuppliers;
+          db.settings.SUPPLIER = cleanSuppliers;
+        } else if (payloadSettings.SUPPLIER && Array.isArray(payloadSettings.SUPPLIER)) {
+          const cleanSuppliers = payloadSettings.SUPPLIER.map((s: any) => String(s || '').trim()).filter(Boolean);
+          updated.SUPPLIERS = cleanSuppliers;
+          updated.SUPPLIER = cleanSuppliers;
+          db.settings.SUPPLIERS = cleanSuppliers;
+          db.settings.SUPPLIER = cleanSuppliers;
+        }
+        db.settings.GLOBAL = updated;
+        db.settings.SETTINGS = updated;
+      } else {
+        const CUSTOMIZABLE = ['STYLE_NAME', 'SIZE', 'CUPSIZE', 'COLOR', 'LINE', 'MACHINE', 'OPERATION', 'DEFECTS'];
+        const userCustom: any = db.settings[target] || {};
+        CUSTOMIZABLE.forEach(key => {
+          if (payloadSettings[key] !== undefined) {
+            userCustom[key] = payloadSettings[key];
+          }
+        });
+        delete userCustom.ITEMS;
+        delete userCustom.ITEM;
+        delete userCustom.SUPPLIER;
+        delete userCustom.SUPPLIERS;
+        delete userCustom.ZONE;
+        delete userCustom.UNIT;
+        delete userCustom.WORKERS;
+        db.settings[target] = userCustom;
+
+        const uIdx = (db.users || []).findIndex((u: any) => 
+          String(u.userCode || '').trim().toUpperCase() === targetClean ||
+          String(u.username || '').trim().toUpperCase() === targetClean
+        );
+        if (uIdx !== -1) {
+          db.users[uIdx].userSettings = userCustom;
+        }
+      }
+
       writeLocalDb(db);
+      clearApiReadCache();
       return { success: true };
     }
     
@@ -1717,9 +2095,11 @@ function executeLocalAction(action: string, params: any[]): any {
       return db.admin_logs || [];
 
     case 'api_getZoneMappings':
+    case 'api_getZoneMapping':
       return Array.isArray(db.zone) ? db.zone : [];
 
-    case 'api_saveZoneMapping': {
+    case 'api_saveZoneMapping':
+    case 'api_saveZoneMappings': {
       db.zone = db.zone || [];
       const record = params[0];
       record.id = record.id || 'zmap-' + Math.random().toString(36).substr(2, 9);
@@ -1752,7 +2132,8 @@ function executeLocalAction(action: string, params: any[]): any {
       return { success: true, record };
     }
 
-    case 'api_deleteZoneMapping': {
+    case 'api_deleteZoneMapping':
+    case 'api_deleteZoneMappings': {
       const param = params[0];
       let targetIdStr = "";
       let targetZone = "";
@@ -1848,7 +2229,7 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'mat-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
-      db.material_reports.push(report);
+      db.material_reports.unshift(report);
       writeLocalDb(db);
       return { success: true };
     }
@@ -1868,7 +2249,7 @@ function executeLocalAction(action: string, params: any[]): any {
         report.wo = matchedWO.workorderNumber;
         report.workorderNumber = matchedWO.workorderNumber;
       }
-      db.cutting_reports.push(report);
+      db.cutting_reports.unshift(report);
       
       // Update WO status
       if (matchedWO) {
@@ -1890,7 +2271,7 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'sew-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
-      db.sewing_reports.push(report);
+      db.sewing_reports.unshift(report);
       
       // Update WO status
       if (report.moveToEndline && report.wo) {
@@ -1977,7 +2358,7 @@ function executeLocalAction(action: string, params: any[]): any {
 
       report.id = report.id || 'sew-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
-      db.sewing_reports.push(report);
+      db.sewing_reports.unshift(report);
       writeLocalDb(db);
       return { success: true };
     }
@@ -2042,12 +2423,12 @@ function executeLocalAction(action: string, params: any[]): any {
         }
       }
 
-      // Check if report already exists, update or push
+      // Check if report already exists, update or unshift
       const existingIdx = db.endline_reports.findIndex((r: any) => String(r.id) === String(report.id));
       if (existingIdx !== -1) {
         db.endline_reports[existingIdx] = { ...db.endline_reports[existingIdx], ...report };
       } else {
-        db.endline_reports.push(report);
+        db.endline_reports.unshift(report);
       }
       
       // Update WO status explicitly if moveToAQL is set
@@ -2078,7 +2459,7 @@ function executeLocalAction(action: string, params: any[]): any {
         report.wo = matchedWO.workorderNumber;
         report.workorderNumber = matchedWO.workorderNumber;
       }
-      db.aql_reports.push(report);
+      db.aql_reports.unshift(report);
       
       // Update WO status
       if (matchedWO && (report.moveToFinal || report.auditStatus === 'PASS')) {
@@ -2101,7 +2482,7 @@ function executeLocalAction(action: string, params: any[]): any {
         report.wo = matchedWO.workorderNumber;
         report.workorderNumber = matchedWO.workorderNumber;
       }
-      db.final_reports.push(report);
+      db.final_reports.unshift(report);
       
       // Update WO status
       if (matchedWO) {
@@ -2117,7 +2498,7 @@ function executeLocalAction(action: string, params: any[]): any {
       const report = params[0];
       report.id = report.id || 'rew-' + Math.random().toString(36).substr(2, 9);
       if (!report.timestamp) report.timestamp = new Date().toISOString();
-      db.rework_reports.push(report);
+      db.rework_reports.unshift(report);
       writeLocalDb(db);
       return { success: true };
     }
@@ -2153,10 +2534,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.material_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2165,10 +2545,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.cutting_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2177,10 +2556,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2189,10 +2567,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.sewing_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2201,10 +2578,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.endline_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2213,10 +2589,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.aql_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2225,10 +2600,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const zoneArg = typeof params[0] === 'string' ? params[0] : params[0]?.zone;
       let data = db.final_reports || [];
       const zClean = String(zoneArg || '').trim().toUpperCase();
-      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
+      if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER' && zClean !== 'SELECT...') {
         const zoneRows = db.zone || [];
-        const filtered = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows));
-        if (filtered.length > 0) data = filtered;
+        data = data.filter((r: any) => isRecordMatchingZone(r, zClean, zoneRows, db.workorders || []));
       }
       return data;
     }
@@ -2313,7 +2687,7 @@ function executeLocalAction(action: string, params: any[]): any {
       if (existingIdx !== -1) {
         db.reports_sop[existingIdx] = { ...db.reports_sop[existingIdx], ...report };
       } else {
-        db.reports_sop.push(report);
+        db.reports_sop.unshift(report);
       }
       writeLocalDb(db);
       return { success: true, id: report.id };
@@ -2519,11 +2893,29 @@ function executeLocalAction(action: string, params: any[]): any {
       }));
       
       db.material_reports = db.material_reports || [];
-      db.material_reports.push(...mappedItems);
+      db.material_reports.unshift(...mappedItems);
       writeLocalDb(db);
       return { success: true, count: items.length, total: items.length };
     }
     
+    case 'api_getDataBySheet': {
+      const sheetName = String(params[0] || '').trim().toUpperCase();
+      if (sheetName === 'ITEMS' || sheetName === 'ITEM') {
+        const items = getMasterCommonItems(db);
+        return items.map((it: string) => ({ ITEMS: it, itemName: it, id: it }));
+      }
+      if (sheetName === 'SUPPLIERS' || sheetName === 'SUPPLIER') {
+        const sups = getMasterCommonSuppliers(db);
+        return sups.map((s: string) => ({ SUPPLIERS: s, supplierName: s, id: s }));
+      }
+      if (sheetName === 'USERS') return db.users || [];
+      if (sheetName === 'ZONE') return db.zone || [];
+      if (sheetName === 'UNIT') return db.unit || [];
+      if (sheetName === 'MATERIAL REPORT' || sheetName === 'MATERIAL') return db.material_reports || [];
+      if (sheetName === 'SETTINGS') return [db.settings?.SETTINGS || db.settings?.GLOBAL || {}];
+      return [];
+    }
+
     default:
       console.warn(`[LOCAL DB FALLBACK] Unknown action requested: ${action}`);
       return { success: false, error: `Method ${action} not supported locally.` };
@@ -2549,7 +2941,10 @@ async function startServer() {
   try {
     const fsConfig = await getFirestoreConfig();
     if (fsConfig) {
-      if (fsConfig.gasUrl && !fs.existsSync(CONFIG_FILE)) {
+      if (fsConfig.gasUrl && (fsConfig.gasUrl.includes("AKfycbzyJE21jeRLP") || fsConfig.gasUrl.includes("AKfycbwK"))) {
+        await saveFirestoreConfig(USER_SHEET_URL, fsConfig.spreadsheetId || "BOUND_TO_SCRIPT", fsConfig.gasDriveUrl || "");
+        console.log(`[BOOT AUTO-HEAL] Updated Firestore GAS URL to new endpoint: ${USER_SHEET_URL}`);
+      } else if (fsConfig.gasUrl && !fs.existsSync(CONFIG_FILE)) {
         fs.writeFileSync(CONFIG_FILE, fsConfig.gasUrl.trim());
         console.log(`[BOOT AUTO-HEAL] Restored missing GAS URL from Firestore: ${fsConfig.gasUrl}`);
       }
@@ -2600,7 +2995,7 @@ async function startServer() {
       fsDriveUrl = fsConfig.gasDriveUrl || "";
 
       // Auto-heal local files from Firestore configuration independently
-      if (fsUrl && fsUrl !== fileUrl) {
+      if (fsUrl && fsUrl !== fileUrl && !fsUrl.includes("AKfycbzyJE21jeRLP") && !fsUrl.includes("AKfycbwK")) {
         try {
           fs.writeFileSync(CONFIG_FILE, fsUrl.trim());
           console.log(`[AUTO-HEAL SERVER] Recreated CONFIG_FILE from Firestore: ${fsUrl}`);
@@ -3012,13 +3407,14 @@ async function startServer() {
       }
 
       const candidateUrls: string[] = [];
-      // Always put USER_SHEET_URL as candidate #1
-      candidateUrls.push(USER_SHEET_URL);
       if (gasUrl && typeof gasUrl === 'string') {
         const trimmed = gasUrl.trim();
         if (trimmed && trimmed.startsWith("https://script.google.com/macros/s/") && !candidateUrls.includes(trimmed)) {
           candidateUrls.push(trimmed);
         }
+      }
+      if (!candidateUrls.includes(USER_SHEET_URL)) {
+        candidateUrls.push(USER_SHEET_URL);
       }
       HARDCODED_GAS_URLS.forEach(url => {
         if (!candidateUrls.includes(url)) {
@@ -3056,36 +3452,7 @@ async function startServer() {
       const payloadSize = JSON.stringify(bodyPayload).length;
       console.log(`[API PROXY] Action: ${action} | Size: ${(payloadSize / 1024).toFixed(2)}KB | Pool Size: ${candidateUrls.length} | Source: ${source}`);
 
-      // If Maintenance Mode is active, block regular users from reading or writing data
-      const currentDb = readLocalDb();
-      if (currentDb?.maintenance?.enabled) {
-        const callerRole = String(
-          bodyPayload.role || 
-          bodyPayload.user?.role || 
-          bodyPayload.params?.[0]?.role || 
-          ''
-        ).toUpperCase();
-        
-        const bypassActions = new Set([
-          'api_ping',
-          'api_heartbeat',
-          'api_getOnlineUsers',
-          'api_getMaintenanceStatus',
-          'api_setMaintenanceStatus',
-          'api_login',
-          'api_getInitialData', // Allowed so login credentials or admin view can initialize
-          'api_getUsers'
-        ]);
 
-        if (!bypassActions.has(action) && callerRole !== 'ADMIN') {
-          return res.status(503).json({
-            success: false,
-            error: "MAINTENANCE_MODE",
-            maintenance: true,
-            message: currentDb.maintenance.message || "System is currently undergoing scheduled maintenance. Please check back shortly."
-          });
-        }
-      }
 
       // Ultra-fast instant launch: Serve initial data immediately from local database (<2ms) and sync with cloud in background
       if (action === 'api_getInitialData') {
@@ -3195,11 +3562,7 @@ async function startServer() {
         if (!forceRemote) {
           try {
             const localData = executeLocalAction(action, bodyPayload.params || []);
-            const hasRealData = Array.isArray(localData) 
-              ? localData.length > 0 
-              : (localData && typeof localData === 'object' && Object.keys(localData).length > 0);
-
-            if (hasRealData) {
+            if (localData !== undefined && localData !== null) {
               if (cacheKey) {
                 apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localData });
               }
@@ -3228,18 +3591,92 @@ async function startServer() {
                           markUrlHealth(targetUrl, true);
                           if (Array.isArray(parsed) && parsed.length > 0) {
                             const db = readLocalDb();
-                            if (action === 'api_getWorkorders') db.workorders = parsed;
-                            else if (action === 'api_getMaterialData') db.material_reports = parsed;
-                            else if (action === 'api_getCuttingData') db.cutting_reports = parsed;
-                            else if (action === 'api_getInlineData' || action === 'api_get8ROUNDSYSTEMData') db.sewing_reports = parsed;
-                            else if (action === 'api_getEndlineData') db.endline_reports = parsed;
-                            else if (action === 'api_getAQLData') db.aql_reports = parsed;
-                            else if (action === 'api_getFinalAuditData') db.final_reports = parsed;
-                            else if (action === 'api_getREPORTS_SOPData') db.reports_sop = parsed;
-                            else if (action === 'api_getCustomerComplaints') db.customer_complaints = parsed;
+                            const mergeList = (existing: any[] = [], incoming: any[] = []) => {
+                              const map = new Map<string, any>();
+                              (existing || []).forEach((r: any) => {
+                                const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
+                                map.set(k, r);
+                              });
+                              incoming.forEach((r: any) => {
+                                const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
+                                map.set(k, { ...(map.get(k) || {}), ...r });
+                              });
+                              return Array.from(map.values());
+                            };
+
+                            const hasZoneFilter = Array.isArray(bodyPayload.params) && bodyPayload.params.some((p: any) => p && typeof p === 'object' && p.zone && p.zone !== 'ALL');
+                            if (action === 'api_getWorkorders') db.workorders = hasZoneFilter ? mergeList(db.workorders, parsed) : parsed;
+                            else if (action === 'api_getMaterialData') db.material_reports = hasZoneFilter ? mergeList(db.material_reports, parsed) : parsed;
+                            else if (action === 'api_getCuttingData') db.cutting_reports = hasZoneFilter ? mergeList(db.cutting_reports, parsed) : parsed;
+                            else if (action === 'api_getInlineData' || action === 'api_get8ROUNDSYSTEMData') db.sewing_reports = hasZoneFilter ? mergeList(db.sewing_reports, parsed) : parsed;
+                            else if (action === 'api_getEndlineData') db.endline_reports = hasZoneFilter ? mergeList(db.endline_reports, parsed) : parsed;
+                            else if (action === 'api_getAQLData') db.aql_reports = hasZoneFilter ? mergeList(db.aql_reports, parsed) : parsed;
+                            else if (action === 'api_getFinalAuditData') db.final_reports = hasZoneFilter ? mergeList(db.final_reports, parsed) : parsed;
+                            else if (action === 'api_getREPORTS_SOPData') db.reports_sop = hasZoneFilter ? mergeList(db.reports_sop, parsed) : parsed;
+                            else if (action === 'api_getCustomerComplaints') db.customer_complaints = hasZoneFilter ? mergeList(db.customer_complaints, parsed) : parsed;
                             else if (action === 'api_getZoneMappings') db.zone = parsed;
                             else if (action === 'api_getAdminLogs') db.admin_logs = parsed;
                             writeLocalDb(db);
+                            if (cacheKey) apiReadCache.delete(cacheKey);
+                          } else if (parsed && typeof parsed === 'object') {
+                            const db = readLocalDb();
+                            if (action === 'api_getUserSettings' || action === 'api_getGlobalSettings') {
+                              let targetUser = 'GLOBAL';
+                              if (Array.isArray(bodyPayload.params) && bodyPayload.params.length > 0) {
+                                const p = bodyPayload.params[0];
+                                if (typeof p === 'string') targetUser = p;
+                                else if (p && typeof p === 'object') targetUser = p.userCode || p.target || p.sheetName || 'GLOBAL';
+                              }
+                              const settingsObj = (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : parsed;
+                              db.settings = db.settings || {};
+                              db.settings[targetUser] = settingsObj;
+                              if (Array.isArray(settingsObj.ITEMS) && settingsObj.ITEMS.length > 0) {
+                                db.settings.ITEMS = settingsObj.ITEMS;
+                              }
+                              if (Array.isArray(settingsObj.SUPPLIER) && settingsObj.SUPPLIER.length > 0) {
+                                db.settings.SUPPLIERS = settingsObj.SUPPLIER;
+                                db.settings.SUPPLIER = settingsObj.SUPPLIER;
+                              } else if (Array.isArray(settingsObj.SUPPLIERS) && settingsObj.SUPPLIERS.length > 0) {
+                                db.settings.SUPPLIERS = settingsObj.SUPPLIERS;
+                                db.settings.SUPPLIER = settingsObj.SUPPLIERS;
+                              }
+                              if (targetUser === 'GLOBAL' || targetUser === 'SETTINGS') {
+                                db.settings['GLOBAL'] = settingsObj;
+                                db.settings['SETTINGS'] = settingsObj;
+                              }
+                              if (db.users && targetUser !== 'GLOBAL' && targetUser !== 'SETTINGS') {
+                                const uIdx = db.users.findIndex((u: any) => 
+                                  String(u.userCode || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase() ||
+                                  String(u.username || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase()
+                                );
+                                if (uIdx !== -1) {
+                                  db.users[uIdx].userSettings = settingsObj;
+                                }
+                              }
+                              writeLocalDb(db);
+                              if (cacheKey) apiReadCache.delete(cacheKey);
+                            } else if (action === 'api_getInitialData') {
+                              if (Array.isArray(parsed.users) && parsed.users.length > 0) db.users = parsed.users;
+                              if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) db.workorders = parsed.workorders;
+                              if (Array.isArray(parsed.zone) && parsed.zone.length > 0) db.zone = parsed.zone;
+                              if (parsed.settings && typeof parsed.settings === 'object') {
+                                db.settings = db.settings || {};
+                                db.settings['GLOBAL'] = parsed.settings;
+                                db.settings['SETTINGS'] = parsed.settings;
+                                if (Array.isArray(parsed.settings.ITEMS) && parsed.settings.ITEMS.length > 0) {
+                                  db.settings.ITEMS = parsed.settings.ITEMS;
+                                }
+                                if (Array.isArray(parsed.settings.SUPPLIER) && parsed.settings.SUPPLIER.length > 0) {
+                                  db.settings.SUPPLIERS = parsed.settings.SUPPLIER;
+                                  db.settings.SUPPLIER = parsed.settings.SUPPLIER;
+                                } else if (Array.isArray(parsed.settings.SUPPLIERS) && parsed.settings.SUPPLIERS.length > 0) {
+                                  db.settings.SUPPLIERS = parsed.settings.SUPPLIERS;
+                                  db.settings.SUPPLIER = parsed.settings.SUPPLIERS;
+                                }
+                              }
+                              writeLocalDb(db);
+                              if (cacheKey) apiReadCache.delete(cacheKey);
+                            }
                           }
                           break;
                         }
@@ -3446,11 +3883,15 @@ async function startServer() {
               if (bgRes.ok) {
                 const bgText = await bgRes.text();
                 if (!bgText.trim().startsWith("<")) {
+                  console.log(`[SHEET SYNC SUCCESS] Action "${action}" successfully synchronized to Google Sheet:`, bgText.substring(0, 100));
                   markUrlHealth(targetUrl, true);
                   break;
                 }
+              } else {
+                console.warn(`[SHEET SYNC] Action "${action}" received HTTP ${bgRes.status} from Google Sheets:`, targetUrl);
               }
             } catch (bgErr: any) {
+              console.warn(`[SHEET SYNC ERROR] Action "${action}" failed on ${targetUrl}:`, bgErr.message);
               markUrlHealth(targetUrl, false, bgErr.message);
             }
           }
@@ -4000,6 +4441,7 @@ async function startServer() {
       const getFallbackProposal = () => {
         return {
           aiGenerated: false,
+          score: overallScore,
           overallScore,
           qualityVerdict,
           summary: `Blossom AI completed industrial diagnostic auditing across all 9 operational modules (B1 through B9) for ${zone === 'ALL' ? 'Global Production' : `Zone ${zone}`}. Total quality records tracked: ${b1.length + b2.length + b3.length + b4.length + b5.length + b6.length + b8.length + b9.length + b10.length}. Active quality health profile indexes at ${overallScore}/100 with ${b5Fails > 0 ? `${b5Fails} AQL lot failures` : 'stable AQL batching'} and ${b10Total > 0 ? `${b10Total} registered customer complaints (${b10Pieces} pcs)` : 'zero customer returns'}.`,
@@ -4428,6 +4870,8 @@ async function startServer() {
         const textResponse = response.text || "";
         const parsed = extractJSON(textResponse);
         parsed.aiGenerated = true;
+        parsed.score = Number(parsed.score || parsed.overallScore || overallScore || 85);
+        parsed.overallScore = parsed.score;
         
         // Ensure moduleBreakdown contains all 10 items even if model shortened it
         if (!Array.isArray(parsed.moduleBreakdown) || parsed.moduleBreakdown.length < 10) {

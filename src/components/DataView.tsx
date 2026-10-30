@@ -8,6 +8,7 @@ import SearchableSelect from './SearchableSelect';
 import { flexibleSearchMatch } from '../utils/search';
 import { getDirectImageUrl, parseAndNormalizeImages, resolveIndexedDbImage } from '../utils/imageUtils';
 import { triggerDirectDownload } from '../utils/sopUtils';
+import { isRecordMatchingZone } from '../utils/settingUtils';
 import SmartImage from './SmartImage';
 
 const HOURLY_ROUNDS = [
@@ -281,7 +282,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
   }, [globalZone, isCommonOrAdmin, userAssignedZone]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [id, selectedZone, selectedItem, refreshKey]);
 
   const fetchData = async (forceRefresh = false) => {
@@ -319,13 +320,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
       
       if (Array.isArray(res)) {
         setData(res);
-      } else {
-        console.warn(`[DataView] Expected array but got:`, typeof res, res);
-        setData([]);
+      } else if (res && typeof res === 'object') {
+        const list = res.data || res.rows || res.items || res.reports;
+        if (Array.isArray(list)) {
+          setData(list);
+        }
       }
     } catch (error: any) {
       console.warn(`[DataView] Fetch data notice for ${id}:`, error.message);
-      setData([]);
     } finally {
       setLoading(false);
     }
@@ -487,7 +489,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
         itemRemarks: ['itemremarks', 'itemremark', 'item_remarks', 'item_remark', 'itemRemarks', 'itemRemark'],
         generalRemarks: ['generalremarks', 'generalremark', 'general_remarks', 'general_remark', 'generalRemarks', 'generalRemark'],
         remarks: ['remarks', 'remark', 'notes', 'note', 'comments', 'comment'],
-        unit: ['unit', 'units'],
+        zone: ['zone', 'zones', 'location', 'factory', 'branch', 'ZONE', 'Zone', 'Location', 'LOCATION', 'Factory', 'Branch'],
+        unit: ['unit', 'units', 'UNIT', 'Unit', 'line', 'Line', 'location', 'Location'],
         line: ['line', 'lines'],
         worker: ['worker', 'operator', 'operatorname', 'operator_name', 'workername', 'worker_name', 'WORKER', 'Worker', 'operatorName', 'workerName'],
         materialType: ['materialtype', 'material_type', 'materialcategory', 'material_category', 'materialType', 'materialCategory'],
@@ -566,38 +569,8 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     if (!Array.isArray(normalizedData)) return [];
     const matched = normalizedData.filter(row => {
       if (!row) return false;
-      // Zone filter with resilient fuzzy and mapping-aware matching
-      const cleanSelectedZone = (selectedZone || 'ALL').trim().toUpperCase();
-      const clean = (s: string) => String(s || '').trim().toUpperCase().replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
-      const cSelected = clean(cleanSelectedZone);
-      const rZoneRaw = String(row.zone || row.location || '').trim().toUpperCase();
-      const rUnitRaw = String(row.unit || '').trim().toUpperCase();
-      const cRowZone = clean(rZoneRaw);
-      const cRowUnit = clean(rUnitRaw);
-
-      let zoneMatch = cleanSelectedZone === 'ALL' || 
-                      cleanSelectedZone === 'SELECT...' || 
-                      cleanSelectedZone === '' ||
-                      !cSelected ||
-                      (!rZoneRaw && !rUnitRaw) || // Never drop untagged data
-                      rZoneRaw === 'ALL' || 
-                      rZoneRaw === 'COMMON' || 
-                      rZoneRaw === 'SYSTEM' ||
-                      rZoneRaw === cleanSelectedZone || 
-                      rUnitRaw === cleanSelectedZone ||
-                      (cRowZone && cRowZone === cSelected) ||
-                      (cRowUnit && cRowUnit === cSelected) ||
-                      (cRowZone && (cRowZone.includes(cSelected) || cSelected.includes(cRowZone))) ||
-                      (cRowUnit && (cRowUnit.includes(cSelected) || cSelected.includes(cRowUnit)));
-
-      if (!zoneMatch && Array.isArray(zoneMappings) && zoneMappings.length > 0) {
-        zoneMatch = zoneMappings.some((zm: any) => {
-          const zmZone = clean(zm.zone || zm.id || '');
-          const zmUnit = clean(zm.unit || '');
-          return (zmZone === cSelected && cRowUnit && (zmUnit === cRowUnit || zmUnit.includes(cRowUnit) || cRowUnit.includes(zmUnit))) ||
-                 (zmUnit === cSelected && cRowZone && (zmZone === cRowZone || zmZone.includes(cRowZone) || cRowZone.includes(zmZone)));
-        });
-      }
+      // Zone filter with resilient, strict matching
+      const zoneMatch = isRecordMatchingZone(row, selectedZone || 'ALL', zoneMappings, workorders);
       
       // Item filter
       const itemMatch = selectedItem === 'ALL' || 
@@ -612,16 +585,30 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
     const seenKeys = new Set();
     const result: any[] = [];
-    matched.forEach(row => {
-      const key = row.id || `${row.workorderNumber || row.wo || ''}_${row.checkingDate || row.date || row.timestamp || ''}_${row.submodule || ''}_${row.bundleNo || ''}_${row.round || ''}_${row.reworkQty || ''}_${row.checkedQty || ''}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
+    matched.forEach((row, idx) => {
+      // Build a comprehensive unique key that covers all modules (Material, Cutting, Inline, Endline, AQL, Final, Workorder, Complaints)
+      const uid = row.id || row.ID || row.uuid;
+      const specificKey = uid 
+        ? String(uid) 
+        : `${row.billNo || ''}_${row.grn || ''}_${row.lotNo || ''}_${row.rollNo || ''}_${row.itemName || row.item || ''}_${row.supplier || row.supplierName || ''}_${row.workorderNumber || row.wo || ''}_${row.checkingDate || row.date || ''}_${row.submodule || ''}_${row.bundleNo || ''}_${row.round || ''}_${row.worker || row.operator || ''}_${row.reworkQty || ''}_${row.checkedQty || row.checkedQuantity || ''}_${row.passQty || row.passQuantity || ''}_${row.timestamp || row.dateTime || ''}`;
+      
+      const finalKey = (specificKey && specificKey.replace(/_/g, '').trim()) ? specificKey : `row_${idx}`;
+      
+      if (!seenKeys.has(finalKey)) {
+        seenKeys.add(finalKey);
         result.push(row);
       }
     });
 
+    // Always sort newest entries first so they appear immediately at the top of the ledger in B Module
+    result.sort((a, b) => {
+      const timeA = new Date(a.timestamp || a.dateTime || a.checkingDate || a.date || a.createdAt || 0).getTime() || 0;
+      const timeB = new Date(b.timestamp || b.dateTime || b.checkingDate || b.date || b.createdAt || 0).getTime() || 0;
+      return timeB - timeA;
+    });
+
     return result;
-  }, [normalizedData, selectedZone, selectedItem, activeSearch]);
+  }, [normalizedData, selectedZone, selectedItem, activeSearch, searchTerm]);
 
   const uniqueDatesInInline = useMemo(() => {
     if (id !== 'B3' || !Array.isArray(normalizedData)) return [];

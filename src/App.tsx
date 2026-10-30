@@ -12,6 +12,7 @@ import SubmoduleContainer from './components/SubmoduleContainer';
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
 import { INITIAL_DB } from './data/initialDb';
+import { isModuleRestricted } from './utils/restrictions';
 
 const getSavedSession = () => {
   try {
@@ -46,7 +47,7 @@ const App: React.FC = () => {
     if (!initialSession) return 'login';
     try {
       const savedSub = localStorage.getItem('bqos_active_submodule');
-      if (savedSub && initialSession.role !== 'WORKORDER') return 'submodule';
+      if (savedSub && initialSession.role !== 'WORKORDER' && !isModuleRestricted(initialSession, savedSub)) return 'submodule';
     } catch (e) {}
     if (initialSession.role === 'ADMIN') return 'admin';
     if (initialSession.role === 'WORKORDER') return 'workorder';
@@ -68,15 +69,33 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     localStorage.removeItem('bqos_theme');
+    try { localStorage.removeItem('bqos_maintenance'); } catch (e) {}
   }, []);
 
+  const effectiveUser = React.useMemo(() => {
+    if (user && Array.isArray(users) && users.length > 0) {
+      const fresh = users.find(u => 
+        String(u.userCode || '').trim().toUpperCase() === String(user.userCode || '').trim().toUpperCase() ||
+        String(u.username || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()
+      );
+      if (fresh) {
+        return { ...user, ...fresh };
+      }
+    }
+    return user;
+  }, [user, users]);
+
   const handleSelectSubmodule = useCallback((id: string) => {
+    if (isModuleRestricted(effectiveUser, id)) {
+      setConnectionError(`Access Restricted: Your account does not have access permissions for module ${id}.`);
+      return;
+    }
     try {
       localStorage.setItem('bqos_active_submodule', id);
     } catch (e) {}
     setSelectedSubmodule(id);
     setView('submodule');
-  }, []);
+  }, [effectiveUser]);
 
   const handleBackFromSubmodule = useCallback(() => {
     try {
@@ -103,6 +122,12 @@ const App: React.FC = () => {
   }, [settings]);
 
   const currentZones = React.useMemo(() => {
+    if (user && user.role !== 'ADMIN') {
+      const uZone = String(user.zone || user.location || '').trim().toUpperCase();
+      if (uZone && uZone !== 'ALL' && uZone !== 'COMMON' && uZone !== 'SYSTEM') {
+        return [uZone];
+      }
+    }
     if (zoneMappings && zoneMappings.length > 0) {
       const fromMap = zoneMappings
         .filter((z: any) => String(z.zone || '').trim())
@@ -114,19 +139,27 @@ const App: React.FC = () => {
     }
     const list = getParsedSettingList(['ZONE', 'ZONES'], ZONES);
     return list.filter((z: string) => z && !z.toUpperCase().startsWith('ZMAP-'));
-  }, [zoneMappings, getParsedSettingList]);
+  }, [user, zoneMappings, getParsedSettingList]);
 
-  // Auto-select zone if exactly one zone exists, or reset if active globalZone was deleted
+  // Auto-select zone if user is locked to a zone, or exactly one zone exists, or reset if active globalZone was deleted
   useEffect(() => {
+    if (user && user.role !== 'ADMIN') {
+      const uZone = String(user.zone || user.location || '').trim().toUpperCase();
+      if (uZone && uZone !== 'ALL' && uZone !== 'COMMON' && uZone !== 'SYSTEM') {
+        if (globalZone !== uZone) setGlobalZone(uZone);
+        return;
+      }
+    }
     if (currentZones.length === 1 && globalZone !== currentZones[0]) {
       setGlobalZone(currentZones[0]);
     } else if (globalZone !== 'ALL' && currentZones.length > 0 && !currentZones.includes(globalZone)) {
       setGlobalZone('ALL');
     }
-  }, [currentZones, globalZone]);
+  }, [user, currentZones, globalZone]);
 
   const triggerSuccess = (message: string) => {
     setSuccessMessage(message);
+    api.clearCache();
     fetchData(undefined, true);
     setTimeout(() => setSuccessMessage(null), 2500);
   };
@@ -170,13 +203,6 @@ const App: React.FC = () => {
         if (data.settings) {
           setSettings(prev => (JSON.stringify(prev) === JSON.stringify(data.settings) ? prev : data.settings));
         }
-        if (data.maintenance) {
-          setMaintenance(data.maintenance);
-          try { localStorage.setItem('bqos_maintenance', JSON.stringify(data.maintenance)); } catch (e) {}
-        }
-        if (typeof data.onlineCount === 'number') {
-          setOnlineUsersCount(data.onlineCount);
-        }
         if (!silent) {
           setConnectionError(null);
         }
@@ -204,6 +230,55 @@ const App: React.FC = () => {
     return null;
   }, [user?.userCode, user?.role, user?.location, user?.zone, globalZone]);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing || loading) return;
+    setIsRefreshing(true);
+    try {
+      api.clearCache();
+      const activeZone = (user?.role === 'ADMIN' || user?.zone === 'COMMON') ? globalZone : (user?.zone || user?.location || 'ALL');
+      const [initResult, zmResult] = await Promise.allSettled([
+        api.run('api_getInitialData', { 
+          zone: activeZone, 
+          userCode: user?.userCode,
+          username: user?.username,
+          role: user?.role,
+          location: user?.location,
+          forceRefresh: true 
+        }),
+        api.run('api_getZoneMappings')
+      ]);
+
+      if (initResult.status === 'fulfilled' && initResult.value) {
+        const initData = initResult.value as any;
+        if (Array.isArray(initData.users) && initData.users.length > 0) {
+          setUsers(initData.users);
+          try { localStorage.setItem('bqos_cache_users', JSON.stringify(initData.users)); } catch(e){}
+        }
+        if (Array.isArray(initData.workorders)) {
+          setWorkorders(initData.workorders);
+          try { localStorage.setItem('bqos_cache_wo', JSON.stringify(initData.workorders)); } catch(e){}
+        }
+        if (initData.settings) {
+          setSettings(initData.settings);
+          try { localStorage.setItem('bqos_cache_settings', JSON.stringify(initData.settings)); } catch(e){}
+        }
+      }
+
+      if (zmResult.status === 'fulfilled' && Array.isArray(zmResult.value)) {
+        setZoneMappings(zmResult.value);
+        try { localStorage.setItem('bqos_cache_zm', JSON.stringify(zmResult.value)); } catch(e){}
+      }
+
+      triggerSuccess("System data refreshed successfully.");
+    } catch (e: any) {
+      console.warn("Manual refresh failed:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Background polling every 30 seconds to keep all modules in sync across all devices/tabs simultaneously
   useEffect(() => {
     if (!user || user.role === 'LOGIN') return;
@@ -216,10 +291,10 @@ const App: React.FC = () => {
   }, [fetchData, user?.userCode]);
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (user?.role === 'ADMIN' || user?.zone === 'COMMON' || !user?.zone || user?.zone === 'ALL' || user?.zone === 'SYSTEM') {
       fetchData(globalZone, true);
     }
-  }, [globalZone, user?.role]);
+  }, [globalZone, user?.role, user?.zone]);
 
   // Keep logged-in user info in sync with fresh database updates (e.g., administrator restriction updates)
   useEffect(() => {
@@ -643,25 +718,11 @@ const App: React.FC = () => {
                     </button>
                   )}
 
-                  {/* Live Online Users indicator button */}
-                  <button
-                    onClick={() => setShowAppOnlineUsersModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all shadow-xs cursor-pointer"
-                    title="Click to view Active Online Users"
-                  >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <Icon name="users" size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">{onlineUsersCount} Online</span>
-                  </button>
-
                   <button 
-                    onClick={() => fetchData()} 
-                    disabled={loading}
-                    className={`p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm ${loading ? 'animate-spin opacity-50' : ''}`}
-                    title="Refresh Data"
+                    onClick={handleManualRefresh} 
+                    disabled={isRefreshing || loading}
+                    className={`p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm ${isRefreshing ? 'animate-spin text-indigo-600 dark:text-indigo-400' : ''}`}
+                    title="Refresh Live Data"
                   >
                     <Icon name="refresh-cw" size={18} />
                   </button>
@@ -691,54 +752,37 @@ const App: React.FC = () => {
               )}
             </header>
 
-            {/* Warning banner for logged-in Administrator when Maintenance Mode is ON */}
-            {maintenance?.enabled && user?.role === 'ADMIN' && (
-              <div className="bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 text-white px-4 py-2.5 shadow-md flex flex-wrap items-center justify-between gap-3 text-xs font-bold sticky top-[65px] z-40">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  <Icon name="alert-triangle" size={16} />
-                  <span>MAINTENANCE MODE ACTIVE: The app is currently turned OFF for regular users. Non-admin users see the maintenance window.</span>
+            {connectionError === 'CONFIGURATION_MODE' && (
+              <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                <div className="max-w-2xl w-full my-8">
+                  <ConnectionGuide 
+                    error="User Configuration Mode" 
+                    onClose={() => setConnectionError(null)} 
+                    isPermanentlyConnected={isPermanentlyConnected}
+                  />
                 </div>
-                <button
-                  onClick={() => {
-                    try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
-                    setSelectedSubmodule('');
-                    setView('admin');
-                  }}
-                  className="px-3 py-1 bg-white text-rose-700 hover:bg-slate-100 rounded-lg text-xs font-black uppercase tracking-wider transition-colors shadow-sm ml-auto"
-                >
-                  Admin Panel / Turn On
-                </button>
               </div>
             )}
 
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-fade-in duration-500">
-              {connectionError === 'CONFIGURATION_MODE' ? (
-                <ConnectionGuide 
-                  error="User Configuration Mode" 
-                  onClose={() => setConnectionError(null)} 
-                  isPermanentlyConnected={isPermanentlyConnected}
-                />
-              ) : (
-                connectionError && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-center justify-between mb-6 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center">
-                        <Icon name="alert-triangle" size={16} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-xs uppercase tracking-wider">Sheets Sync Warning</h4>
-                        <p className="text-xs text-rose-600/90 font-medium">{connectionError}</p>
-                      </div>
+              {connectionError && connectionError !== 'CONFIGURATION_MODE' && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-center justify-between mb-6 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center">
+                      <Icon name="alert-triangle" size={16} />
                     </div>
-                    <button 
-                      onClick={() => setConnectionError(null)} 
-                      className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
-                    >
-                      <Icon name="x" size={16} />
-                    </button>
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-wider">Sheets Sync Warning</h4>
+                      <p className="text-xs text-rose-600/90 font-medium">{connectionError}</p>
+                    </div>
                   </div>
-                )
+                  <button 
+                    onClick={() => setConnectionError(null)} 
+                    className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
+                  >
+                    <Icon name="x" size={16} />
+                  </button>
+                </div>
               )}
 
               {view === 'admin' && (
@@ -758,8 +802,6 @@ const App: React.FC = () => {
                     triggerSuccess={triggerSuccess} 
                     globalZone={globalZone} 
                     settings={settings}
-                    maintenance={maintenance}
-                    onUpdateMaintenance={setMaintenance}
                   />
                 </div>
               )}
@@ -830,48 +872,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* When Maintenance Mode is active and current user is NOT an Admin:
-          Render the Maintenance Window on top of everything! */}
-      {maintenance?.enabled && user?.role !== 'ADMIN' && (
-        <MaintenanceScreen
-          maintenance={maintenance}
-          onCheckStatus={checkConnectivity}
-          currentUser={user}
-          onAdminLogin={(admin) => {
-            handleLogin(admin);
-            triggerSuccess("Administrator authenticated: Maintenance override active");
-          }}
-          onTurnOnApp={async () => {
-            const payload = {
-              enabled: false,
-              message: maintenance?.message || 'System is currently undergoing scheduled maintenance. Please check back shortly.',
-              setBy: user?.username || 'ADMIN'
-            };
-            await systemService.setMaintenanceStatus(payload);
-            setMaintenance(systemService.getCachedMaintenance());
-            triggerSuccess("Application Turned ON — System is Live");
-          }}
-          onGoToAdmin={() => {
-            try { localStorage.removeItem('bqos_active_submodule'); } catch (e) {}
-            setSelectedSubmodule('');
-            setView('admin');
-          }}
-          users={users}
-          isChecking={isCheckingMaintenance}
-        />
-      )}
-
-      {/* Online Users Active Monitor Modal */}
-      <OnlineUsersModal
-        isOpen={showAppOnlineUsersModal}
-        onClose={() => setShowAppOnlineUsersModal(false)}
-        users={systemService.getCachedOnlineUsers()}
-        registeredUsers={users}
-        onRefresh={async () => {
-          await systemService.fetchOnlineUsers();
-        }}
-      />
-
       {renderView()}
     </ErrorBoundary>
   );

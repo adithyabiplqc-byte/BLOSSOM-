@@ -3,12 +3,14 @@ import { api } from '../services/api';
 import { SUPPLIERS, ITEMS, ZONES } from '../constants';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
+import { parseSettingList, getEffectiveZones, getDropboxList } from '../utils/settingUtils';
 
 interface MaterialInspectionProps {
   user: any;
   settings: any;
   triggerSuccess: (message: string) => void;
   globalZone?: string;
+  refreshData?: () => void;
 }
 
 interface InspectionItem {
@@ -20,75 +22,64 @@ interface InspectionItem {
   remarks: string;
 }
 
-const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings, triggerSuccess, globalZone }) => {
+const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings, triggerSuccess, globalZone, refreshData }) => {
   const currentSuppliers = useMemo(() => {
-    const list = settings?.SUPPLIER || settings?.SUPPLIERS || SUPPLIERS || [];
-    return Array.isArray(list) ? list.filter(Boolean) : [];
+    return getDropboxList(settings, 'SUPPLIER', SUPPLIERS);
   }, [settings]);
 
   const currentItems = useMemo(() => {
-    const list = settings?.ITEMS || settings?.ITEM || ITEMS || [];
-    return Array.isArray(list) ? list.filter(Boolean) : [];
+    return getDropboxList(settings, 'ITEMS', ITEMS);
   }, [settings]);
 
-  const hasSpreadsheet = typeof localStorage !== 'undefined' && (localStorage.getItem('VITE_SPREADSHEET_ID') || localStorage.getItem('VITE_GAS_URL'));
   const currentZones = useMemo(() => {
-    const list = settings?.ZONE || settings?.ZONES || (hasSpreadsheet ? [] : ZONES);
-    const arr = Array.isArray(list) ? list.filter(Boolean) : [];
-    return arr.filter((z: string) => z && z.toUpperCase() !== 'ALL');
-  }, [settings, hasSpreadsheet]);
+    const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
+    if (user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM') {
+      return [userZone];
+    }
+    const list = getEffectiveZones(settings, undefined, user);
+    return list.filter((z: string) => z && z.toUpperCase() !== 'ALL');
+  }, [settings, user]);
 
-  const initialZone = (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || 'A');
+  const userZone = String(user?.zone || user?.location || '').trim().toUpperCase();
+  const isUserLocked = user?.role !== 'ADMIN' && user?.zone !== 'COMMON' && userZone && userZone !== 'SYSTEM';
+  const initialZone = isUserLocked ? userZone : ((globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''));
 
   const [header, setHeader] = useState({
     zone: initialZone,
     billNo: '',
-    supplierName: currentSuppliers[0] || '',
+    supplierName: '',
     grn: '',
-    materialType: 'Packing Material',
+    materialType: '',
     receivedDate: new Date().toISOString().split('T')[0],
     checkingDate: new Date().toISOString().split('T')[0],
     remarks: ''
   });
 
   const [items, setItems] = useState<InspectionItem[]>([
-    { itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }
+    { itemName: '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }
   ]);
 
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync initial values when settings load
-  useEffect(() => {
-    if (!header.supplierName && currentSuppliers.length > 0) {
-      setHeader(prev => ({ ...prev, supplierName: currentSuppliers[0] }));
-    }
-    if (items.length === 1 && currentItems.length > 0 && !items[0].itemName) {
-      updateItem(0, 'itemName', currentItems[0]);
-    }
-  }, [currentSuppliers, currentItems]);
-
-  // Sync zone with globalZone
+  // Sync zone with globalZone when changed
   useEffect(() => {
     if (globalZone && globalZone !== 'ALL') {
       setHeader(prev => ({ ...prev, zone: globalZone }));
-    } else if (currentZones && currentZones.length > 0 && (!header.zone || !currentZones.includes(header.zone))) {
-      setHeader(prev => ({ ...prev, zone: currentZones[0] }));
     }
-  }, [globalZone, currentZones]);
+  }, [globalZone]);
 
   const addItem = () => {
     setItems(prev => [
       ...prev,
-      { itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }
+      { itemName: '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }
     ]);
   };
 
   const removeItem = (index: number) => {
     if (items.length === 1) return;
     setItems(prev => prev.filter((_, i) => i !== index));
-    // Clear item-specific errors
     setValidationErrors(prev => {
       const copy = { ...prev };
       Object.keys(copy).forEach(k => {
@@ -113,9 +104,24 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
   const updateItem = (index: number, field: keyof InspectionItem, value: string) => {
     setItems(prev => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      const current = { ...copy[index], [field]: value };
+
+      // Auto-calculations for rapid inspection data entry
+      if (field === 'receivedQuantity' && (!current.checkedQuantity || current.checkedQuantity === '0')) {
+        current.checkedQuantity = value;
+      }
+      if (field === 'checkedQuantity' || field === 'passQuantity') {
+        const chk = parseFloat(field === 'checkedQuantity' ? value : current.checkedQuantity);
+        const pass = parseFloat(field === 'passQuantity' ? value : current.passQuantity);
+        if (!isNaN(chk) && !isNaN(pass) && chk >= pass) {
+          current.rejectedQuantity = String(Math.max(0, chk - pass));
+        }
+      }
+
+      copy[index] = current;
       return copy;
     });
+
     const errKey = `item_${index}_${field}`;
     if (validationErrors[errKey]) {
       setValidationErrors(prev => {
@@ -129,95 +135,95 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
 
   const handleClear = () => {
     setHeader({
-      zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || 'A'),
+      zone: (globalZone && globalZone !== 'ALL') ? globalZone : (currentZones[0] || ''),
       billNo: '',
-      supplierName: currentSuppliers[0] || '',
+      supplierName: '',
       grn: '',
-      materialType: 'Packing Material',
+      materialType: '',
       receivedDate: new Date().toISOString().split('T')[0],
       checkingDate: new Date().toISOString().split('T')[0],
       remarks: ''
     });
-    setItems([{ itemName: currentItems[0] || '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }]);
+    setItems([{ itemName: '', receivedQuantity: '', checkedQuantity: '', passQuantity: '', rejectedQuantity: '', remarks: '' }]);
     setValidationErrors({});
     setErrorMessage(null);
   };
 
   const validateAllFields = (): boolean => {
-    const errors: Record<string, string> = {};
+    const errors: Record<string, boolean> = {};
     const missingFields: string[] = [];
 
-    // Header validations: All boxes and dropboxes are mandatory!
-    if (!header.zone || !header.zone.trim() || header.zone === 'ALL') {
-      errors['zone'] = 'Zone selection is mandatory.';
-      missingFields.push('Zone (dropbox)');
+    // Header validations
+    if (!header.zone || !header.zone.trim() || header.zone === 'ALL' || header.zone.toLowerCase().includes('select')) {
+      errors['zone'] = true;
+      missingFields.push('Zone');
     }
     if (!header.billNo || !header.billNo.trim()) {
-      errors['billNo'] = 'Bill No is mandatory.';
-      missingFields.push('Bill No (box)');
+      errors['billNo'] = true;
+      missingFields.push('Bill No');
     }
     if (!header.supplierName || !header.supplierName.trim() || header.supplierName.toLowerCase().includes('select')) {
-      errors['supplierName'] = 'Supplier Name selection is mandatory.';
-      missingFields.push('Supplier Name (dropbox)');
+      errors['supplierName'] = true;
+      missingFields.push('Supplier Name');
     }
     if (!header.grn || !header.grn.trim()) {
-      errors['grn'] = 'GRN is mandatory.';
-      missingFields.push('GRN (box)');
+      errors['grn'] = true;
+      missingFields.push('GRN');
     }
-    if (!header.materialType || !header.materialType.trim()) {
-      errors['materialType'] = 'Material Type selection is mandatory.';
-      missingFields.push('Material Type (dropbox)');
+    if (!header.materialType || !header.materialType.trim() || header.materialType.toLowerCase().includes('select')) {
+      errors['materialType'] = true;
+      missingFields.push('Material Type');
     }
     if (!header.receivedDate || !header.receivedDate.trim()) {
-      errors['receivedDate'] = 'Received Date is mandatory.';
-      missingFields.push('Received Date (box)');
+      errors['receivedDate'] = true;
+      missingFields.push('Received Date');
     }
     if (!header.checkingDate || !header.checkingDate.trim()) {
-      errors['checkingDate'] = 'Checked Date is mandatory.';
-      missingFields.push('Checked Date (box)');
+      errors['checkingDate'] = true;
+      missingFields.push('Checked Date');
     }
     if (!header.remarks || !header.remarks.trim()) {
-      errors['remarks'] = 'General Remarks is mandatory.';
-      missingFields.push('General Remarks (box)');
+      errors['remarks'] = true;
+      missingFields.push('General Remarks');
     }
 
-    // Items table validations: All boxes and dropboxes in all item rows are mandatory!
+    // Items table validations
     if (items.length === 0) {
-      missingFields.push('At least one item row is mandatory.');
+      missingFields.push('Item Row');
     }
 
     items.forEach((item, idx) => {
       const rowNum = idx + 1;
       if (!item.itemName || !item.itemName.trim() || item.itemName.toLowerCase().includes('select')) {
-        errors[`item_${idx}_itemName`] = `Row ${rowNum}: Item Name is mandatory.`;
-        missingFields.push(`Row ${rowNum} Item Name (dropbox)`);
+        errors[`item_${idx}_itemName`] = true;
+        missingFields.push(`Row ${rowNum} Item Name`);
       }
-      if (item.receivedQuantity === '' || item.receivedQuantity === null || item.receivedQuantity === undefined || isNaN(Number(item.receivedQuantity))) {
-        errors[`item_${idx}_receivedQuantity`] = `Row ${rowNum}: Received Quantity is mandatory.`;
-        missingFields.push(`Row ${rowNum} Received Quantity (box)`);
+      if (item.receivedQuantity === '' || item.receivedQuantity === null || isNaN(Number(item.receivedQuantity))) {
+        errors[`item_${idx}_receivedQuantity`] = true;
+        missingFields.push(`Row ${rowNum} Received Qty`);
       }
-      if (item.checkedQuantity === '' || item.checkedQuantity === null || item.checkedQuantity === undefined || isNaN(Number(item.checkedQuantity))) {
-        errors[`item_${idx}_checkedQuantity`] = `Row ${rowNum}: Checked Quantity is mandatory.`;
-        missingFields.push(`Row ${rowNum} Checked Quantity (box)`);
+      if (item.checkedQuantity === '' || item.checkedQuantity === null || isNaN(Number(item.checkedQuantity))) {
+        errors[`item_${idx}_checkedQuantity`] = true;
+        missingFields.push(`Row ${rowNum} Checked Qty`);
       }
-      if (item.passQuantity === '' || item.passQuantity === null || item.passQuantity === undefined || isNaN(Number(item.passQuantity))) {
-        errors[`item_${idx}_passQuantity`] = `Row ${rowNum}: Pass Quantity is mandatory.`;
-        missingFields.push(`Row ${rowNum} Pass Quantity (box)`);
+      if (item.passQuantity === '' || item.passQuantity === null || isNaN(Number(item.passQuantity))) {
+        errors[`item_${idx}_passQuantity`] = true;
+        missingFields.push(`Row ${rowNum} Pass Qty`);
       }
-      if (item.rejectedQuantity === '' || item.rejectedQuantity === null || item.rejectedQuantity === undefined || isNaN(Number(item.rejectedQuantity))) {
-        errors[`item_${idx}_rejectedQuantity`] = `Row ${rowNum}: Rejected Quantity is mandatory.`;
-        missingFields.push(`Row ${rowNum} Rejected Quantity (box)`);
+      if (item.rejectedQuantity === '' || item.rejectedQuantity === null || isNaN(Number(item.rejectedQuantity))) {
+        errors[`item_${idx}_rejectedQuantity`] = true;
+        missingFields.push(`Row ${rowNum} Rejected Qty`);
       }
       if (!item.remarks || !item.remarks.trim()) {
-        errors[`item_${idx}_remarks`] = `Row ${rowNum}: Item Remarks is mandatory.`;
-        missingFields.push(`Row ${rowNum} Item Remarks (box)`);
+        errors[`item_${idx}_remarks`] = true;
+        missingFields.push(`Row ${rowNum} Remarks`);
       }
     });
 
     setValidationErrors(errors);
 
     if (missingFields.length > 0) {
-      setErrorMessage(`Cannot upload entry! All boxes and dropboxes are mandatory. Please fill: ${missingFields.slice(0, 4).join(', ')}${missingFields.length > 4 ? ` and ${missingFields.length - 4} more` : ''}.`);
+      setErrorMessage(`Please fill all boxes! Missing: ${missingFields.slice(0, 5).join(', ')}${missingFields.length > 5 ? ` and ${missingFields.length - 5} more` : ''}.`);
       return false;
     }
 
@@ -231,7 +237,6 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
 
     const isValid = validateAllFields();
     if (!isValid) {
-      // Scroll to the error alert smoothly
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -245,41 +250,24 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
         timestamp: new Date().toISOString() 
       });
       triggerSuccess('MATERIAL INSPECTION ENTRY UPLOADED SUCCESSFULLY');
+      if (refreshData) refreshData();
       handleClear();
     } catch (error: any) {
       console.error("Submission error:", error);
-      setErrorMessage(`Error uploading inspection: ${error?.message || 'Check connection'}`);
+      setErrorMessage(`Error saving inspection: ${error?.message || 'Check connection'}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 animate-fade-in" noValidate>
-      {/* Top Banner Notice for Mandatory Fields */}
-      <div className="flex items-center justify-between p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl text-xs">
-        <div className="flex items-center gap-2.5 text-indigo-900 dark:text-indigo-200 font-bold">
-          <Icon name="alert-circle" size={18} className="text-indigo-600 shrink-0" />
-          <span>A1 Material Inspection — <strong>All boxes and dropboxes are mandatory</strong> (including Item Remarks and General Remarks).</span>
-        </div>
-        <span className="text-[10px] uppercase font-black tracking-wider text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-2.5 py-1 rounded-full border border-rose-200">
-          Strict Validation Active
-        </span>
-      </div>
-
-      {/* Prominent Error Banner if any box/dropbox is unfilled */}
+    <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in" noValidate>
+      {/* Error Message Alert */}
       {errorMessage && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-400 dark:border-rose-800 rounded-2xl flex items-start gap-3 shadow-lg shadow-rose-500/10 animate-shake">
-          <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
-            <Icon name="alert-triangle" size={18} />
-          </div>
-          <div className="flex-1">
-            <h4 className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-200">
-              Upload Blocked — Mandatory Fields Required
-            </h4>
-            <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 font-semibold leading-relaxed">
-              {errorMessage}
-            </p>
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center justify-between text-xs font-bold text-rose-700 dark:text-rose-300 shadow-sm animate-shake">
+          <div className="flex items-center gap-2">
+            <Icon name="alert-circle" size={18} className="text-rose-600 shrink-0" />
+            <span>{errorMessage}</span>
           </div>
           <button
             type="button"
@@ -295,106 +283,89 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800">
         {/* Zone */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Zone <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Zone
           </label>
           <SearchableSelect 
             value={header.zone} 
             onChange={e => updateHeader('zone', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none transition-all ${
               validationErrors['zone'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           >
             <option value="">Select Zone...</option>
             {currentZones.map((z: string) => <option key={z} value={z}>{z}</option>)}
           </SearchableSelect>
-          {validationErrors['zone'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['zone']}</p>
-          )}
         </div>
 
         {/* Bill No */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Bill No <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Bill No
           </label>
           <input 
             type="text" 
-            placeholder="Enter Bill No (Mandatory)" 
+            placeholder="Enter Bill No" 
             value={header.billNo} 
             onChange={e => updateHeader('billNo', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2.5 px-3 outline-none ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2.5 px-3 outline-none transition-all ${
               validationErrors['billNo'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           />
-          {validationErrors['billNo'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['billNo']}</p>
-          )}
         </div>
 
         {/* Supplier Name */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Supplier Name <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Supplier Name
           </label>
           <SearchableSelect 
             value={header.supplierName} 
             onChange={e => updateHeader('supplierName', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none transition-all ${
               validationErrors['supplierName'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           >
             <option value="">Select Supplier...</option>
             {currentSuppliers.map((s: string) => <option key={s} value={s}>{s}</option>)}
           </SearchableSelect>
-          {validationErrors['supplierName'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['supplierName']}</p>
-          )}
         </div>
 
         {/* GRN */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            GRN <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            GRN
           </label>
           <input 
             type="text" 
-            placeholder="Enter GRN (Mandatory)" 
+            placeholder="Enter GRN" 
             value={header.grn} 
             onChange={e => updateHeader('grn', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2.5 px-3 outline-none ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2.5 px-3 outline-none transition-all ${
               validationErrors['grn'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           />
-          {validationErrors['grn'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['grn']}</p>
-          )}
         </div>
 
         {/* Material Type */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Material Type <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Material Type
           </label>
           <SearchableSelect 
             value={header.materialType} 
             onChange={e => updateHeader('materialType', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none transition-all ${
               validationErrors['materialType'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           >
@@ -402,66 +373,50 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
             <option value="Packing Material">Packing Material</option>
             <option value="Raw Material">Raw Material</option>
           </SearchableSelect>
-          {validationErrors['materialType'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['materialType']}</p>
-          )}
         </div>
 
         {/* Received Date */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Received Date <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Received Date
           </label>
           <input 
             type="date" 
             value={header.receivedDate} 
             onChange={e => updateHeader('receivedDate', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none transition-all ${
               validationErrors['receivedDate'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           />
-          {validationErrors['receivedDate'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['receivedDate']}</p>
-          )}
         </div>
 
         {/* Checked Date */}
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-            Checked Date <span className="text-rose-600 font-black">*</span>
+          <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+            Checked Date
           </label>
           <input 
             type="date" 
             value={header.checkingDate} 
             onChange={e => updateHeader('checkingDate', e.target.value)} 
-            required 
-            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none ${
+            className={`w-full bg-white dark:bg-slate-900 border-2 rounded-xl text-xs font-bold py-2 px-3 outline-none transition-all ${
               validationErrors['checkingDate'] 
-                ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20' 
+                ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950' 
                 : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
             }`}
           />
-          {validationErrors['checkingDate'] && (
-            <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['checkingDate']}</p>
-          )}
         </div>
       </div>
 
       {/* Items Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
-              <Icon name="list" size={16} className="text-indigo-600" />
-              Inspection Items
-            </h3>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              ({items.length} {items.length === 1 ? 'item' : 'items'} — all fields required)
-            </span>
-          </div>
+          <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
+            <Icon name="list" size={16} className="text-indigo-600" />
+            Inspection Items
+          </h3>
           <button 
             type="button" 
             onClick={addItem}
@@ -475,11 +430,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
           {items.map((item, idx) => (
             <div 
               key={idx} 
-              className={`flex flex-col md:flex-row gap-3 p-4 rounded-xl border bg-white dark:bg-slate-900 shadow-xs relative transition-all ${
-                Object.keys(validationErrors).some(k => k.startsWith(`item_${idx}_`))
-                  ? 'border-rose-400 ring-2 ring-rose-100 dark:ring-rose-950/50'
-                  : 'border-slate-200 dark:border-slate-800'
-              }`}
+              className="flex flex-col md:flex-row gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative transition-all"
             >
               {/* Row index indicator */}
               <div className="self-start md:self-center px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black text-slate-500">
@@ -488,30 +439,27 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
 
               {/* Item Name */}
               <div className="flex-1 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Item Name <span className="text-rose-600 font-black">*</span>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Item Name
                 </label>
                 <SearchableSelect 
                   value={item.itemName} 
                   onChange={e => updateItem(idx, 'itemName', e.target.value)}
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 ${
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_itemName`]
-                      ? 'border-rose-500 bg-rose-50/20'
-                      : 'border-slate-200 dark:border-slate-700'
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 >
                   <option value="">Select Item...</option>
                   {currentItems.map((i: string) => <option key={i} value={i}>{i}</option>)}
                 </SearchableSelect>
-                {validationErrors[`item_${idx}_itemName`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_itemName`]}</p>
-                )}
               </div>
 
               {/* Received Qty */}
               <div className="w-full md:w-28 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Received Qty <span className="text-rose-600 font-black">*</span>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Received Qty
                 </label>
                 <input 
                   type="number" 
@@ -519,22 +467,18 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
                   placeholder="0"
                   value={item.receivedQuantity} 
                   onChange={e => updateItem(idx, 'receivedQuantity', e.target.value)}
-                  required
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none ${
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_receivedQuantity`]
-                      ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200'
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
                       : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 />
-                {validationErrors[`item_${idx}_receivedQuantity`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_receivedQuantity`]}</p>
-                )}
               </div>
 
               {/* Checked Qty */}
               <div className="w-full md:w-28 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Checked Qty <span className="text-rose-600 font-black">*</span>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Checked Qty
                 </label>
                 <input 
                   type="number" 
@@ -542,22 +486,18 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
                   placeholder="0"
                   value={item.checkedQuantity} 
                   onChange={e => updateItem(idx, 'checkedQuantity', e.target.value)}
-                  required
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none ${
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_checkedQuantity`]
-                      ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200'
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
                       : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 />
-                {validationErrors[`item_${idx}_checkedQuantity`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_checkedQuantity`]}</p>
-                )}
               </div>
 
               {/* Pass Qty */}
               <div className="w-full md:w-28 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Pass Qty <span className="text-rose-600 font-black">*</span>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Pass Qty
                 </label>
                 <input 
                   type="number" 
@@ -565,22 +505,18 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
                   placeholder="0"
                   value={item.passQuantity} 
                   onChange={e => updateItem(idx, 'passQuantity', e.target.value)}
-                  required
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none bg-emerald-50/30 dark:bg-emerald-950/20 ${
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_passQuantity`]
-                      ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200'
-                      : 'border-emerald-200 dark:border-emerald-800 focus:border-emerald-500'
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 />
-                {validationErrors[`item_${idx}_passQuantity`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_passQuantity`]}</p>
-                )}
               </div>
 
               {/* Rejected Qty */}
               <div className="w-full md:w-28 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Rejected Qty <span className="text-rose-600 font-black">*</span>
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Rejected Qty
                 </label>
                 <input 
                   type="number" 
@@ -588,38 +524,30 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
                   placeholder="0"
                   value={item.rejectedQuantity} 
                   onChange={e => updateItem(idx, 'rejectedQuantity', e.target.value)}
-                  required
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none bg-rose-50/30 dark:bg-rose-950/20 ${
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_rejectedQuantity`]
-                      ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200'
-                      : 'border-rose-200 dark:border-rose-800 focus:border-rose-500'
-                  }`}
-                />
-                {validationErrors[`item_${idx}_rejectedQuantity`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_rejectedQuantity`]}</p>
-                )}
-              </div>
-
-              {/* Item Remarks (Mandatory!) */}
-              <div className="flex-1 space-y-1">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                  Item Remarks <span className="text-rose-600 font-black">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="Item inspection remarks (Mandatory)"
-                  value={item.remarks} 
-                  onChange={e => updateItem(idx, 'remarks', e.target.value)}
-                  required
-                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none ${
-                    validationErrors[`item_${idx}_remarks`]
-                      ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-200'
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
                       : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                   }`}
                 />
-                {validationErrors[`item_${idx}_remarks`] && (
-                  <p className="text-[9px] text-rose-600 font-bold">{validationErrors[`item_${idx}_remarks`]}</p>
-                )}
+              </div>
+
+              {/* Item Remarks */}
+              <div className="flex-1 space-y-1">
+                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                  Remarks
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="Remarks"
+                  value={item.remarks} 
+                  onChange={e => updateItem(idx, 'remarks', e.target.value)}
+                  className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
+                    validationErrors[`item_${idx}_remarks`]
+                      ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
+                  }`}
+                />
               </div>
 
               {items.length > 1 && (
@@ -637,26 +565,22 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
         </div>
       </div>
 
-      {/* General Remarks (Mandatory!) */}
+      {/* General Remarks */}
       <div className="space-y-1">
-        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-          General Remarks <span className="text-rose-600 font-black">*</span>
+        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+          General Remarks
         </label>
         <textarea 
-          placeholder="Enter mandatory general inspection remarks and observations here..." 
+          placeholder="Enter general remarks and observations here..." 
           value={header.remarks} 
           onChange={e => updateHeader('remarks', e.target.value)} 
-          required
           rows={3}
           className={`w-full bg-slate-50 dark:bg-slate-900 border-2 rounded-2xl p-4 text-xs font-medium outline-none transition-all ${
             validationErrors['remarks']
-              ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20'
+              ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
               : 'border-slate-200 dark:border-slate-800 focus:border-indigo-500'
           }`}
         />
-        {validationErrors['remarks'] && (
-          <p className="text-[10px] text-rose-600 font-bold ml-1">{validationErrors['remarks']}</p>
-        )}
       </div>
 
       {/* Action Buttons */}
@@ -676,12 +600,12 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
           {isSubmitting ? (
             <>
               <Icon name="refresh-cw" size={16} className="animate-spin" />
-              <span>Validating & Uploading Entry...</span>
+              <span>Saving Inspection...</span>
             </>
           ) : (
             <>
               <Icon name="save" size={16} />
-              <span>Final Submit & Upload Inspection (All Mandatory)</span>
+              <span>Submit Material Inspection</span>
             </>
           )}
         </button>
