@@ -106,3 +106,74 @@ export const formatDateDisplay = (val: any): string => {
     return norm;
   }
 };
+
+export const MONTH_NAMES_FULL = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+];
+
+/**
+ * Formats a date value into "DD-MONTH-YYYY" with full uppercase month in words.
+ * Example: 10-JUNE-2026
+ */
+export const formatDateWithWordMonth = (val: any): string => {
+  if (val === null || val === undefined || val === '') return '';
+  const s = String(val).trim();
+  if (!s) return '';
+
+  // Already in DD-MONTH-YYYY format
+  if (/^\d{1,2}-[A-Za-z]+-\d{4}$/.test(s)) {
+    return s.toUpperCase();
+  }
+
+  const norm = normalizeDateToYYYYMMDD(val);
+  if (!norm) return s;
+
+  try {
+    const parts = norm.split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = String(parseInt(parts[2], 10)).padStart(2, '0');
+      if (monthIdx >= 0 && monthIdx < 12) {
+        return `${day}-${MONTH_NAMES_FULL[monthIdx]}-${year}`;
+      }
+    }
+  } catch {}
+
+  return s;
+};
+
+/**
+ * Formats a timestamp into proper Date and Time with Month in words.
+ * Example: 29-OCTOBER-2026 03:08:28 PM (in Indian Standard Time UTC + 5:30)
+ */
+export const formatTimestampProper = (val: any): string => {
+  if (val === null || val === undefined || val === '') return '';
+  const s = String(val).trim();
+  if (!s) return '';
+
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      // Offset to Indian Standard Time (UTC + 5:30)
+      const istTime = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+      const year = istTime.getUTCFullYear();
+      const monthIdx = istTime.getUTCMonth();
+      const day = String(istTime.getUTCDate()).padStart(2, '0');
+      const monthName = MONTH_NAMES_FULL[monthIdx] || 'UNKNOWN';
+
+      let hours = istTime.getUTCHours();
+      const minutes = String(istTime.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(istTime.getUTCSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const hoursStr = String(hours).padStart(2, '0');
+
+      return `${day}-${monthName}-${year} ${hoursStr}:${minutes}:${seconds} ${ampm}`;
+    }
+  } catch {}
+
+  return s;
+};

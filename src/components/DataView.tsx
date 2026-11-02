@@ -9,6 +9,7 @@ import { flexibleSearchMatch } from '../utils/search';
 import { getDirectImageUrl, parseAndNormalizeImages, resolveIndexedDbImage } from '../utils/imageUtils';
 import { triggerDirectDownload } from '../utils/sopUtils';
 import { isRecordMatchingZone } from '../utils/settingUtils';
+import { formatDateWithWordMonth, formatTimestampProper } from '../utils/dateUtils';
 import SmartImage from './SmartImage';
 
 const HOURLY_ROUNDS = [
@@ -430,6 +431,27 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
           if (links.length > 0) {
             return JSON.stringify(links.join(' | '));
           }
+        }
+      }
+
+      const hLower = h.toLowerCase();
+
+      // Format timestamp fields with proper date and time (Month in words: e.g. 29-OCTOBER-2026 03:08:28 PM)
+      if (hLower === 'timestamp' || hLower === 'createdat' || hLower === 'updatedat' || hLower.endsWith('timestamp')) {
+        return JSON.stringify(formatTimestampProper(val));
+      }
+
+      // Format date fields with Month in words (EXAMPLE: 10-JUNE-2026)
+      if (hLower === 'date' || hLower === 'receiveddate' || hLower === 'checkingdate' || hLower.endsWith('date')) {
+        return JSON.stringify(formatDateWithWordMonth(val));
+      }
+
+      // If value is an ISO timestamp string with 'T' and ends with 'Z'
+      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+        if (hLower.includes('date')) {
+          return JSON.stringify(formatDateWithWordMonth(val));
+        } else {
+          return JSON.stringify(formatTimestampProper(val));
         }
       }
 
@@ -1082,7 +1104,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
 
     if (val === null || val === undefined) return '-';
 
-    if (h === 'timestamp' || h === 'createdAt') {
+    if (h === 'timestamp' || h === 'createdAt' || h === 'dateTime') {
       try {
         return new Date(val).toLocaleString();
       } catch (e) {
@@ -1091,6 +1113,9 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     }
 
     if (h === 'receivedDate' || h === 'checkingDate' || h.toLowerCase().endsWith('date')) {
+      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+        return val.trim();
+      }
       try {
         const d = new Date(val);
         if (!isNaN(d.getTime())) {
@@ -1952,7 +1977,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Date & Time</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block font-mono">
                         {selectedComplaintDetail.dateTime || selectedComplaintDetail.timestamp || '-'}
                       </span>
                     </div>
@@ -1970,7 +1995,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Closed On</span>
-                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block font-mono">
                         {selectedComplaintDetail.closedOn || (selectedComplaintDetail.status === 'OPEN' ? 'Still Open' : '-')}
                       </span>
                     </div>

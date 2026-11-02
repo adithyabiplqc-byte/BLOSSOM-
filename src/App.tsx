@@ -827,7 +827,7 @@ const App: React.FC = () => {
               {view === 'user' && (
                 <div className="space-y-6">
                   <UserDashboard 
-                    user={user} 
+                    user={effectiveUser} 
                     onSelectSubmodule={handleSelectSubmodule} 
                     workorders={workorders}
                     users={users}
@@ -837,7 +837,7 @@ const App: React.FC = () => {
               {view === 'submodule' && (
                 <SubmoduleContainer 
                   id={selectedSubmodule} 
-                  user={user} 
+                  user={effectiveUser} 
                   settings={settings} 
                   workorders={workorders} 
                   users={users}

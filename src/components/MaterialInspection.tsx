@@ -433,18 +433,19 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               className="flex flex-col md:flex-row gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative transition-all"
             >
               {/* Row index indicator */}
-              <div className="self-start md:self-center px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black text-slate-500">
+              <div className="self-start md:self-center px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black text-slate-500 shrink-0">
                 #{idx + 1}
               </div>
 
               {/* Item Name */}
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Item Name
                 </label>
                 <SearchableSelect 
                   value={item.itemName} 
                   onChange={e => updateItem(idx, 'itemName', e.target.value)}
+                  multiline={true}
                   className={`w-full text-xs font-bold py-1.5 px-2.5 rounded-lg border-2 outline-none transition-all ${
                     validationErrors[`item_${idx}_itemName`]
                       ? 'border-rose-500 ring-2 ring-rose-200 dark:ring-rose-950'
@@ -457,7 +458,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               </div>
 
               {/* Received Qty */}
-              <div className="w-full md:w-28 space-y-1">
+              <div className="w-full md:w-28 shrink-0 min-w-[85px] space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Received Qty
                 </label>
@@ -476,7 +477,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               </div>
 
               {/* Checked Qty */}
-              <div className="w-full md:w-28 space-y-1">
+              <div className="w-full md:w-28 shrink-0 min-w-[85px] space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Checked Qty
                 </label>
@@ -495,7 +496,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               </div>
 
               {/* Pass Qty */}
-              <div className="w-full md:w-28 space-y-1">
+              <div className="w-full md:w-28 shrink-0 min-w-[85px] space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Pass Qty
                 </label>
@@ -514,7 +515,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               </div>
 
               {/* Rejected Qty */}
-              <div className="w-full md:w-28 space-y-1">
+              <div className="w-full md:w-28 shrink-0 min-w-[85px] space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Rejected Qty
                 </label>
@@ -533,7 +534,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
               </div>
 
               {/* Item Remarks */}
-              <div className="flex-1 space-y-1">
+              <div className="w-full md:w-44 md:min-w-[130px] flex-1 space-y-1">
                 <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                   Remarks
                 </label>
@@ -554,7 +555,7 @@ const MaterialInspection: React.FC<MaterialInspectionProps> = ({ user, settings,
                 <button 
                   type="button" 
                   onClick={() => removeItem(idx)}
-                  className="md:self-end p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all cursor-pointer"
+                  className="md:self-end p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all cursor-pointer shrink-0"
                   title="Remove Item Row"
                 >
                   <Icon name="trash-2" size={16} />

@@ -12,6 +12,7 @@ interface SearchableSelectProps {
   children: React.ReactNode;
   id?: string;
   align?: 'left' | 'right';
+  multiline?: boolean;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -24,6 +25,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   children,
   id,
   align = 'left',
+  multiline = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -215,16 +217,35 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const alignClass = align === 'right' ? 'right-0' : 'left-0';
 
   return (
-    <div ref={containerRef} className="relative w-full" id={id} onKeyDown={handleKeyDown}>
+    <div ref={containerRef} className="relative w-full min-w-0" id={id} onKeyDown={handleKeyDown}>
       <button
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={buttonStyle}
-        style={{ minHeight: '38px' }}
+        style={{ minHeight: multiline ? '42px' : '38px' }}
         title={displayLabel}
       >
-        <span className="truncate pr-4">{displayLabel}</span>
+        <span 
+          className={
+            multiline 
+              ? "line-clamp-2 whitespace-normal break-words text-left leading-snug py-0.5 pr-2 flex-1 min-w-0" 
+              : "truncate pr-4 flex-1 min-w-0 text-left"
+          }
+          style={
+            multiline 
+              ? { 
+                  display: '-webkit-box', 
+                  WebkitLineClamp: 2, 
+                  WebkitBoxOrient: 'vertical', 
+                  overflow: 'hidden', 
+                  wordBreak: 'break-word' 
+                } 
+              : undefined
+          }
+        >
+          {displayLabel}
+        </span>
         <div className="flex items-center gap-1.5 shrink-0 text-slate-400">
           <Icon name="search" size={13} className="text-slate-300 hover:text-indigo-500 transition-colors" title="Click to search items" />
           <Icon name="chevron-down" size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
