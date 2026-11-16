@@ -2850,6 +2850,23 @@ function executeLocalAction(action: string, params: any[]): any {
       complaint.id = id;
       if (!complaint.timestamp) complaint.timestamp = new Date().toISOString();
 
+      if (Array.isArray(complaint.images)) {
+        complaint.images = complaint.images.map((img: any) => {
+          if (typeof img === 'string') {
+            if (img.startsWith('data:image')) return null;
+            return img;
+          }
+          if (img && typeof img === 'object') {
+            const url = img.url || img.downloadUrl || '';
+            if (url && url.startsWith('data:image')) {
+              return null;
+            }
+            return img;
+          }
+          return null;
+        }).filter(Boolean);
+      }
+
       const existingIndex = db.customer_complaints.findIndex((item: any) => String(item.id) === String(id));
       if (existingIndex !== -1) {
         db.customer_complaints[existingIndex] = { ...db.customer_complaints[existingIndex], ...complaint };

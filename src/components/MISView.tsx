@@ -105,6 +105,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
   const [workorderSearchInput, setWorkorderSearchInput] = useState<string>('');
   const [selectedUnitC5, setSelectedUnitC5] = useState<string>('UNIT A');
   const [selectedDateC5, setSelectedDateC5] = useState<string>('ALL');
+  const [selectedIssueCategory, setSelectedIssueCategory] = useState<'ALL' | 'REJECTION' | 'COMMERCIAL_CALL' | 'DEFECT' | 'REWORK'>('ALL');
 
   // Combined data storage for submodule quality analysis (A1 - A6)
   const [allSubmodulesData, setAllSubmodulesData] = useState<{
@@ -727,7 +728,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     doc.save(`BQOS_DailyReport_${selectedDate || 'All_Logs'}.pdf`);
   };
 
-  // Interfaces for Quality Analysis (C3)
+  // Interfaces for Quality Analysis (C4 Defect Report)
   interface QualityIssue {
     id: string;
     module: 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'A6';
@@ -735,15 +736,18 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     checkingDate: string;
     style: string;
     description: string;
+    issueType: 'REJECTION' | 'COMMERCIAL_CALL' | 'DEFECT' | 'REWORK' | 'HOLD';
     reworkCount: number;
     failCount: number;
     quantity: number;
     severity: 'CRITICAL' | 'MAJOR' | 'MINOR';
     zone: string;
     inspector: string;
+    billNo?: string;
+    supplier?: string;
   }
 
-  // Parse raw records from modules A1 - A6 dynamically to extract total issues
+  // Parse raw records from modules A1 - A6 dynamically to extract ONLY genuine defects, rejections, & commercial calls
   const qualityIssuesData = useMemo(() => {
     if (id !== 'C4' || !allSubmodulesData) return [];
 
@@ -751,6 +755,40 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     
     const getSafeString = (val: any) => String(val || '').trim().toUpperCase();
     const getSafeDate = (val: any) => normalizeDateToYYYYMMDD(val);
+
+    // Helper to identify if text is a normal pass / benign entry (NOT a defect or non-compliance)
+    const isNormalPassText = (val: any): boolean => {
+      if (val === null || val === undefined) return true;
+      const s = String(val).trim().toUpperCase();
+      if (!s || s === '-' || s === '.' || s === ',' || s === 'N/A' || s === 'NA' || s === 'NIL' || s === 'NONE' || s === 'NULL') {
+        return true;
+      }
+      const clean = s.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const benignPhrases = [
+        'PASS',
+        'PASSED',
+        'OK',
+        'ALL OK',
+        'GOOD',
+        'ACCEPTED',
+        'ACCEPT',
+        'CLEAR',
+        'CLEARED',
+        'NORMAL',
+        'NO DEFECT',
+        'NO DEFECTS',
+        'NIL DEFECT',
+        'NIL DEFECTS',
+        'ZERO DEFECT',
+        'ZERO DEFECTS',
+        'TEST ENTRY FROM BQOS SYSTEM',
+        'REPLACEMENT RECEIVED',
+        'PASSED PIECES',
+      ];
+      if (benignPhrases.includes(clean)) return true;
+      if (clean.startsWith('PASSED PIECES FROM BUNDLE')) return true;
+      return false;
+    };
 
     const matchesZone = (zoneStr: string) => {
       if (!globalZone || globalZone === 'ALL') return true;
@@ -762,10 +800,15 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       return dateStr === selectedDate;
     };
 
-    const matchesSearch = (styleStr: string, desc: string) => {
+    const matchesSearch = (styleStr: string, desc: string, extra1: string = '', extra2: string = '') => {
       const q = searchQuery.trim().toUpperCase();
       if (!q) return true;
-      return styleStr.includes(q) || desc.toUpperCase().includes(q);
+      return (
+        styleStr.includes(q) ||
+        desc.toUpperCase().includes(q) ||
+        extra1.toUpperCase().includes(q) ||
+        extra2.toUpperCase().includes(q)
+      );
     };
 
     // A1 - Material Inspection
@@ -774,25 +817,82 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pDate = getSafeDate(r.timestamp || r.receivedDate || r.checkingDate);
       const pStyle = getSafeString(r.itemName || r.style || 'MATERIAL');
       const rejectedQty = Number(r.rejectedQuantity || r.failQty || 0);
-      const desc = getSafeString(r.itemRemarks || r.generalRemarks || 'Fabric lot non-conformance');
+      const rawIR = String(r.itemRemarks || '').trim();
+      const rawGR = String(r.generalRemarks || '').trim();
+      const billNo = getSafeString(r.billNo);
+      const supplierName = getSafeString(r.supplierName);
 
-      if (rejectedQty > 0 || r.itemRemarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A1-${idx}-${pStyle}`,
-            module: 'A1',
-            moduleName: 'Material Inspection',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: r.itemRemarks || r.generalRemarks || `Rejected raw material: ${rejectedQty} units`,
-            reworkCount: 0,
-            failCount: rejectedQty,
-            quantity: rejectedQty,
-            severity: rejectedQty > 100 ? 'CRITICAL' : 'MAJOR',
-            zone: pZone || 'RECEIVING DOCK',
-            inspector: getSafeString(r.inspector || 'SHEET QC')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If rejected quantity is 0 and remarks are clean pass or empty, skip!
+      if (rejectedQty === 0 && isNormalPassText(rawIR) && isNormalPassText(rawGR)) {
+        return;
+      }
+
+      const combinedText = `${rawIR} ${rawGR}`.trim();
+      const combinedUpper = combinedText.toUpperCase();
+
+      // Analyze remarks for Commercial Call or Rejection
+      const isCommercial =
+        combinedUpper.includes('COMMERCIAL') ||
+        combinedUpper.includes('DEBIT') ||
+        combinedUpper.includes('CONCESSION') ||
+        combinedUpper.includes('ACCEPTANCE WITH DEVIATION');
+
+      const isRejection =
+        rejectedQty > 0 ||
+        combinedUpper.includes('REJECT') ||
+        combinedUpper.includes('FAIL');
+
+      let issueType: 'REJECTION' | 'COMMERCIAL_CALL' | 'DEFECT' = 'DEFECT';
+      if (isRejection) {
+        issueType = 'REJECTION';
+      } else if (isCommercial) {
+        issueType = 'COMMERCIAL_CALL';
+      }
+
+      // Format clean, readable description
+      let desc = '';
+      const irIsClean = isNormalPassText(rawIR);
+      const grIsClean = isNormalPassText(rawGR);
+      if (!irIsClean && !grIsClean) {
+        desc = `${rawIR} • ${rawGR}`;
+      } else if (!irIsClean) {
+        desc = rawIR;
+      } else if (!grIsClean) {
+        desc = rawGR;
+      } else {
+        desc = `Rejected Raw Material: ${rejectedQty} units`;
+      }
+
+      if (rejectedQty > 0 && !desc.toUpperCase().includes(String(rejectedQty))) {
+        desc = `[Rejection: ${rejectedQty} Units] ${desc}`;
+      }
+
+      const billDetail = billNo ? ` • Bill: ${billNo}` : '';
+      const suppDetail = supplierName ? ` • Supplier: ${supplierName}` : '';
+      const fullDesc = `${desc}${billDetail}${suppDetail}`;
+
+      const severity: 'CRITICAL' | 'MAJOR' | 'MINOR' =
+        (rejectedQty > 100 || (rejectedQty > 0 && isRejection)) ? 'CRITICAL' :
+        (isCommercial || rejectedQty > 0) ? 'MAJOR' : 'MINOR';
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, fullDesc, billNo, supplierName)) {
+        issues.push({
+          id: `A1-${idx}-${pStyle}`,
+          module: 'A1',
+          moduleName: 'Material Inspection',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: fullDesc,
+          issueType,
+          reworkCount: 0,
+          failCount: rejectedQty,
+          quantity: rejectedQty,
+          severity,
+          zone: pZone || 'RECEIVING DOCK',
+          inspector: getSafeString(r.inspector || 'SHEET QC'),
+          billNo: billNo || undefined,
+          supplier: supplierName || undefined
+        });
       }
     });
 
@@ -803,25 +903,48 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pStyle = getSafeString(r.style || r.wo || r.workorderNumber || 'CUTTING');
       const reworked = Number(r.reworkQty || 0);
       const failure = Number(r.failQty || 0);
-      const desc = getSafeString(r.remarks || 'Fabric cutting dimensional shift');
+      const rawRemarks = String(r.remarks || '').trim();
+      const statusUpper = getSafeString(r.status);
 
-      if (failure > 0 || reworked > 0 || r.remarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A2-${idx}-${pStyle}`,
-            module: 'A2',
-            moduleName: 'Cutting Quality',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: r.remarks || (failure > 0 ? `Cutting Fail pieces check (${failure} Pcs)` : `Cutting rework pieces (${reworked} Pcs)`),
-            reworkCount: reworked,
-            failCount: failure,
-            quantity: failure + reworked,
-            severity: failure > 0 ? 'CRITICAL' : 'MAJOR',
-            zone: pZone || 'CUTTING ROOM',
-            inspector: getSafeString(r.inspector || 'CUT QC')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If no fail/rework, status normal, and remarks normal pass, skip!
+      if (failure === 0 && reworked === 0 && isNormalPassText(rawRemarks) && !statusUpper.includes('FAIL') && !statusUpper.includes('HOLD')) {
+        return;
+      }
+
+      let issueType: 'REJECTION' | 'REWORK' | 'HOLD' | 'DEFECT' = 'DEFECT';
+      if (failure > 0) issueType = 'REJECTION';
+      else if (reworked > 0) issueType = 'REWORK';
+      else if (statusUpper.includes('HOLD') || rawRemarks.toUpperCase().includes('HOLD')) issueType = 'HOLD';
+
+      let desc = '';
+      if (!isNormalPassText(rawRemarks)) {
+        desc = rawRemarks;
+      } else if (failure > 0) {
+        desc = `Cutting fail pieces detected (${failure} Pcs)`;
+      } else if (reworked > 0) {
+        desc = `Cutting rework pieces (${reworked} Pcs)`;
+      } else {
+        desc = `Cutting Hold: ${statusUpper}`;
+      }
+
+      const severity: 'CRITICAL' | 'MAJOR' | 'MINOR' = failure > 0 ? 'CRITICAL' : (reworked > 0 ? 'MAJOR' : 'MINOR');
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
+        issues.push({
+          id: `A2-${idx}-${pStyle}`,
+          module: 'A2',
+          moduleName: 'Cutting Quality',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: desc,
+          issueType,
+          reworkCount: reworked,
+          failCount: failure,
+          quantity: failure + reworked,
+          severity,
+          zone: pZone || 'CUTTING ROOM',
+          inspector: getSafeString(r.inspector || 'CUT QC')
+        });
       }
     });
 
@@ -831,25 +954,36 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pDate = getSafeDate(r.timestamp || r.checkingDate);
       const pStyle = getSafeString(r.style || r.wo || r.workorderNumber || 'INLINE');
       const complaintQty = Number(r.complaintPcs || r.failQty || 0);
-      const desc = getSafeString(r.remarks || 'Sewing balance imbalance issues');
+      const rawRemarks = String(r.remarks || '').trim();
 
-      if (complaintQty > 0 || r.remarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A3-${idx}-${pStyle}`,
-            module: 'A3',
-            moduleName: 'Inline Quality',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: r.remarks || `Stitch complaints raised count: ${complaintQty}`,
-            reworkCount: complaintQty,
-            failCount: 0,
-            quantity: complaintQty,
-            severity: 'MINOR',
-            zone: pZone || 'SEWING SECTION',
-            inspector: getSafeString(r.inspector || 'INLINE ROVER')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If complaint count is 0 and remarks are pass, skip!
+      if (complaintQty === 0 && isNormalPassText(rawRemarks)) {
+        return;
+      }
+
+      let desc = '';
+      if (!isNormalPassText(rawRemarks)) {
+        desc = rawRemarks;
+      } else {
+        desc = `Stitch complaints raised count: ${complaintQty} pcs`;
+      }
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
+        issues.push({
+          id: `A3-${idx}-${pStyle}`,
+          module: 'A3',
+          moduleName: 'Inline Quality',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: desc,
+          issueType: 'DEFECT',
+          reworkCount: complaintQty,
+          failCount: 0,
+          quantity: complaintQty,
+          severity: complaintQty > 10 ? 'MAJOR' : 'MINOR',
+          zone: pZone || 'SEWING SECTION',
+          inspector: getSafeString(r.inspector || 'INLINE ROVER')
+        });
       }
     });
 
@@ -860,25 +994,47 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pStyle = getSafeString(r.style || r.wo || r.workorderNumber || 'ENDLINE');
       const reworked = Number(r.reworkQty || r.rework || 0);
       const failure = Number(r.failQty || r.fail || 0);
-      const desc = getSafeString(r.defect || r.remarks || 'Endline inspection checks failed');
+      const rawDefect = String(r.defect || '').trim();
+      const rawRemarks = String(r.remarks || '').trim();
 
-      if (failure > 0 || reworked > 0 || r.defect || r.remarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A4-${idx}-${pStyle}`,
-            module: 'A4',
-            moduleName: 'Endline Quality',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: `${r.defect || 'Sewing Assembly Deviation'} - ${r.remarks || 'No detailed code description'}`,
-            reworkCount: reworked,
-            failCount: failure,
-            quantity: failure + reworked,
-            severity: failure > 0 ? 'CRITICAL' : 'MAJOR',
-            zone: pZone || 'ENDLINE SECTION',
-            inspector: getSafeString(r.inspector || 'ENDLINE TABLES')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If no fail/rework and defect/remarks are normal pass (e.g. 'Passed pieces from Bundle...'), skip!
+      if (failure === 0 && reworked === 0 && isNormalPassText(rawDefect) && isNormalPassText(rawRemarks)) {
+        return;
+      }
+
+      let issueType: 'REJECTION' | 'REWORK' | 'DEFECT' = 'DEFECT';
+      if (failure > 0) issueType = 'REJECTION';
+      else if (reworked > 0) issueType = 'REWORK';
+
+      let desc = '';
+      if (!isNormalPassText(rawDefect) && !isNormalPassText(rawRemarks)) {
+        desc = `${rawDefect} - ${rawRemarks}`;
+      } else if (!isNormalPassText(rawDefect)) {
+        desc = rawDefect;
+      } else if (!isNormalPassText(rawRemarks)) {
+        desc = rawRemarks;
+      } else {
+        desc = failure > 0 ? `Endline Rejection: ${failure} Pcs` : `Endline Rework: ${reworked} Pcs`;
+      }
+
+      const severity: 'CRITICAL' | 'MAJOR' | 'MINOR' = failure > 0 ? 'CRITICAL' : (reworked > 5 ? 'MAJOR' : 'MINOR');
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
+        issues.push({
+          id: `A4-${idx}-${pStyle}`,
+          module: 'A4',
+          moduleName: 'Endline Quality',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: desc,
+          issueType,
+          reworkCount: reworked,
+          failCount: failure,
+          quantity: failure + reworked,
+          severity,
+          zone: pZone || 'ENDLINE SECTION',
+          inspector: getSafeString(r.inspector || 'ENDLINE TABLES')
+        });
       }
     });
 
@@ -887,27 +1043,38 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pZone = getSafeString(r.zone || r.location);
       const pDate = getSafeDate(r.timestamp || r.checkingDate);
       const pStyle = getSafeString(r.style || r.wo || r.workorderNumber || 'AQL');
-      const foundDef = Number(r.foundDefects || 0);
+      const foundDef = Number(r.foundDefects || r.failQty || 0);
       const statusL = getSafeString(r.status);
-      const desc = getSafeString(r.remarks || `AQL Quality Check Defects Found: ${foundDef}`);
+      const rawRemarks = String(r.remarks || '').trim();
 
-      if (foundDef > 0 || statusL === 'FAIL' || r.remarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A5-${idx}-${pStyle}`,
-            module: 'A5',
-            moduleName: 'AQL Inspection',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: r.remarks || `Audit panel sample checking found: ${foundDef} defects. Status: ${statusL}`,
-            reworkCount: 0,
-            failCount: foundDef,
-            quantity: foundDef,
-            severity: statusL === 'FAIL' ? 'CRITICAL' : 'MAJOR',
-            zone: pZone || 'AQL AUDIT LINE',
-            inspector: getSafeString(r.inspector || 'AQL SURVEYOR')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If 0 defects, status not fail, and remarks normal pass, skip!
+      if (foundDef === 0 && statusL !== 'FAIL' && isNormalPassText(rawRemarks)) {
+        return;
+      }
+
+      let desc = '';
+      if (!isNormalPassText(rawRemarks)) {
+        desc = rawRemarks;
+      } else {
+        desc = `Audit panel sample checking found: ${foundDef} defects. Status: ${statusL || 'AUDITED'}`;
+      }
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
+        issues.push({
+          id: `A5-${idx}-${pStyle}`,
+          module: 'A5',
+          moduleName: 'AQL Inspection',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: desc,
+          issueType: statusL === 'FAIL' ? 'REJECTION' : 'DEFECT',
+          reworkCount: 0,
+          failCount: foundDef,
+          quantity: foundDef,
+          severity: statusL === 'FAIL' ? 'CRITICAL' : 'MAJOR',
+          zone: pZone || 'AQL AUDIT LINE',
+          inspector: getSafeString(r.inspector || 'AQL SURVEYOR')
+        });
       }
     });
 
@@ -918,25 +1085,36 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       const pStyle = getSafeString(r.style || r.wo || r.workorderNumber || 'FINAL_AUDIT');
       const rejected = Number(r.rejectedQty || r.failQty || 0);
       const statusL = getSafeString(r.status);
-      const desc = getSafeString(r.remarks || 'Audit rejection gate triggered');
+      const rawRemarks = String(r.remarks || '').trim();
 
-      if (rejected > 0 || statusL === 'FAIL' || r.remarks) {
-        if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
-          issues.push({
-            id: `A6-${idx}-${pStyle}`,
-            module: 'A6',
-            moduleName: 'Final Audit',
-            checkingDate: pDate || 'N/A',
-            style: pStyle,
-            description: r.remarks || `Pre-shipment audit failed cartons. Status: ${statusL}`,
-            reworkCount: 0,
-            failCount: rejected || 1,
-            quantity: rejected || 1,
-            severity: 'CRITICAL',
-            zone: pZone || 'WAREHOUSE SHIP GATE',
-            inspector: getSafeString(r.inspector || 'AUDITING CHEF')
-          });
-        }
+      // EXCLUDE NORMAL PASS: If 0 rejected, status not fail, and remarks normal pass, skip!
+      if (rejected === 0 && statusL !== 'FAIL' && isNormalPassText(rawRemarks)) {
+        return;
+      }
+
+      let desc = '';
+      if (!isNormalPassText(rawRemarks)) {
+        desc = rawRemarks;
+      } else {
+        desc = `Pre-shipment audit failed cartons. Status: ${statusL}`;
+      }
+
+      if (matchesZone(pZone) && matchesDate(pDate) && matchesSearch(pStyle, desc)) {
+        issues.push({
+          id: `A6-${idx}-${pStyle}`,
+          module: 'A6',
+          moduleName: 'Final Audit',
+          checkingDate: pDate || 'N/A',
+          style: pStyle,
+          description: desc,
+          issueType: 'REJECTION',
+          reworkCount: 0,
+          failCount: rejected || 1,
+          quantity: rejected || 1,
+          severity: 'CRITICAL',
+          zone: pZone || 'WAREHOUSE SHIP GATE',
+          inspector: getSafeString(r.inspector || 'AUDITING CHEF')
+        });
       }
     });
 
@@ -949,27 +1127,46 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
     });
   }, [allSubmodulesData, globalZone, selectedDate, searchQuery, id]);
 
-  // Compute stats on priorities
+  // Compute stats on priorities and classifications
   const criticalStatistics = useMemo(() => {
-    if (id !== 'C4') return { critical: 0, major: 0, minor: 0, total: 0 };
+    if (id !== 'C4') return { critical: 0, major: 0, minor: 0, total: 0, rejections: 0, commercialCalls: 0, defects: 0, rework: 0 };
     
     let critical = 0;
     let major = 0;
     let minor = 0;
+    let rejections = 0;
+    let commercialCalls = 0;
+    let defects = 0;
+    let rework = 0;
     
     qualityIssuesData.forEach(iss => {
       if (iss.severity === 'CRITICAL') critical++;
       else if (iss.severity === 'MAJOR') major++;
       else if (iss.severity === 'MINOR') minor++;
+
+      if (iss.issueType === 'REJECTION') rejections++;
+      else if (iss.issueType === 'COMMERCIAL_CALL') commercialCalls++;
+      else if (iss.issueType === 'REWORK') rework++;
+      else defects++;
     });
 
     return {
       critical,
       major,
       minor,
+      rejections,
+      commercialCalls,
+      defects,
+      rework,
       total: qualityIssuesData.length
     };
   }, [qualityIssuesData, id]);
+
+  // Filtered issues based on user-selected category tab
+  const displayedIssues = useMemo(() => {
+    if (selectedIssueCategory === 'ALL') return qualityIssuesData;
+    return qualityIssuesData.filter(iss => iss.issueType === selectedIssueCategory);
+  }, [qualityIssuesData, selectedIssueCategory]);
 
   // Compute breakdown ratios
   const moduleBreakdown = useMemo(() => {
@@ -1059,15 +1256,18 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
 
     let currentY = 62;
 
-    if (qualityIssuesData.length === 0) {
+    const pdfIssues = displayedIssues.length > 0 ? displayedIssues : qualityIssuesData;
+
+    if (pdfIssues.length === 0) {
       doc.setFont("Helvetica", "italic");
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
       doc.text("No active quality failures or issues logged matching current filter parameters.", 15, currentY);
     } else {
-      const tableHeaders = [["Severity", "Date", "Source Module", "Style Ref", "Issue & Non-Compliance Remarks", "Zone/Line"]];
-      const tableRows = qualityIssuesData.map(iss => [
+      const tableHeaders = [["Severity", "Type", "Date", "Source Module", "Style Ref", "Issue & Non-Compliance Remarks", "Zone/Line"]];
+      const tableRows = pdfIssues.map(iss => [
         iss.severity,
+        iss.issueType.replace('_', ' '),
         iss.checkingDate,
         iss.moduleName,
         iss.style,
@@ -1088,12 +1288,13 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
           halign: 'left'
         },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 20 },
-          1: { cellWidth: 18 },
-          2: { cellWidth: 32 },
-          3: { fontStyle: 'bold', cellWidth: 22 },
-          4: { cellWidth: 63 },
-          5: { cellWidth: 25 },
+          0: { fontStyle: 'bold', cellWidth: 16 },
+          1: { fontStyle: 'bold', cellWidth: 20 },
+          2: { cellWidth: 16 },
+          3: { cellWidth: 28 },
+          4: { fontStyle: 'bold', cellWidth: 20 },
+          5: { cellWidth: 58 },
+          6: { cellWidth: 22 },
         },
         styles: {
           fontSize: 7,
@@ -2823,59 +3024,59 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
 
         {/* SUMMARY STATS GRID */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="quality-kpi-cards">
-          {/* CRITICAL */}
+          {/* REJECTIONS */}
           <div className="p-4 bg-red-50/40 rounded-2xl border border-red-200/60 shadow-xs flex flex-col justify-between hover:border-red-300 transition duration-150">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest block">Critical Severity</span>
+                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest block">Rejections Logged</span>
                 <span className="p-1 text-red-600 bg-red-50 rounded-lg animate-pulse">
                   <Icon name="shield-alert" size={14} />
                 </span>
               </div>
-              <p className="text-3xl font-black text-red-600 mt-2 font-mono">{criticalStatistics.critical}</p>
+              <p className="text-3xl font-black text-red-600 mt-2 font-mono">{criticalStatistics.rejections}</p>
             </div>
             <p className="text-[10px] text-red-500 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
-              ● Stop Shipment / Re-Inspect Gate
+              ● Stop Shipment / Re-Inspect Gate ({criticalStatistics.critical} Critical)
             </p>
           </div>
 
-          {/* MAJOR */}
-          <div className="p-4 bg-amber-50/40 rounded-2xl border border-amber-200/60 shadow-xs flex flex-col justify-between hover:border-amber-300 transition duration-150">
+          {/* COMMERCIAL CALLS */}
+          <div className="p-4 bg-purple-50/40 rounded-2xl border border-purple-200/60 shadow-xs flex flex-col justify-between hover:border-purple-300 transition duration-150">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">Major Severity</span>
-                <span className="p-1 text-amber-600 bg-amber-50 rounded-lg">
+                <span className="text-[10px] font-black text-purple-700 uppercase tracking-widest block">Commercial Calls</span>
+                <span className="p-1 text-purple-700 bg-purple-50 rounded-lg">
                   <Icon name="alert-triangle" size={14} />
                 </span>
               </div>
-              <p className="text-3xl font-black text-amber-500 mt-2 font-mono">{criticalStatistics.major}</p>
+              <p className="text-3xl font-black text-purple-600 mt-2 font-mono">{criticalStatistics.commercialCalls}</p>
             </div>
-            <p className="text-[10px] text-amber-600 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
-              ▲ Rework Roving Needed
+            <p className="text-[10px] text-purple-600 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
+              ▲ Debit / Concession Agreements
             </p>
           </div>
 
-          {/* MINOR */}
-          <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-200/60 shadow-xs flex flex-col justify-between hover:border-blue-300 transition duration-150">
+          {/* QUALITY DEFECTS */}
+          <div className="p-4 bg-amber-50/40 rounded-2xl border border-amber-200/60 shadow-xs flex flex-col justify-between hover:border-amber-300 transition duration-150">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Minor Monitoring</span>
-                <span className="p-1 text-blue-600 bg-blue-50 rounded-lg">
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest block">Quality Defects</span>
+                <span className="p-1 text-amber-700 bg-amber-50 rounded-lg">
                   <Icon name="info" size={14} />
                 </span>
               </div>
-              <p className="text-3xl font-black text-blue-500 mt-2 font-mono">{criticalStatistics.minor}</p>
+              <p className="text-3xl font-black text-amber-600 mt-2 font-mono">{criticalStatistics.defects}</p>
             </div>
-            <p className="text-[10px] text-blue-500 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
-              ■ Standard Sewing Deviations
+            <p className="text-[10px] text-amber-600 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
+              ■ Shade, GSM, Stitch & Lay Issues
             </p>
           </div>
 
-          {/* TOTAL */}
+          {/* TOTAL NON-COMPLIANCE */}
           <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-200/60 shadow-xs flex flex-col justify-between hover:border-slate-300 transition duration-150">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Total Issues Logged</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Total Defects Extracted</span>
                 <span className="p-1 text-slate-500 bg-slate-100 rounded-lg">
                   <Icon name="list" size={14} />
                 </span>
@@ -2883,7 +3084,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
               <p className="text-3xl font-black text-slate-800 mt-2 font-mono">{criticalStatistics.total}</p>
             </div>
             <p className="text-[10px] text-slate-500 font-extrabold mt-3 uppercase tracking-wider flex items-center gap-1.5">
-              ★ Active Ledger Volume
+              ★ Genuine Issues (Pass Entries Excluded)
             </p>
           </div>
         </div>
@@ -3059,25 +3260,89 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
 
         {/* COMPREHENSIVE INTERACTIVE TABLE LEDGER */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-black text-slate-800 tracking-tight uppercase text-xs flex items-center gap-2">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-2">
               <Icon name="list" size={14} className="text-rose-600" />
-              NON-COMPLIANCE ISSUES LEDGER ({qualityIssuesData.length} records matching)
-            </h3>
-            <span className="text-[9px] font-black bg-slate-200 text-slate-605 px-2.5 py-1 rounded-md font-mono">
-              SORTED BY SEVERITY
-            </span>
+              <h3 className="font-black text-slate-800 tracking-tight uppercase text-xs">
+                NON-COMPLIANCE ISSUES LEDGER ({displayedIssues.length} of {qualityIssuesData.length} records)
+              </h3>
+            </div>
+
+            {/* QUICK CATEGORY FILTER BUTTONS */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedIssueCategory('ALL')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                  selectedIssueCategory === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                ALL ({qualityIssuesData.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIssueCategory('REJECTION')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                  selectedIssueCategory === 'REJECTION'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                REJECTIONS ({criticalStatistics.rejections})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIssueCategory('COMMERCIAL_CALL')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                  selectedIssueCategory === 'COMMERCIAL_CALL'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                COMMERCIAL CALLS ({criticalStatistics.commercialCalls})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIssueCategory('DEFECT')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                  selectedIssueCategory === 'DEFECT'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100'
+                }`}
+              >
+                DEFECTS ({criticalStatistics.defects})
+              </button>
+              {criticalStatistics.rework > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIssueCategory('REWORK')}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                    selectedIssueCategory === 'REWORK'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+                  }`}
+                >
+                  REWORK ({criticalStatistics.rework})
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
-            {qualityIssuesData.length === 0 ? (
+            {displayedIssues.length === 0 ? (
               <div className="p-16 text-center space-y-3">
                 <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 mx-auto">
                   <Icon name="check-circle" size={18} className="text-emerald-500" />
                 </div>
                 <div className="space-y-1">
-                  <p className="font-extrabold text-slate-700 text-sm uppercase tracking-wide">Excellent Quality Standing</p>
-                  <p className="text-xs text-slate-450">No quality issues raised or logged found for specified filters.</p>
+                  <p className="font-extrabold text-slate-700 text-sm uppercase tracking-wide">Clean Quality Standing</p>
+                  <p className="text-xs text-slate-450">
+                    {selectedIssueCategory !== 'ALL'
+                      ? `No records found under "${selectedIssueCategory.replace('_', ' ')}" category.`
+                      : 'No non-compliance issues raised or logged found for specified filters. All records passed.'}
+                  </p>
                 </div>
               </div>
             ) : (
@@ -3085,6 +3350,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
                     <th className="py-3 px-4">Criticity</th>
+                    <th className="py-3 px-4">Classification</th>
                     <th className="py-3 px-4">Log Date</th>
                     <th className="py-3 px-4">Source Submodule</th>
                     <th className="py-3 px-4">Style / Target</th>
@@ -3094,10 +3360,10 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {qualityIssuesData.map((iss) => (
+                  {displayedIssues.map((iss) => (
                     <tr key={iss.id} className="hover:bg-slate-50/50 transition">
                       {/* Criticity Pill */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         {iss.severity === 'CRITICAL' ? (
                           <span className="px-2 py-0.5 bg-rose-50 text-rose-600 font-black rounded text-[9px] uppercase tracking-wider border border-rose-150 inline-flex items-center gap-1 animate-pulse">
                             <span className="w-1 h-1 bg-rose-600 rounded-full" />
@@ -3115,21 +3381,56 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                         )}
                       </td>
 
+                      {/* Issue Classification Badge */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {iss.issueType === 'REJECTION' ? (
+                          <span className="px-2 py-0.5 bg-rose-100 text-rose-800 font-black rounded text-[9px] uppercase tracking-wider border border-rose-200 inline-block font-mono">
+                            REJECTION
+                          </span>
+                        ) : iss.issueType === 'COMMERCIAL_CALL' ? (
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-800 font-black rounded text-[9px] uppercase tracking-wider border border-purple-200 inline-block font-mono">
+                            COMMERCIAL CALL
+                          </span>
+                        ) : iss.issueType === 'REWORK' ? (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-black rounded text-[9px] uppercase tracking-wider border border-blue-200 inline-block font-mono">
+                            REWORK
+                          </span>
+                        ) : iss.issueType === 'HOLD' ? (
+                          <span className="px-2 py-0.5 bg-orange-100 text-orange-800 font-black rounded text-[9px] uppercase tracking-wider border border-orange-200 inline-block font-mono">
+                            HOLD
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-black rounded text-[9px] uppercase tracking-wider border border-amber-200 inline-block font-mono">
+                            DEFECT
+                          </span>
+                        )}
+                      </td>
+
                       {/* Log Date */}
-                      <td className="py-3 px-4 font-mono font-bold text-slate-500">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-500 whitespace-nowrap">
                         {iss.checkingDate}
                       </td>
 
                       {/* Source Module */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <span className="bg-indigo-50/65 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border border-indigo-100">
                           {iss.module}: {iss.moduleName}
                         </span>
                       </td>
 
-                      {/* Style Ref */}
+                      {/* Style Ref / Bill / Supplier */}
                       <td className="py-3 px-4 font-black font-mono text-slate-800 uppercase">
-                        {iss.style}
+                        <div>{iss.style}</div>
+                        {iss.billNo && (
+                          <span className="block text-[9px] text-slate-400 font-normal font-mono mt-0.5">
+                            BILL: {iss.billNo}
+                          </span>
+                        )}
+                        {iss.supplier && (
+                          <span className="block text-[9px] text-slate-400 font-medium normal-case truncate max-w-[150px]">
+                            {iss.supplier}
+                          </span>
+                        )}
                       </td>
 
                       {/* Issue details / description */}
@@ -3138,7 +3439,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       </td>
 
                       {/* Zone Node */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1 text-slate-500 font-bold uppercase text-[10px]">
                           <Icon name="map-pin" size={10} className="text-slate-400" />
                           {iss.zone}
@@ -3146,7 +3447,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
                       </td>
 
                       {/* Inspector */}
-                      <td className="py-3 px-4 font-medium text-slate-550 uppercase">
+                      <td className="py-3 px-4 font-medium text-slate-550 uppercase whitespace-nowrap">
                         {iss.inspector}
                       </td>
                     </tr>

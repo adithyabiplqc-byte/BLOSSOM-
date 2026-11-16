@@ -3535,7 +3535,7 @@ function api_saveCustomerComplaint(complaint) {
       var imgLinks = complaint.images.map(function(img, idx) {
         var url = typeof img === 'string' ? img : (img.url || img.downloadUrl || '');
         var name = typeof img === 'object' ? (img.name || ('Photo ' + (idx + 1))) : ('Photo ' + (idx + 1));
-        if (url && (url.indexOf('http') === 0 || url.indexOf('data:image') === 0)) {
+        if (url && url.indexOf('http') === 0 && url.indexOf('data:image') === -1) {
           return '=HYPERLINK("' + url + '", "' + name + '")';
         }
         return name || url;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
-import { api } from '../services/api';
+import { api, DEFAULT_DRIVE_URL } from '../services/api';
 import { flexibleSearchMatch } from '../utils/search';
-import { getDirectImageUrl, parseAndNormalizeImages, compressImageFile } from '../utils/imageUtils';
+import { getDirectImageUrl, parseAndNormalizeImages, compressImageFile, extractGoogleDriveId } from '../utils/imageUtils';
 import { triggerDirectDownload } from '../utils/sopUtils';
 import SmartImage from './SmartImage';
 
@@ -99,7 +99,7 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
     }
     setLoading(true);
     try {
-      const res = await api.run('api_getCustomerComplaints', { zone: globalZone });
+      const res = await api.run('api_getCustomerComplaints', { zone: 'ALL' });
       if (Array.isArray(res)) {
         const normalized = res.map(r => {
           let parsed = parseAndNormalizeImages(r.images);
@@ -283,15 +283,19 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Step 1: Upload any pending local preview images in parallel for ultra-high speed
+      // Step 1: Upload any pending local preview images in parallel to Google Drive
       const pendingImages = form.images.filter(img => img.isPendingUpload && img.rawBase64);
       if (pendingImages.length > 0) {
-        setUploadProgress(`Uploading ${pendingImages.length} optimized photo(s)...`);
+        setUploadProgress(`Uploading ${pendingImages.length} photo(s) to Google Drive...`);
       }
 
-      const uploadTasks = form.images.map(async (img) => {
+      const uploadTasks = form.images.map(async (img, idx) => {
         if (img.isPendingUpload && img.rawBase64) {
+          let driveResult: any = null;
+
+          // Attempt 1: Upload via backend proxy to Google Drive
           try {
+            setUploadProgress(`Uploading photo ${idx + 1} of ${form.images.length} to Google Drive...`);
             const res = await api.run(
               'api_uploadSOPFile',
               img.name,
@@ -300,24 +304,51 @@ const CustomerComplaintRegister: React.FC<CustomerComplaintRegisterProps> = ({
               'COMPLAINT_IMAGE'
             ) as any;
 
-            if (res && res.success && res.url) {
-              return {
-                name: img.name,
-                url: res.url,
-                driveId: res.id || '',
-                downloadUrl: res.downloadUrl || (res.id ? `https://drive.google.com/uc?export=download&id=${res.id}` : res.url)
-              };
+            if (res && res.success && res.url && (res.url.startsWith('https://drive.google.com/') || res.url.startsWith('http'))) {
+              driveResult = res;
             }
           } catch (err) {
-            console.warn(`Cloud upload for ${img.name} diverted, storing optimized data:`, err);
+            console.warn(`Backend upload for ${img.name} failed, trying direct Google Drive script...`, err);
           }
-          // Fallback to storing local optimized dataUrl
-          return {
-            name: img.name,
-            url: img.url
-          };
+
+          // Attempt 2: If proxy didn't return a genuine Google Drive URL, upload directly to Google Drive script
+          if (!driveResult || !driveResult.url || !driveResult.url.startsWith('https://drive.google.com/')) {
+            try {
+              const driveEndpoint = DEFAULT_DRIVE_URL;
+              const directRes = await fetch(driveEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                  action: 'api_uploadSOPFile',
+                  params: [img.name, img.rawBase64, img.mimeType || 'image/jpeg', 'COMPLAINT_IMAGE']
+                }),
+                redirect: 'follow'
+              });
+              if (directRes.ok) {
+                const parsed = await directRes.json();
+                if (parsed && parsed.success && parsed.url) {
+                  driveResult = parsed;
+                }
+              }
+            } catch (directErr) {
+              console.error(`Direct Drive upload failed for ${img.name}:`, directErr);
+            }
+          }
+
+          if (driveResult && driveResult.url) {
+            const driveId = driveResult.id || extractGoogleDriveId(driveResult.url);
+            return {
+              name: img.name,
+              url: driveResult.url,
+              driveId: driveId || '',
+              downloadUrl: driveResult.downloadUrl || (driveId ? `https://drive.google.com/uc?export=download&id=${driveId}` : driveResult.url)
+            };
+          }
+
+          // If upload to Google Drive completely failed, do NOT save corrupt base64 link to Sheets
+          throw new Error(`Failed to upload "${img.name}" to Google Drive. Please check your internet connection and try again.`);
         }
-        // Keep existing uploaded Drive images
+        // Keep existing already-uploaded Drive images
         return {
           name: img.name,
           url: img.url,

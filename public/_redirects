@@ -1,6 +1,0 @@
-/api/drive-proxy  /.netlify/functions/drive-proxy  200!
-/api/gas          /.netlify/functions/gas          200!
-/api/config       /.netlify/functions/config       200!
-/api/save-config  /.netlify/functions/config       200!
-/api/health       /.netlify/functions/health       200!
-/*                /index.html                      200

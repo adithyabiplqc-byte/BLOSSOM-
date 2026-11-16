@@ -2145,7 +2145,11 @@ export const api = {
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
             const proxyHeaders: any = { 'Content-Type': 'application/json' };
-            if (customUrl) proxyHeaders['x-gas-url'] = customUrl;
+            if (isUploadAction) {
+              proxyHeaders['x-gas-url'] = customDriveUrl || DEFAULT_DRIVE_URL;
+            } else if (customUrl) {
+              proxyHeaders['x-gas-url'] = customUrl;
+            }
 
             const response = await fetch("/api/gas", {
               method: 'POST',
@@ -2174,7 +2178,9 @@ export const api = {
             if (response.status === 404 || !response.ok || isHtml) {
               // Direct browser fallback for static host environments
               try {
-                const targetGasUrl = customUrl || DEFAULT_SHEETS_URL;
+                const targetGasUrl = isUploadAction
+                  ? (customDriveUrl || DEFAULT_DRIVE_URL)
+                  : (customUrl || DEFAULT_SHEETS_URL);
                 const directRes = await fetch(targetGasUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },

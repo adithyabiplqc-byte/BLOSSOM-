@@ -33,9 +33,9 @@ const getSavedCache = (key: string, defaultVal: any) => {
 const App: React.FC = () => {
   const initialSession = React.useMemo(() => getSavedSession(), []);
   const [user, setUser] = useState<any>(initialSession);
-  const [users, setUsers] = useState<any[]>(() => getSavedCache('bqos_cache_users', []));
-  const [workorders, setWorkorders] = useState<any[]>(() => getSavedCache('bqos_cache_wo', []));
-  const [settings, setSettings] = useState<any>(() => getSavedCache('bqos_cache_settings', null));
+  const [users, setUsers] = useState<any[]>(() => getSavedCache('bqos_cache_users', INITIAL_DB?.users || []));
+  const [workorders, setWorkorders] = useState<any[]>(() => getSavedCache('bqos_cache_wo', INITIAL_DB?.workorders || []));
+  const [settings, setSettings] = useState<any>(() => getSavedCache('bqos_cache_settings', INITIAL_DB?.settings || null));
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>(() => {
     try {
       return localStorage.getItem('bqos_active_submodule') || '';
@@ -325,39 +325,39 @@ const App: React.FC = () => {
     window.addEventListener('SHOW_CONFIG', handleShowConfig);
     
     const initApp = async () => {
-      setLoading(true);
+      const savedSession = getSavedSession();
+      const hasCachedUsers = Array.isArray(users) && users.length > 0;
+      if (!savedSession && !hasCachedUsers) {
+        setLoading(true);
+      }
       
       const timeoutId = setTimeout(() => {
         setLoading(false);
-      }, 25000); // 25s absolute fallback
+      }, 10000); // 10s fallback
 
       const skipTimer = setTimeout(() => {
         setShowSkip(true);
-      }, 5000); // Show skip after 5s
+      }, 3000); // Show skip after 3s
 
       try {
-        // 1. First fetch server config sequentially to obtain proper server configuration state
-        const srvConfigVal = await api.getServerConfig();
-        const hasUrl = !!srvConfigVal?.hasGasUrl;
-        setIsPermanentlyConnected(hasUrl);
-        if (hasUrl) {
-          setIsOnline(true);
-        }
-        
-        if (hasUrl && srvConfigVal.source !== 'hardcoded') {
-          console.log("[SYSTEM] Connecting through custom GAS server proxy...");
-        }
-
-        // 2. Identify saved session before calling initial data so we can request for specific user settings immediately!
-        const savedSession = getSavedSession();
         const activeZone = savedSession ? (savedSession.zone || (savedSession.location === 'SYSTEM' || !savedSession.location ? 'ALL' : savedSession.location)) : 'ALL';
         const sessionUserCode = savedSession?.userCode || '';
 
-        // 3. Run initialization queries in a single direct backend operation! Let's pass userCode and zone to fetch everything parallelly!
-        const [initResult, zmResult] = await Promise.allSettled([
+        // Run server config and initial queries in parallel for instant launch speed!
+        const [srvConfigRes, initResult, zmResult] = await Promise.allSettled([
+          api.getServerConfig(),
           api.run('api_getInitialData', { zone: activeZone, userCode: sessionUserCode }),
           api.run('api_getZoneMappings')
         ]);
+
+        if (srvConfigRes.status === 'fulfilled' && srvConfigRes.value) {
+          const srvConfigVal = srvConfigRes.value;
+          const hasUrl = !!srvConfigVal?.hasGasUrl;
+          setIsPermanentlyConnected(hasUrl);
+          if (hasUrl) {
+            setIsOnline(true);
+          }
+        }
 
         let initialData: any = null;
         if (initResult.status === 'fulfilled') {

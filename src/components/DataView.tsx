@@ -312,7 +312,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     }
 
     try {
-      const res = await api.run(sheetMapping[id] as any, { zone: selectedZone, item: selectedItem });
+      const res = await api.run(sheetMapping[id] as any, { zone: id === 'B9' ? 'ALL' : selectedZone, item: selectedItem });
       console.log(`[DataView] Received response for ${id}:`, res);
       
       if (res && res.success === false) {
@@ -592,7 +592,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     const matched = normalizedData.filter(row => {
       if (!row) return false;
       // Zone filter with resilient, strict matching
-      const zoneMatch = isRecordMatchingZone(row, selectedZone || 'ALL', zoneMappings, workorders);
+      const zoneMatch = id === 'B9' || isRecordMatchingZone(row, selectedZone || 'ALL', zoneMappings, workorders);
       
       // Item filter
       const itemMatch = selectedItem === 'ALL' || 
