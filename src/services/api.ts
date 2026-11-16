@@ -3,6 +3,7 @@ import { getAccessToken, db } from './auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirectDownloadUrl } from '../utils/sopUtils';
 import { INITIAL_DB } from '../data/initialDb';
+import { normalizeRestrictions, normalizeCanDownload } from '../utils/restrictions';
 
 export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
 export const MASTER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
@@ -47,6 +48,7 @@ function getLocalFallbackData(method: string, args: any[]): any {
         const cachedU = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
         if (Array.isArray(cachedU) && cachedU.length > 0) users = cachedU;
       } catch (e) {}
+      users = applyPendingUserOverrides(users);
       let wos = INITIAL_DB?.workorders || [];
       try {
         const cachedW = JSON.parse(localStorage.getItem('bqos_cache_wo') || '[]');
@@ -90,9 +92,9 @@ function getLocalFallbackData(method: string, args: any[]): any {
     case 'api_getUsers': {
       try {
         const cached = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
-        if (Array.isArray(cached) && cached.length > 0) return cached;
+        if (Array.isArray(cached) && cached.length > 0) return applyPendingUserOverrides(cached);
       } catch (e) {}
-      return INITIAL_DB?.users || [];
+      return applyPendingUserOverrides(INITIAL_DB?.users || []);
     }
     case 'api_getWorkorders': {
       try {
@@ -547,18 +549,43 @@ function applyLocalMutation(method: string, args: any[]): any {
 
       case 'api_saveUser':
       case 'api_updateUser': {
-        const u = args[0] || {};
+        const rawUser = args[0] || {};
+        const u = normalizeUserRecord(rawUser);
+        if (!INITIAL_DB.users || INITIAL_DB.users.length === 0) {
+          try {
+            const cachedUsers = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
+            if (Array.isArray(cachedUsers) && cachedUsers.length > 0) {
+              INITIAL_DB.users = cachedUsers;
+            }
+          } catch (e) {}
+        }
         INITIAL_DB.users = INITIAL_DB.users || [];
-        const idx = INITIAL_DB.users.findIndex((user: any) => user.userCode === u.userCode);
-        if (idx !== -1) INITIAL_DB.users[idx] = { ...INITIAL_DB.users[idx], ...u };
-        else INITIAL_DB.users.push(u);
+        const targetCode = String(u.oldUserCode || u.userCode || '').trim().toUpperCase();
+        const curCode = String(u.userCode || '').trim().toUpperCase();
+        const idx = INITIAL_DB.users.findIndex((user: any) => {
+          const code = String(user.userCode || '').trim().toUpperCase();
+          return (curCode && code === curCode) || (targetCode && code === targetCode);
+        });
+        const mergedUser = idx !== -1 ? normalizeUserRecord({ ...INITIAL_DB.users[idx], ...u }) : u;
+        if (idx !== -1) INITIAL_DB.users[idx] = mergedUser;
+        else INITIAL_DB.users.push(mergedUser);
         try { localStorage.setItem('bqos_cache_users', JSON.stringify(INITIAL_DB.users)); } catch (e) {}
+        try {
+          const sessionRaw = localStorage.getItem('bqos_session');
+          if (sessionRaw) {
+            const session = JSON.parse(sessionRaw);
+            const sCode = String(session.userCode || '').trim().toUpperCase();
+            if (sCode && (sCode === curCode || sCode === targetCode)) {
+              localStorage.setItem('bqos_session', JSON.stringify({ ...session, ...mergedUser }));
+            }
+          }
+        } catch (e) {}
         return { success: true };
       }
 
       case 'api_deleteUser': {
-        const code = String(args[0]);
-        INITIAL_DB.users = (INITIAL_DB.users || []).filter((u: any) => u.userCode !== code);
+        const code = String(args[0] || '').trim().toUpperCase();
+        INITIAL_DB.users = (INITIAL_DB.users || []).filter((u: any) => String(u.userCode || '').trim().toUpperCase() !== code);
         try { localStorage.setItem('bqos_cache_users', JSON.stringify(INITIAL_DB.users)); } catch (e) {}
         return { success: true };
       }
@@ -684,6 +711,248 @@ const CACHEABLE_METHODS = new Set([
   'aggregateZonedData'
 ]);
 
+const PENDING_USER_OVERRIDES_KEY = 'bqos_recent_user_overrides';
+const USER_OVERRIDE_TTL_MS = 90000; // Protect local restriction changes from stale GAS/proxy reads for 90s
+const userUpdateChains = new Map<string, Promise<any>>();
+
+interface PendingUserOverride {
+  userCode: string;
+  restrictions: string[];
+  canDownload: boolean;
+  updatedAt: number;
+  synced: boolean;
+}
+
+function normalizeUserRecord(u: any): any {
+  if (!u || typeof u !== 'object') return u;
+  return {
+    ...u,
+    restrictions: normalizeRestrictions(u.restrictions),
+    canDownload: normalizeCanDownload(u.canDownload)
+  };
+}
+
+function readPendingUserOverrides(): Record<string, PendingUserOverride> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PENDING_USER_OVERRIDES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function writePendingUserOverrides(map: Record<string, PendingUserOverride>) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (Object.keys(map).length === 0) {
+      localStorage.removeItem(PENDING_USER_OVERRIDES_KEY);
+    } else {
+      localStorage.setItem(PENDING_USER_OVERRIDES_KEY, JSON.stringify(map));
+    }
+  } catch (e) {}
+}
+
+function recordPendingUserOverride(user: any, synced = false) {
+  const code = String(user?.userCode || '').trim().toUpperCase();
+  if (!code) return;
+  const overrides = readPendingUserOverrides();
+  overrides[code] = {
+    userCode: code,
+    restrictions: normalizeRestrictions(user.restrictions),
+    canDownload: normalizeCanDownload(user.canDownload),
+    updatedAt: Date.now(),
+    synced
+  };
+  writePendingUserOverrides(overrides);
+}
+
+function markPendingUserOverrideSynced(userCode: string) {
+  const code = String(userCode || '').trim().toUpperCase();
+  if (!code) return;
+  const overrides = readPendingUserOverrides();
+  if (overrides[code]) {
+    overrides[code].synced = true;
+    overrides[code].updatedAt = Date.now();
+    writePendingUserOverrides(overrides);
+  }
+}
+
+function getQueuedUserUpdateCodes(): Set<string> {
+  const codes = new Set<string>();
+  if (typeof localStorage === 'undefined') return codes;
+  try {
+    const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
+    if (!rawQueue) return codes;
+    const queue = JSON.parse(rawQueue);
+    if (Array.isArray(queue)) {
+      for (const item of queue) {
+        if (item && (item.action === 'api_updateUser' || item.action === 'api_saveUser')) {
+          const code = String(item.params?.[0]?.userCode || '').trim().toUpperCase();
+          if (code) codes.add(code);
+        }
+      }
+    }
+  } catch (e) {}
+  return codes;
+}
+
+function applyPendingUserOverrides(users: any[]): any[] {
+  if (!Array.isArray(users)) return [];
+  const overrides = readPendingUserOverrides();
+  const queuedCodes = getQueuedUserUpdateCodes();
+  const now = Date.now();
+  let overridesDirty = false;
+
+  const result = users.map((rawUser: any) => {
+    const u = normalizeUserRecord(rawUser);
+    const code = String(u?.userCode || '').trim().toUpperCase();
+    if (!code) return u;
+
+    const override = overrides[code];
+    if (!override) return u;
+
+    const remoteRestrictionsKey = JSON.stringify([...normalizeRestrictions(u.restrictions)].sort());
+    const overrideRestrictionsKey = JSON.stringify([...normalizeRestrictions(override.restrictions)].sort());
+    const matchesOverride = remoteRestrictionsKey === overrideRestrictionsKey && u.canDownload === override.canDownload;
+    const isQueued = queuedCodes.has(code);
+    const isFresh = (now - (override.updatedAt || 0)) < USER_OVERRIDE_TTL_MS;
+
+    if (matchesOverride && override.synced && !isQueued) {
+      delete overrides[code];
+      overridesDirty = true;
+      return u;
+    }
+
+    if (!override.synced || isQueued || isFresh) {
+      return {
+        ...u,
+        restrictions: normalizeRestrictions(override.restrictions),
+        canDownload: override.canDownload
+      };
+    }
+
+    delete overrides[code];
+    overridesDirty = true;
+    return u;
+  });
+
+  if (overridesDirty) {
+    writePendingUserOverrides(overrides);
+  }
+
+  return result;
+}
+
+function enqueueOfflineMutation(mutationRecord: any) {
+  try {
+    const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
+    let queue: any[] = rawQueue ? JSON.parse(rawQueue) : [];
+    if (!Array.isArray(queue)) queue = [];
+    if (mutationRecord?.action === 'api_updateUser') {
+      const code = String(mutationRecord.params?.[0]?.userCode || '').trim().toUpperCase();
+      if (code) {
+        queue = queue.filter((q: any) => !(q?.action === 'api_updateUser' && String(q.params?.[0]?.userCode || '').trim().toUpperCase() === code));
+      }
+    }
+    queue.push(mutationRecord);
+    localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
+  } catch (qErr) {}
+}
+
+function serializeUserMutation<T>(userCode: string, task: () => Promise<T>): Promise<T> {
+  const key = String(userCode || '__DEFAULT__').trim().toUpperCase();
+  const prev = userUpdateChains.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(task);
+  userUpdateChains.set(key, next);
+  next.finally(() => {
+    if (userUpdateChains.get(key) === next) {
+      userUpdateChains.delete(key);
+    }
+  });
+  return next;
+}
+
+async function sendWriteRequestToBackend(
+  action: string,
+  params: any[],
+  spreadsheetId: string,
+  customUrl?: string | null,
+  customDriveUrl?: string | null
+): Promise<{ synced: boolean; data?: any; error?: string }> {
+  const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
+  const resolvedCustomUrl = customUrl || (typeof localStorage !== 'undefined' ? localStorage.getItem('VITE_GAS_URL') : null);
+  const resolvedCustomDriveUrl = customDriveUrl || (typeof localStorage !== 'undefined' ? localStorage.getItem('VITE_GAS_DRIVE_URL') : null);
+  const targetGasUrl = isUpload ? (resolvedCustomDriveUrl || DEFAULT_DRIVE_URL) : (resolvedCustomUrl || DEFAULT_SHEETS_URL);
+
+  // 1. Try local Express/Netlify /api/gas proxy first
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const proxyHeaders: any = { 'Content-Type': 'application/json' };
+    if (isUpload) proxyHeaders['x-gas-url'] = resolvedCustomDriveUrl || DEFAULT_DRIVE_URL;
+    else if (resolvedCustomUrl) proxyHeaders['x-gas-url'] = resolvedCustomUrl;
+
+    const res = await fetch("/api/gas", {
+      method: 'POST',
+      headers: proxyHeaders,
+      body: JSON.stringify({ action, params, spreadsheetId }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const contentType = res.headers.get('content-type') || '';
+    const isHtml = contentType.includes('text/html');
+    if (res.ok && !isHtml && res.status !== 404) {
+      const text = await res.text();
+      if (!text.trim().startsWith('<')) {
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && parsed.success !== false) {
+            return { synced: true, data: parsed };
+          }
+          return { synced: false, error: parsed?.error || 'Backend returned failure' };
+        } catch (parseErr) {
+          // Non-JSON response, fall through to direct GAS
+        }
+      }
+    }
+  } catch (proxyErr) {
+    // Fall through to direct Google Apps Script fallback
+  }
+
+  // 2. Direct browser fallback to Google Apps Script (essential for Cloudflare Workers / GitHub Pages static hosts)
+  try {
+    const directController = new AbortController();
+    const directTimeout = setTimeout(() => directController.abort(), 25000);
+    const directRes = await fetch(targetGasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, params, spreadsheetId }),
+      redirect: 'follow',
+      signal: directController.signal
+    });
+    clearTimeout(directTimeout);
+
+    if (directRes.ok) {
+      const directText = await directRes.text();
+      if (!directText.trim().startsWith('<')) {
+        const parsedDirect = JSON.parse(directText);
+        if (parsedDirect && parsedDirect.success !== false) {
+          return { synced: true, data: parsedDirect };
+        }
+        return { synced: false, error: parsedDirect?.error || 'Apps Script returned failure' };
+      }
+    }
+  } catch (directErr: any) {
+    return { synced: false, error: directErr?.message || 'Network unavailable' };
+  }
+
+  return { synced: false, error: 'Failed to reach backend' };
+}
+
 let isFlushingSyncQueue = false;
 async function flushOfflineSyncQueue() {
   if (isFlushingSyncQueue) return;
@@ -697,28 +966,43 @@ async function flushOfflineSyncQueue() {
     const remaining: any[] = [];
     const seenActions = new Set<string>();
 
-    for (const item of queue) {
+    // Walk in reverse to keep the latest api_updateUser per userCode, then restore chronological order
+    const dedupedReversed: any[] = [];
+    const seenUserCodes = new Set<string>();
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const item = queue[i];
+      if (!item || !item.action) continue;
+      if (item.action === 'api_updateUser') {
+        const uCode = String(item.params?.[0]?.userCode || '').trim().toUpperCase();
+        if (uCode) {
+          if (seenUserCodes.has(uCode)) continue;
+          seenUserCodes.add(uCode);
+        }
+      }
+      dedupedReversed.push(item);
+    }
+    const cleanQueue = dedupedReversed.reverse();
+
+    for (const item of cleanQueue) {
       if (!item || !item.action) continue;
       const paramId = item.params?.[0]?.id || item.params?.[0]?.driveFileId || '';
       const actionKey = `${item.action}:::${paramId}`;
       if (paramId && seenActions.has(actionKey)) {
-        // Skip duplicate action in sync queue
         continue;
       }
       if (paramId) seenActions.add(actionKey);
 
       try {
-        const res = await fetch("/api/gas", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            action: item.action, 
-            params: item.params, 
-            spreadsheetId: item.spreadsheetId || sheetsService.getSpreadsheetId() || "BOUND_TO_SCRIPT" 
-          })
-        });
-        if (!res.ok) {
+        const res = await sendWriteRequestToBackend(
+          item.action,
+          item.params,
+          item.spreadsheetId || sheetsService.getSpreadsheetId() || "BOUND_TO_SCRIPT"
+        );
+        if (!res.synced) {
           remaining.push(item);
+        } else if (item.action === 'api_updateUser' || item.action === 'api_saveUser') {
+          const uCode = item.params?.[0]?.userCode;
+          if (uCode) markPendingUserOverrideSynced(uCode);
         }
       } catch (err) {
         remaining.push(item);
@@ -2017,6 +2301,19 @@ export const api = {
       if ((getAccessToken() || isOfflineDemo) && sheetsService.getSpreadsheetId()) {
         try {
           const directResult = await this.runDirect(method, sanitizedArgs);
+          if (method === 'api_getInitialData' && directResult && Array.isArray(directResult.users) && directResult.users.length > 0) {
+            directResult.users = applyPendingUserOverrides(directResult.users);
+            INITIAL_DB.users = directResult.users;
+            try { localStorage.setItem('bqos_cache_users', JSON.stringify(directResult.users)); } catch (e) {}
+          } else if (method === 'api_getUsers' && Array.isArray(directResult) && directResult.length > 0) {
+            const protectedUsers = applyPendingUserOverrides(directResult);
+            INITIAL_DB.users = protectedUsers;
+            try { localStorage.setItem('bqos_cache_users', JSON.stringify(protectedUsers)); } catch (e) {}
+            if (isCacheable && cacheKey) {
+              clientReadCache.set(cacheKey, { timestamp: Date.now(), data: protectedUsers });
+            }
+            return protectedUsers;
+          }
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: directResult });
           }
@@ -2082,45 +2379,60 @@ export const api = {
                              method === 'api_getMaintenanceStatus' || 
                              method === 'api_setMaintenanceStatus';
       if (!isCacheable && !isSystemAction && !isUploadAction) {
+        const isUserMutation = method === 'api_updateUser' || method === 'api_saveUser';
+        if (isUserMutation && sanitizedArgs[0]) {
+          recordPendingUserOverride(sanitizedArgs[0], false);
+        }
+
         const localMutationResult = applyLocalMutation(method, sanitizedArgs);
         clientReadCache.clear();
 
-        // Dispatch non-blocking background sync to server/Google Sheets
-        // Only queue in offline sync if network request fails, preventing duplicate sheet appends
         const mutationRecord = {
           id: generateUuid(),
           action: gasMethod,
           params: gasArgs,
-          spreadsheetId: activeSheetId,
+          spreadsheetId: activeSheetId || "BOUND_TO_SCRIPT",
           timestamp: Date.now()
         };
 
-        (async () => {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
-            const res = await fetch("/api/gas", {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: gasMethod, params: gasArgs, spreadsheetId: activeSheetId }),
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            if (!res.ok) {
-              try {
-                const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
-                const queue = rawQueue ? JSON.parse(rawQueue) : [];
-                queue.push(mutationRecord);
-                localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
-              } catch (qErr) {}
+        if (isUserMutation) {
+          const userCode = String(sanitizedArgs[0]?.userCode || 'DEFAULT');
+          const syncResult = await serializeUserMutation(userCode, async () => {
+            const writeRes = await sendWriteRequestToBackend(
+              gasMethod,
+              gasArgs,
+              mutationRecord.spreadsheetId,
+              customUrl,
+              customDriveUrl
+            );
+            if (writeRes.synced) {
+              markPendingUserOverrideSynced(userCode);
+            } else {
+              enqueueOfflineMutation(mutationRecord);
             }
-          } catch (bgErr) {
-            try {
-              const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
-              const queue = rawQueue ? JSON.parse(rawQueue) : [];
-              queue.push(mutationRecord);
-              localStorage.setItem('bqos_offline_sync_queue', JSON.stringify(queue.slice(-100)));
-            } catch (qErr) {}
+            return writeRes;
+          });
+
+          clientReadCache.clear();
+          return {
+            success: true,
+            offline: !syncResult.synced,
+            id: args[0]?.id || generateUuid(),
+            ...localMutationResult
+          };
+        }
+
+        // Non-blocking background sync with full static-host GAS fallback
+        (async () => {
+          const writeRes = await sendWriteRequestToBackend(
+            gasMethod,
+            gasArgs,
+            mutationRecord.spreadsheetId,
+            customUrl,
+            customDriveUrl
+          );
+          if (!writeRes.synced) {
+            enqueueOfflineMutation(mutationRecord);
           }
         })();
 
@@ -2220,6 +2532,15 @@ export const api = {
         }
 
         if (result !== null) {
+          if (method === 'api_getInitialData' && result && Array.isArray(result.users) && result.users.length > 0) {
+            result.users = applyPendingUserOverrides(result.users);
+            INITIAL_DB.users = result.users;
+            try { localStorage.setItem('bqos_cache_users', JSON.stringify(result.users)); } catch (e) {}
+          } else if (method === 'api_getUsers' && Array.isArray(result) && result.length > 0) {
+            result = applyPendingUserOverrides(result);
+            INITIAL_DB.users = result;
+            try { localStorage.setItem('bqos_cache_users', JSON.stringify(result)); } catch (e) {}
+          }
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: result });
           }

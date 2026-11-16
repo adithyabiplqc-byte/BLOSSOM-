@@ -5,11 +5,11 @@ import { INITIAL_DB } from '../data/initialDb';
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { getDirectViewUrl } from '../utils/sopUtils';
-import { normalizeRestrictions } from '../utils/restrictions';
+import { normalizeRestrictions, normalizeCanDownload } from '../utils/restrictions';
 
 interface AdminDashboardProps {
   users?: any[];
-  setUsers?: (users: any[]) => void;
+  setUsers?: React.Dispatch<React.SetStateAction<any[]>>;
   currentUser: any;
   refreshData?: () => Promise<void>;
   triggerSuccess?: (message: string) => void;
@@ -61,6 +61,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [restrictingUserCode, setRestrictingUserCode] = useState('');
   const [deletingUserCode, setDeletingUserCode] = useState('');
   const isLocked = useRef(false);
+  const usersRef = useRef<any[]>(users);
+  usersRef.current = users;
 
   // Admin Activity Logs state synced with Google Sheets
   const [adminLogs, setAdminLogs] = useState<any[]>([]);
@@ -1016,24 +1018,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const toggleRestriction = async (userToUpdate: any, moduleId: string) => {
-    const currentRestrictions = normalizeRestrictions(userToUpdate.restrictions);
+    const latestUser = usersRef.current.find((u: any) =>
+      String(u?.userCode || '').trim().toUpperCase() === String(userToUpdate?.userCode || '').trim().toUpperCase()
+    ) || userToUpdate;
+
+    const currentRestrictions = normalizeRestrictions(latestUser.restrictions);
     let updatedUser: any;
 
     if (moduleId === 'DOWNLOAD_RESTRICTION') {
-      updatedUser = { ...userToUpdate, canDownload: !userToUpdate.canDownload, restrictions: currentRestrictions };
+      updatedUser = {
+        ...latestUser,
+        canDownload: !normalizeCanDownload(latestUser.canDownload),
+        restrictions: currentRestrictions
+      };
     } else {
-      const isRestricted = currentRestrictions.includes(moduleId);
+      const targetId = String(moduleId || '').trim().toUpperCase();
+      const isRestricted = currentRestrictions.includes(targetId);
       const newRestrictions = isRestricted
-        ? currentRestrictions.filter((id: string) => id !== moduleId)
-        : [...currentRestrictions, moduleId];
-      updatedUser = { ...userToUpdate, restrictions: newRestrictions };
+        ? currentRestrictions.filter((id: string) => id !== targetId)
+        : [...currentRestrictions, targetId];
+      updatedUser = {
+        ...latestUser,
+        canDownload: normalizeCanDownload(latestUser.canDownload),
+        restrictions: newRestrictions
+      };
     }
 
-    setUsers && setUsers(prev => prev.map(u => u.userCode === updatedUser.userCode ? updatedUser : u));
+    const nextUsers = usersRef.current.map(u =>
+      String(u?.userCode || '').trim().toUpperCase() === String(updatedUser.userCode || '').trim().toUpperCase()
+        ? updatedUser
+        : u
+    );
+    usersRef.current = nextUsers;
+    setUsers && setUsers(prev => {
+      const updated = prev.map(u =>
+        String(u?.userCode || '').trim().toUpperCase() === String(updatedUser.userCode || '').trim().toUpperCase()
+          ? updatedUser
+          : u
+      );
+      try { localStorage.setItem('bqos_cache_users', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
 
     try {
-      await api.run('api_updateUser', updatedUser);
-      logActivity('RESTRICTION CHANGE', `Updated ${moduleId} for ${userToUpdate.userCode}`);
+      const res = await api.run('api_updateUser', updatedUser) as any;
+      if (res && res.success === false) {
+        throw new Error(res.error || 'Failed to save restriction update');
+      }
+      logActivity('RESTRICTION CHANGE', `Updated ${moduleId} for ${updatedUser.userCode}`);
     } catch (err) {
       console.error("Save failed, reverting UI:", err);
       if (refreshData) await refreshData();
@@ -1418,9 +1450,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button 
                       onClick={() => toggleRestriction(restrictingUser, 'DOWNLOAD_RESTRICTION')}
                       disabled={isSubmitting}
-                      className={`w-12 h-6 rounded-full transition-all relative ${restrictingUser.canDownload !== false ? 'bg-green-500' : 'bg-slate-300'} disabled:opacity-50`}
+                      className={`w-12 h-6 rounded-full transition-all relative ${normalizeCanDownload(restrictingUser.canDownload) ? 'bg-green-500' : 'bg-slate-300'} disabled:opacity-50`}
                     >
-                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${restrictingUser.canDownload !== false ? 'left-7' : 'left-1'}`}></div>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${normalizeCanDownload(restrictingUser.canDownload) ? 'left-7' : 'left-1'}`}></div>
                     </button>
                   </div>
 

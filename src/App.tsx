@@ -12,7 +12,7 @@ import SubmoduleContainer from './components/SubmoduleContainer';
 import ConnectionGuide from './components/ConnectionGuide';
 import { ZONES } from './constants';
 import { INITIAL_DB } from './data/initialDb';
-import { isModuleRestricted } from './utils/restrictions';
+import { isModuleRestricted, normalizeRestrictions, normalizeCanDownload } from './utils/restrictions';
 
 const getSavedSession = () => {
   try {
@@ -198,7 +198,10 @@ const App: React.FC = () => {
         const freshUsers = Array.isArray(data.users) ? data.users : [];
         const freshWOs = Array.isArray(data.workorders) ? data.workorders : [];
         
-        setUsers(prev => (JSON.stringify(prev) === JSON.stringify(freshUsers) ? prev : freshUsers));
+        if (freshUsers.length > 0) {
+          setUsers(prev => (JSON.stringify(prev) === JSON.stringify(freshUsers) ? prev : freshUsers));
+          try { localStorage.setItem('bqos_cache_users', JSON.stringify(freshUsers)); } catch (e) {}
+        }
         setWorkorders(prev => (JSON.stringify(prev) === JSON.stringify(freshWOs) ? prev : freshWOs));
         if (data.settings) {
           setSettings(prev => (JSON.stringify(prev) === JSON.stringify(data.settings) ? prev : data.settings));
@@ -304,15 +307,20 @@ const App: React.FC = () => {
         String(u.username || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()
       );
       if (freshUser) {
-        const restrictionsChanged = JSON.stringify(freshUser.restrictions) !== JSON.stringify(user.restrictions);
-        const canDownloadChanged = freshUser.canDownload !== user.canDownload;
+        const freshRestrictions = normalizeRestrictions(freshUser.restrictions);
+        const curRestrictions = normalizeRestrictions(user.restrictions);
+        const freshCanDownload = normalizeCanDownload(freshUser.canDownload);
+        const curCanDownload = normalizeCanDownload(user.canDownload);
+
+        const restrictionsChanged = JSON.stringify(freshRestrictions) !== JSON.stringify(curRestrictions);
+        const canDownloadChanged = freshCanDownload !== curCanDownload;
         const roleChanged = freshUser.role !== user.role;
         const usernameChanged = freshUser.username !== user.username;
         const zoneChanged = freshUser.zone !== user.zone;
         const locChanged = freshUser.location !== user.location;
 
         if (restrictionsChanged || canDownloadChanged || roleChanged || usernameChanged || zoneChanged || locChanged) {
-          const merged = { ...user, ...freshUser };
+          const merged = { ...user, ...freshUser, restrictions: freshRestrictions, canDownload: freshCanDownload };
           setUser(merged);
           try { localStorage.setItem('bqos_session', JSON.stringify(merged)); } catch (e) {}
         }

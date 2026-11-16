@@ -37,6 +37,15 @@ export const normalizeRestrictions = (raw: any): string[] => {
   return Array.from(new Set(list));
 };
 
+export const normalizeCanDownload = (raw: any): boolean => {
+  if (raw === false) return false;
+  if (typeof raw === 'string') {
+    const clean = raw.trim().toLowerCase();
+    if (clean === 'false' || clean === '0' || clean === 'no') return false;
+  }
+  return true;
+};
+
 export const isModuleRestricted = (user: any, moduleId: string): boolean => {
   if (!user || user.role === 'ADMIN') return false;
   const restrictions = normalizeRestrictions(user?.restrictions);

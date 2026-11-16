@@ -1609,6 +1609,73 @@ function getDynamicSettingsForServer(settings: any, db: any): any {
   return finalSettings;
 }
 
+const SERVER_USER_OVERRIDE_TTL_MS = 60000;
+const pendingServerUserWrites = new Map<string, { restrictions: string[]; canDownload: boolean; updatedAt: number; inFlight: boolean }>();
+let serverUserWriteChain: Promise<void> = Promise.resolve();
+
+function normalizeRestrictionsList(raw: any): string[] {
+  if (!raw) return [];
+  let list: string[] = [];
+  if (Array.isArray(raw)) {
+    list = raw.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
+  } else if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        list = parsed.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
+      }
+    } catch (e) {}
+    if (list.length === 0) {
+      list = raw.split(/[,;|\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+    }
+  }
+  if (list.includes('B10')) {
+    list = list.map(c => c === 'B10' ? 'B9' : c);
+  }
+  return Array.from(new Set(list));
+}
+
+function normalizeCanDownloadFlag(raw: any): boolean {
+  if (raw === false) return false;
+  if (typeof raw === 'string') {
+    const clean = raw.trim().toLowerCase();
+    if (clean === 'false' || clean === '0' || clean === 'no') return false;
+  }
+  return true;
+}
+
+function mergePendingServerUserWrites(users: any[]): any[] {
+  if (!Array.isArray(users)) return [];
+  const now = Date.now();
+  return users.map((u: any) => {
+    const cleanRestrictions = normalizeRestrictionsList(u?.restrictions);
+    const cleanCanDownload = normalizeCanDownloadFlag(u?.canDownload);
+    const code = String(u?.userCode || '').trim().toUpperCase();
+    const pending = code ? pendingServerUserWrites.get(code) : undefined;
+    if (pending) {
+      const remoteKey = JSON.stringify([...cleanRestrictions].sort());
+      const pendingKey = JSON.stringify([...normalizeRestrictionsList(pending.restrictions)].sort());
+      const matches = remoteKey === pendingKey && cleanCanDownload === pending.canDownload;
+      if (matches && !pending.inFlight) {
+        pendingServerUserWrites.delete(code);
+      } else if (pending.inFlight || (now - pending.updatedAt) < SERVER_USER_OVERRIDE_TTL_MS) {
+        return {
+          ...u,
+          restrictions: normalizeRestrictionsList(pending.restrictions),
+          canDownload: pending.canDownload
+        };
+      } else {
+        pendingServerUserWrites.delete(code);
+      }
+    }
+    return {
+      ...u,
+      restrictions: cleanRestrictions,
+      canDownload: cleanCanDownload
+    };
+  });
+}
+
 function executeLocalAction(action: string, params: any[]): any {
   console.log(`[LOCAL DB FALLBACK] Executing ${action} locally.`);
   maybePullFromFirestore();
@@ -1776,7 +1843,7 @@ function executeLocalAction(action: string, params: any[]): any {
       }
 
       return {
-        users: db.users || [],
+        users: mergePendingServerUserWrites(db.users || []),
         workorders: allWOs,
         settings: settings,
         zone: db.zone || [],
@@ -1791,24 +1858,14 @@ function executeLocalAction(action: string, params: any[]): any {
         success: true
       };
     }
-    
     case 'api_getUsers':
-      return db.users || [];
+      return mergePendingServerUserWrites(db.users || []);
       
     case 'api_saveUser': {
-      const user = params[0];
-      const rawRestrictions = user.restrictions || [];
-      const remappedRestrictions = rawRestrictions.includes('B10')
-        ? Array.from(new Set(
-            rawRestrictions.map((code: string) => {
-              if (code === 'B7') return null;
-              if (code === 'B8') return 'B7';
-              if (code === 'B9') return 'B8';
-              if (code === 'B10') return 'B9';
-              return code;
-            }).filter(Boolean)
-          ))
-        : Array.from(new Set(rawRestrictions.filter(Boolean)));
+      const user = params[0] || {};
+      const remappedRestrictions = normalizeRestrictionsList(user.restrictions);
+      const canDownloadFlag = normalizeCanDownloadFlag(user.canDownload);
+      const targetCode = String(user.userCode || '').trim().toUpperCase();
       const structuredUser = {
         userCode: user.userCode,
         username: user.username,
@@ -1817,51 +1874,58 @@ function executeLocalAction(action: string, params: any[]): any {
         zone: user.zone || user.location || '',
         location: user.location || '',
         restrictions: remappedRestrictions,
-        canDownload: user.canDownload !== false
+        canDownload: canDownloadFlag
       };
       
       db.users = db.users || [];
       // Prevent duplicates
-      db.users = db.users.filter((u: any) => u.userCode !== user.userCode);
+      db.users = db.users.filter((u: any) => String(u.userCode || '').trim().toUpperCase() !== targetCode);
       db.users.push(structuredUser);
+      if (targetCode) {
+        pendingServerUserWrites.set(targetCode, {
+          restrictions: remappedRestrictions,
+          canDownload: canDownloadFlag,
+          updatedAt: Date.now(),
+          inFlight: true
+        });
+      }
       writeLocalDb(db);
       return { success: true };
     }
     
     case 'api_updateUser': {
-      const user = params[0];
+      const user = params[0] || {};
       db.users = db.users || [];
-      const idx = db.users.findIndex((u: any) => u.userCode === user.userCode);
+      const curCode = String(user.userCode || '').trim().toUpperCase();
+      const oldCode = String(user.oldUserCode || '').trim().toUpperCase();
+      const idx = db.users.findIndex((u: any) => {
+        const c = String(u.userCode || '').trim().toUpperCase();
+        return (curCode && c === curCode) || (oldCode && c === oldCode);
+      });
       if (idx !== -1) {
-        let remappedRestrictions = db.users[idx].restrictions;
-        if (user.restrictions !== undefined) {
-          const raw = user.restrictions;
-          let list: string[] = [];
-          if (Array.isArray(raw)) {
-            list = raw.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
-          } else if (typeof raw === 'string') {
-            try {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                list = parsed.flatMap((item: any) => String(item || '').split(/[,;|\s]+/)).map(s => s.trim().toUpperCase()).filter(Boolean);
-              }
-            } catch (e) {}
-            if (list.length === 0) {
-              list = raw.split(/[,;|\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
-            }
-          }
-          if (list.includes('B10')) {
-            list = list.map(c => c === 'B10' ? 'B9' : c);
-          }
-          remappedRestrictions = Array.from(new Set(list));
-        }
+        const remappedRestrictions = user.restrictions !== undefined
+          ? normalizeRestrictionsList(user.restrictions)
+          : normalizeRestrictionsList(db.users[idx].restrictions);
+        const canDownloadFlag = user.canDownload !== undefined
+          ? normalizeCanDownloadFlag(user.canDownload)
+          : normalizeCanDownloadFlag(db.users[idx].canDownload);
 
         db.users[idx] = { 
           ...db.users[idx], 
           ...user,
           zone: user.zone !== undefined ? user.zone : (db.users[idx].zone || user.location || ''),
-          restrictions: remappedRestrictions
+          restrictions: remappedRestrictions,
+          canDownload: canDownloadFlag
         };
+        const recordCode = String(db.users[idx].userCode || curCode).trim().toUpperCase();
+        if (recordCode) {
+          pendingServerUserWrites.set(recordCode, {
+            restrictions: remappedRestrictions,
+            canDownload: canDownloadFlag,
+            updatedAt: Date.now(),
+            inFlight: true
+          });
+        }
         writeLocalDb(db);
       }
       return { success: true };
@@ -3497,15 +3561,7 @@ async function startServer() {
                   const parsed = JSON.parse(bgText);
                   if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
                     const currentDb = readLocalDb();
-                    currentDb.users = parsed.users.map((u: any) => ({
-                      ...u,
-                      restrictions: Array.from(new Set((u.restrictions || []).map((code: string) => {
-                        if (code === 'B10') return 'B9';
-                        if (code === 'B9') return 'B8';
-                        if (code === 'B8') return 'B7';
-                        return code;
-                      }).filter(Boolean)))
-                    }));
+                    currentDb.users = mergePendingServerUserWrites(parsed.users);
                     if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) {
                       const woMap = new Map();
                       (currentDb.workorders || []).forEach((w: any) => {
@@ -3532,15 +3588,7 @@ async function startServer() {
         })();
 
         if (localData && Array.isArray(localData.users) && localData.users.length > 0) {
-          localData.users = localData.users.map((u: any) => ({
-            ...u,
-            restrictions: Array.from(new Set((u.restrictions || []).map((code: string) => {
-              if (code === 'B10') return 'B9';
-              if (code === 'B9') return 'B8';
-              if (code === 'B8') return 'B7';
-              return code;
-            }).filter(Boolean)))
-          }));
+          localData.users = mergePendingServerUserWrites(localData.users);
           return res.json(localData);
         }
       }
@@ -3673,7 +3721,7 @@ async function startServer() {
                               writeLocalDb(db);
                               if (cacheKey) apiReadCache.delete(cacheKey);
                             } else if (action === 'api_getInitialData') {
-                              if (Array.isArray(parsed.users) && parsed.users.length > 0) db.users = parsed.users;
+                              if (Array.isArray(parsed.users) && parsed.users.length > 0) db.users = mergePendingServerUserWrites(parsed.users);
                               if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) db.workorders = parsed.workorders;
                               if (Array.isArray(parsed.zone) && parsed.zone.length > 0) db.zone = parsed.zone;
                               if (parsed.settings && typeof parsed.settings === 'object') {
@@ -3882,9 +3930,11 @@ async function startServer() {
       if (!isReadAction) {
         const healthyUrls = candidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
+        const isUserWrite = action === 'api_updateUser' || action === 'api_saveUser';
+        const targetUserCode = String(bodyPayload.params?.[0]?.userCode || '').trim().toUpperCase();
 
-        // Spawn background sync to Google Apps Script so the Google Sheet is always updated without holding up the user
-        (async () => {
+        const runWriteSync = async () => {
+          let syncedToSheet = false;
           for (const targetUrl of urlsToTry) {
             try {
               const bgController = new AbortController();
@@ -3900,9 +3950,19 @@ async function startServer() {
               if (bgRes.ok) {
                 const bgText = await bgRes.text();
                 if (!bgText.trim().startsWith("<")) {
-                  console.log(`[SHEET SYNC SUCCESS] Action "${action}" successfully synchronized to Google Sheet:`, bgText.substring(0, 100));
-                  markUrlHealth(targetUrl, true);
-                  break;
+                  let parsedOk = true;
+                  try {
+                    const parsedRes = JSON.parse(bgText);
+                    if (parsedRes && parsedRes.success === false) parsedOk = false;
+                  } catch (pe) {}
+                  if (parsedOk) {
+                    console.log(`[SHEET SYNC SUCCESS] Action "${action}" successfully synchronized to Google Sheet:`, bgText.substring(0, 100));
+                    markUrlHealth(targetUrl, true);
+                    syncedToSheet = true;
+                    break;
+                  } else {
+                    console.warn(`[SHEET SYNC] Action "${action}" rejected by Google Sheet:`, bgText.substring(0, 150));
+                  }
                 }
               } else {
                 console.warn(`[SHEET SYNC] Action "${action}" received HTTP ${bgRes.status} from Google Sheets:`, targetUrl);
@@ -3912,7 +3972,22 @@ async function startServer() {
               markUrlHealth(targetUrl, false, bgErr.message);
             }
           }
-        })();
+          if (isUserWrite && targetUserCode) {
+            const existingPending = pendingServerUserWrites.get(targetUserCode);
+            if (existingPending) {
+              existingPending.inFlight = false;
+              if (syncedToSheet) {
+                existingPending.updatedAt = Date.now();
+              }
+            }
+          }
+        };
+
+        if (isUserWrite) {
+          serverUserWriteChain = serverUserWriteChain.catch(() => {}).then(runWriteSync);
+        } else {
+          runWriteSync();
+        }
 
         if (localWriteResult !== null && localWriteResult !== undefined) {
           return res.json({ success: true, ...localWriteResult });

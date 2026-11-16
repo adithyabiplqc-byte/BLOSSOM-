@@ -1722,8 +1722,11 @@ function api_updateUser(user, admin = 'SYSTEM') {
     if (codeIdx === -1) return { success: false, error: "userCode header not found" };
     
     let updatedAny = false;
+    const targetCode = String(user.userCode || '').trim().toUpperCase();
+    const targetOldCode = String(user.oldUserCode || '').trim().toUpperCase();
     for (let i = 1; i < data.length; i++) {
-       if (String(data[i][codeIdx]) === String(user.userCode)) {
+       const rowCode = String(data[i][codeIdx] || '').trim().toUpperCase();
+       if ((targetCode && rowCode === targetCode) || (targetOldCode && rowCode === targetOldCode)) {
          const newRow = headers.map(h => {
            const val = resolveSynonymValue(h, user);
            return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
@@ -1734,6 +1737,8 @@ function api_updateUser(user, admin = 'SYSTEM') {
     }
 
     if (updatedAny) {
+      SpreadsheetApp.flush();
+      clearSheetCache(sheetName);
       saveDataToSheet('ADMIN', {
         timestamp: new Date().toISOString(),
         module: 'USER_MGMT',
