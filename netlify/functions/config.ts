@@ -1,4 +1,4 @@
-const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
+const DEFAULT_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwD3IeBv1QR7HQWmkpUfoczTBMtQ25WH-UErE49nROivXok18L2iBYcVXJ977KrqvhxTQ/exec";
 const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 export const handler = async (event: any) => {

@@ -5,6 +5,7 @@ import { getEffectiveZones, getEffectiveUnits } from '../utils/settingUtils';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
+import { isWorkorderVisibleInStage } from '../utils/workorderFlow';
 
 interface FinalAuditProps {
   user: any;
@@ -116,12 +117,13 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
     try {
       const resolvedWo = selectedWO?.workorderNumber || (form.wo.startsWith('wo-') ? (workorders.find(w => w.id === form.wo)?.workorderNumber || form.wo) : form.wo);
 
-      if (resolvedWo && moveToComplete) {
+      if (resolvedWo) {
         const upperWo = String(resolvedWo).trim().toUpperCase();
+        const nextStatus = moveToComplete ? 'COMPLETED' : 'FINAL_PASS_AND_HOLD';
         setStatusOverrides(prev => ({
           ...prev,
-          [upperWo]: 'COMPLETED',
-          ...(selectedWO?.id ? { [String(selectedWO.id).trim().toUpperCase()]: 'COMPLETED' } : {})
+          [upperWo]: nextStatus,
+          ...(selectedWO?.id ? { [String(selectedWO.id).trim().toUpperCase()]: nextStatus } : {})
         }));
       }
 
@@ -129,8 +131,10 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         ...selectedWO, 
         ...form, 
         wo: resolvedWo,
+        woId: selectedWO?.id,
         workorderNumber: resolvedWo,
         moveToComplete,
+        passAndHold: !moveToComplete,
         inspector: user.username, 
         timestamp: new Date().toISOString() 
       };
@@ -141,8 +145,8 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         await refreshData();
       }
 
-      triggerSuccess(moveToComplete ? 'AUDIT COMPLETE & WORKORDER CLOSED' : 'FINAL AUDIT RECORDED');
-      setForm({ ...form, totalAudited: '', pass: '', rejected: '', remarks: '' });
+      triggerSuccess(moveToComplete ? 'AUDIT COMPLETE & WORKORDER CLOSED' : 'FINAL AUDIT RECORDED (HELD IN FINAL)');
+      setForm({ ...form, wo: moveToComplete ? '' : form.wo, totalAudited: '', pass: '', rejected: '', remarks: '' });
     } catch (error) {
       alert('Error saving final audit');
     } finally {
@@ -182,13 +186,9 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
                   );
                 }
 
-                return matchesZone && status !== 'CLOSED';
+                return matchesZone && isWorkorderVisibleInStage(rawStatus, 'FINAL');
               });
-              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                const s = String(getWorkorderStatus(w) || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
-                return s !== 'CLOSED';
-              });
-              return (list.length > 0 ? list : workorders).map(w => (
+              return filtered.map(w => (
                 <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>
@@ -206,7 +206,7 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
 
       {selectedWO && (
         <div className="animate-zoom-in">
-          <WorkorderDetailCard wo={selectedWO} settings={settings} />
+          <WorkorderDetailCard wo={{ ...selectedWO, status: getWorkorderStatus(selectedWO) }} settings={settings} />
         </div>
       )}
       

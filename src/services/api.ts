@@ -5,12 +5,12 @@ import { extractCleanDocumentUrl, extractDriveFileId, getDirectViewUrl, getDirec
 import { INITIAL_DB } from '../data/initialDb';
 import { normalizeRestrictions, normalizeCanDownload } from '../utils/restrictions';
 
-export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
+export const MASTER_SHEETS_URL = "https://script.google.com/macros/s/AKfycbwD3IeBv1QR7HQWmkpUfoczTBMtQ25WH-UErE49nROivXok18L2iBYcVXJ977KrqvhxTQ/exec";
 export const MASTER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 // Master Authoritative Google Apps Script endpoints (filters out stale or empty test environment URLs)
 const rawEnvUrl = (import.meta as any).env?.VITE_GAS_URL;
-export const DEFAULT_SHEETS_URL = (rawEnvUrl && !rawEnvUrl.includes("AKfycbwK") && !rawEnvUrl.includes("AKfycbzyJE21jeRLP") && !rawEnvUrl.includes("REPLACE_WITH") && rawEnvUrl.startsWith("https://script.google.com/macros/s/"))
+export const DEFAULT_SHEETS_URL = (rawEnvUrl && !rawEnvUrl.includes("AKfycbwK") && !rawEnvUrl.includes("AKfycbzyJE21jeRLP") && !rawEnvUrl.includes("AKfycbwovJafP") && !rawEnvUrl.includes("REPLACE_WITH") && rawEnvUrl.startsWith("https://script.google.com/macros/s/"))
   ? rawEnvUrl
   : MASTER_SHEETS_URL;
 
@@ -662,12 +662,15 @@ const SEED_USERS = [
   { userCode: 'W001', username: 'wo1', password: '123', role: 'WORKORDER', location: 'SYSTEM', restrictions: [], canDownload: true }
 ];
 
-async function updateWorkorderStatus(woNum: string, nextStatus: string) {
+async function updateWorkorderStatus(woNum: string, nextStatus: string, woId?: string) {
   try {
     const target = String(woNum || '').trim().toUpperCase();
-    if (!target) return;
+    const targetId = String(woId || '').trim().toUpperCase();
+    if (!target && !targetId) return;
     const workorders = await sheetsService.getData('WORKORDER');
-    const matched = workorders.find(w => 
+    const matched = (targetId
+      ? workorders.find(w => String(w.id || '').trim().toUpperCase() === targetId)
+      : undefined) || workorders.find(w => 
       String(w.workorderNumber || '').trim().toUpperCase() === target || 
       String(w.id || '').trim().toUpperCase() === target ||
       String(w.wo || '').trim().toUpperCase() === target
@@ -676,7 +679,7 @@ async function updateWorkorderStatus(woNum: string, nextStatus: string) {
       matched.status = nextStatus;
       await sheetsService.updateData('WORKORDER', matched);
     } else {
-      await sheetsService.updateData('WORKORDER', { workorderNumber: woNum, status: nextStatus });
+      await sheetsService.updateData('WORKORDER', { id: woId, workorderNumber: woNum, status: nextStatus });
     }
     api.clearCache('api_getWorkorders');
     api.clearCache('api_getInitialData');
@@ -1534,7 +1537,7 @@ export const api = {
       case 'api_saveWorkorder': {
         const wo = args[0];
         wo.id = wo.id || generateUuid();
-        if (!wo.status) wo.status = 'CUTTING';
+        if (!wo.status) wo.status = 'PRECUTTING';
         await sheetsService.saveData('WORKORDER', wo);
         return { success: true };
       }
@@ -1992,7 +1995,7 @@ export const api = {
           } else {
             nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
           }
-          await updateWorkorderStatus(woTarget, nextStatus);
+          await updateWorkorderStatus(woTarget, nextStatus, report.woId);
         }
         return res;
       }
@@ -2007,8 +2010,8 @@ export const api = {
       case 'api_saveENDLINEQUALITY': {
         const report = args[0];
         const res = await sheetsService.saveData('ENDLINE QUALITY', report);
-        if (res.success && report.moveToAQL && report.wo) {
-          await updateWorkorderStatus(report.wo, 'AQL');
+        if (res.success && report.moveToAQL && (report.wo || report.workorderNumber)) {
+          await updateWorkorderStatus(report.wo || report.workorderNumber, 'AQL', report.woId);
         }
         return res;
       }
@@ -2016,12 +2019,9 @@ export const api = {
       case 'api_saveAQLREPORT': {
         const report = args[0];
         const res = await sheetsService.saveData('AQL REPORT', report);
-        if (res.success && report.wo) {
-          let nextStatus = 'AQL';
-          if (report.moveToFinal || report.auditStatus === 'PASS') {
-            nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
-          }
-          await updateWorkorderStatus(report.wo, nextStatus);
+        if (res.success && (report.wo || report.workorderNumber) && (report.moveToFinal || report.auditStatus === 'PASS')) {
+          const nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
+          await updateWorkorderStatus(report.wo || report.workorderNumber, nextStatus, report.woId);
         }
         return res;
       }
@@ -2029,9 +2029,9 @@ export const api = {
       case 'api_saveFINALAUDIT': {
         const report = args[0];
         const res = await sheetsService.saveData('FINAL AUDIT', report);
-        if (res.success && report.wo) {
+        if (res.success && (report.wo || report.workorderNumber)) {
           const nextStatus = (report.moveToComplete === true || report.moveToComplete === 'true') ? 'COMPLETED' : 'FINAL_PASS_AND_HOLD';
-          await updateWorkorderStatus(report.wo, nextStatus);
+          await updateWorkorderStatus(report.wo || report.workorderNumber, nextStatus, report.woId);
         }
         return res;
       }

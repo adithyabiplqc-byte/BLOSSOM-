@@ -9,7 +9,7 @@ const CONFIG_FILE = path.join(process.cwd(), ".gas_url");
 const CONFIG_DRIVE_FILE = path.join(process.cwd(), ".gas_drive_url");
 const SPREADSHEET_FILE = path.join(process.cwd(), ".gas_spreadsheet_id");
 
-const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbwovJafP-4-u4uDOHWuJ-MCUh0-27aMbpUy2vebU3iPwwWkJGGp8DK65rrpQrxOQ1FOtg/exec";
+const USER_SHEET_URL = "https://script.google.com/macros/s/AKfycbwD3IeBv1QR7HQWmkpUfoczTBMtQ25WH-UErE49nROivXok18L2iBYcVXJ977KrqvhxTQ/exec";
 const USER_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyKWMLBVEs8L_5K-j4COuyNUGxngjs0NlG2Um3RuXwZZmIM5-lAof3sEfONj581y-lJ/exec";
 
 const HARDCODED_GAS_URLS = [USER_SHEET_URL];
@@ -18,7 +18,7 @@ const HARDCODED_DRIVE_URL = USER_DRIVE_URL;
 
 // Auto-initialize connection configuration files on container boot so every device works out of the box
 try {
-  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzyJE21jeRLP") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbxd") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
+  if (!fs.existsSync(CONFIG_FILE) || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzyJE21jeRLP") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbxd") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwK") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzr") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbzk") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwovJafP") || fs.readFileSync(CONFIG_FILE, 'utf8').includes("AKfycbwYSCpiux23UQp0I66XtYLC0STD494rcPN7FmOe6JsW4qym_gLbdNkpqvizbGKSfVqs")) {
     fs.writeFileSync(CONFIG_FILE, USER_SHEET_URL);
     console.log("[BOOT CONFIG] Auto-initialized permanent Google Sheets URL:", USER_SHEET_URL);
   }
@@ -325,7 +325,7 @@ async function getFirestoreConfig() {
     if (fs.existsSync(SPREADSHEET_FILE)) localSpreadsheetId = fs.readFileSync(SPREADSHEET_FILE, 'utf8').trim();
     if (fs.existsSync(CONFIG_DRIVE_FILE)) localGasDriveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
 
-    if (localGasUrl && !localGasUrl.includes("AKfycbwK") && !localGasUrl.includes("AKfycbzr")) {
+    if (localGasUrl && !localGasUrl.includes("AKfycbwK") && !localGasUrl.includes("AKfycbzr") && !localGasUrl.includes("AKfycbwovJafP")) {
       cachedFsConfig = { gasUrl: localGasUrl, spreadsheetId: localSpreadsheetId || "BOUND_TO_SCRIPT", gasDriveUrl: localGasDriveUrl };
     }
   } catch (e) {}
@@ -3022,7 +3022,7 @@ async function startServer() {
   try {
     const fsConfig = await getFirestoreConfig();
     if (fsConfig) {
-      if (fsConfig.gasUrl && (fsConfig.gasUrl.includes("AKfycbzyJE21jeRLP") || fsConfig.gasUrl.includes("AKfycbwK"))) {
+      if (fsConfig.gasUrl && (fsConfig.gasUrl.includes("AKfycbzyJE21jeRLP") || fsConfig.gasUrl.includes("AKfycbwK") || fsConfig.gasUrl.includes("AKfycbwovJafP"))) {
         await saveFirestoreConfig(USER_SHEET_URL, fsConfig.spreadsheetId || "BOUND_TO_SCRIPT", fsConfig.gasDriveUrl || "");
         console.log(`[BOOT AUTO-HEAL] Updated Firestore GAS URL to new endpoint: ${USER_SHEET_URL}`);
       } else if (fsConfig.gasUrl && !fs.existsSync(CONFIG_FILE)) {
@@ -3076,7 +3076,7 @@ async function startServer() {
       fsDriveUrl = fsConfig.gasDriveUrl || "";
 
       // Auto-heal local files from Firestore configuration independently
-      if (fsUrl && fsUrl !== fileUrl && !fsUrl.includes("AKfycbzyJE21jeRLP") && !fsUrl.includes("AKfycbwK")) {
+      if (fsUrl && fsUrl !== fileUrl && !fsUrl.includes("AKfycbzyJE21jeRLP") && !fsUrl.includes("AKfycbwK") && !fsUrl.includes("AKfycbwovJafP")) {
         try {
           fs.writeFileSync(CONFIG_FILE, fsUrl.trim());
           console.log(`[AUTO-HEAL SERVER] Recreated CONFIG_FILE from Firestore: ${fsUrl}`);

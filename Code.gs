@@ -373,7 +373,7 @@ function getCanonicalBase(baseName) {
     'ENDLINE': 'ENDLINE', 'ENDLINE QUALITY': 'ENDLINE', 'ENDLINE REPORT': 'ENDLINE',
     'AQL': 'AQL', 'AQL REPORT': 'AQL', 'AQL INSPECTION': 'AQL',
     'WORKORDER': 'WORKORDER', 'WORKORDERS': 'WORKORDER', 'WORK ORDER': 'WORKORDER',
-    'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT',
+    'FINAL AUDIT': 'FINAL AUDIT', 'FINAL AUDIT REPORT': 'FINAL AUDIT', 'FINAL REPORT': 'FINAL AUDIT', 'FINAL': 'FINAL AUDIT', 'FINAL INSPECTION': 'FINAL AUDIT', 'FINAL INSPECTION REPORT': 'FINAL AUDIT',
     'REWORK': 'REWORK', 'REWORK REPORT': 'REWORK', 'REWORK QUALITY': 'REWORK',
     'REPORTS_SOP': 'REPORTS_SOP', 'REPORTS_SOPDATA': 'REPORTS_SOP', 'SOP': 'REPORTS_SOP', 'REPORTS - SOP': 'REPORTS_SOP', 'SOP REPORTS': 'REPORTS_SOP', 'SOP_REPORTS': 'REPORTS_SOP', 'REPORTS & SOPS': 'REPORTS_SOP', 'REPORTS': 'REPORTS_SOP', 'SOPS': 'REPORTS_SOP',
     'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINT': 'CUSTOMER_COMPLAINTS', 'CUSTOMER_COMPLAINT': 'CUSTOMER_COMPLAINTS',
@@ -390,7 +390,7 @@ function getCanonicalBase(baseName) {
 
 function getReportSheetName(baseName, data) {
   const canonical = getCanonicalBase(baseName);
-  const systemSheets = ['WORKORDER', 'WORKORDERS', 'WORK ORDER', 'USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'ITEMS', 'ITEM', 'SUPPLIER', 'SUPPLIERS'];
+  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'ITEMS', 'ITEM', 'SUPPLIER', 'SUPPLIERS'];
   if (systemSheets.indexOf(canonical) !== -1) {
     return canonical;
   }
@@ -417,6 +417,115 @@ function getReportSheetName(baseName, data) {
   }
 
   return canonical;
+}
+
+function getModulePrefixSynonyms() {
+  return {
+    'USERS': ['USERS', 'USER'],
+    'MATERIAL': ['MATERIAL', 'MATERIAL REPORT', 'MATERIAL QUALITY', 'MATERIAL INSPECTION', 'STORE MATERIAL INSPECTION DATA'],
+    'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT'],
+    'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS', '8ROUND SYSTEM', '8ROUND_SYSTEM', '8ROUND', '8 ROUNDS', '8 ROUND SYSTEM'],
+    'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
+    'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
+    'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER'],
+    'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT', 'FINAL INSPECTION', 'FINAL INSPECTION REPORT'],
+    'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY'],
+    'REPORTS_SOP': ['REPORTS_SOP', 'REPORTS - SOP', 'SOP REPORTS', 'SOP_REPORTS', 'REPORTS & SOPS'],
+    'CUSTOMER_COMPLAINTS': ['CUSTOMER_COMPLAINTS', 'CUSTOMER COMPLAINTS', 'CUSTOMER COMPLAINT', 'CUSTOMER_COMPLAINT']
+  };
+}
+
+function getMatchingSheetsForModule(baseName, preferredZone) {
+  const ss = getSS();
+  const canonical = getCanonicalBase(baseName);
+  const systemSheets = ['USERS', 'ZONE', 'UNIT', 'SETTINGS', 'ADMIN', 'ITEMS', 'ITEM', 'SUPPLIER', 'SUPPLIERS'];
+  const result = [];
+  const seenNames = {};
+
+  function addIfNew(sh) {
+    if (!sh) return;
+    const n = sh.getName();
+    if (!seenNames[n]) {
+      seenNames[n] = true;
+      result.push(sh);
+    }
+  }
+
+  if (systemSheets.indexOf(canonical) !== -1) {
+    addIfNew(findExistingSheetBySynonym(canonical));
+    if (canonical === 'SUPPLIER') addIfNew(findExistingSheetBySynonym('SUPPLIERS'));
+    if (canonical === 'ITEMS') addIfNew(findExistingSheetBySynonym('ITEM'));
+    return result;
+  }
+
+  const pZone = String(preferredZone || '').trim().toUpperCase();
+  if (pZone && pZone !== 'ALL' && pZone !== 'SYSTEM' && pZone !== 'WORKORDER' && pZone !== 'COMMON') {
+    addIfNew(findExistingSheetBySynonym(canonical + ' - ' + pZone));
+  }
+
+  const prefixSynonyms = getModulePrefixSynonyms();
+  const allowedPrefixes = prefixSynonyms[canonical] || [canonical];
+  const allSheets = ss.getSheets();
+
+  for (let i = 0; i < allSheets.length; i++) {
+    const sh = allSheets[i];
+    const sheetNameUpper = sh.getName().trim().toUpperCase();
+    let matches = false;
+    for (let p = 0; p < allowedPrefixes.length; p++) {
+      const prefixUpper = allowedPrefixes[p].toUpperCase();
+      if (
+        sheetNameUpper === prefixUpper ||
+        sheetNameUpper.indexOf(prefixUpper + ' - ') === 0 ||
+        sheetNameUpper.indexOf(prefixUpper + ' ') === 0
+      ) {
+        matches = true;
+        break;
+      }
+    }
+    if (!matches && canonical === 'REPORTS_SOP' && (sheetNameUpper === 'REPORTS_SOP_KERALA' || sheetNameUpper === 'REPORTS_SOP_ADMIN')) {
+      matches = true;
+    }
+    if (matches) {
+      addIfNew(sh);
+    }
+  }
+
+  // Fallback for exact sheet names not covered by canonical prefixes
+  addIfNew(findExistingSheetBySynonym(baseName));
+  return result;
+}
+
+function ensureZonedSheetsForZone(zoneName) {
+  const zone = String(zoneName || '').trim().toUpperCase();
+  if (!zone || zone === 'ALL' || zone === 'SYSTEM' || zone === 'WORKORDER' || zone === 'COMMON' || zone === 'GLOBAL' || zone === 'SELECT...' || zone.indexOf('ZMAP-') === 0) {
+    return;
+  }
+  const zonedModules = [
+    'WORKORDER',
+    'MATERIAL',
+    'CUTTING',
+    'INLINE',
+    'ENDLINE',
+    'AQL',
+    'FINAL AUDIT',
+    'REWORK',
+    'REPORTS_SOP',
+    'CUSTOMER_COMPLAINTS'
+  ];
+  const materialHeaders = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'materialType', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
+  const ccHeaders = ['id', 'dateTime', 'customerName', 'style', 'size', 'complaintDetails', 'pcsCount', 'immediateAction', 'rootCause', 'correctiveAction', 'pendingAction', 'effectiveAfterThreeMonths', 'closedOn', 'images', 'status', 'createdBy', 'zone', 'timestamp'];
+
+  zonedModules.forEach(function(mod) {
+    const sheetTitle = mod + ' - ' + zone;
+    const sh = getOrCreateSheet(sheetTitle);
+    if (sh && sh.getLastColumn() === 0) {
+      if (mod === 'MATERIAL') {
+        sh.appendRow(materialHeaders);
+      } else if (mod === 'CUSTOMER_COMPLAINTS') {
+        sh.appendRow(ccHeaders);
+      }
+    }
+  });
 }
 
 function areSynonyms(h1, h2) {
@@ -1259,33 +1368,45 @@ function api_createSheets() {
       const rangeVals = zoneSheet.getDataRange().getValues();
       const headers = rangeVals[0].map(h => String(h || '').trim().toUpperCase());
       const zoneColIdx = headers.indexOf('ZONE');
+      const idColIdx = headers.indexOf('ID');
       if (zoneColIdx !== -1) {
+        const zoneIdToNameMap = {};
+        if (idColIdx !== -1) {
+          for (let r = 1; r < rangeVals.length; r++) {
+            const z = String(rangeVals[r][zoneColIdx] || '').trim().toUpperCase();
+            const id = String(rangeVals[r][idColIdx] || '').trim().toUpperCase();
+            if (z.indexOf('ZMAP-') === 0 && id && id.indexOf('ZMAP-') !== 0) {
+              zoneIdToNameMap[z] = id;
+            } else if (id.indexOf('ZMAP-') === 0 && z && z.indexOf('ZMAP-') !== 0) {
+              zoneIdToNameMap[id] = z;
+            }
+          }
+        }
         const rawZones = [];
         for (let r = 1; r < rangeVals.length; r++) {
-          const zVal = rangeVals[r][zoneColIdx];
-          if (zVal !== "" && zVal !== null && zVal !== undefined) {
-            rawZones.push(String(zVal).trim().toUpperCase());
+          let zVal = String(rangeVals[r][zoneColIdx] || '').trim().toUpperCase();
+          if (zVal.indexOf('ZMAP-') === 0) {
+            zVal = zoneIdToNameMap[zVal] || '';
+          }
+          if (zVal && zVal.indexOf('ZMAP-') !== 0 && zVal !== 'ALL' && zVal !== 'SYSTEM' && zVal !== 'COMMON' && zVal !== 'GLOBAL') {
+            rawZones.push(zVal);
           }
         }
         zones = Array.from(new Set(rawZones));
       }
     }
     
-    // Auto-create zoned sheets for material, cutting, inline, endline, aql, and workorder based on active zones only!
-    zones.forEach(function(zone) {
-      required.push('MATERIAL - ' + zone);
-      required.push('CUTTING - ' + zone);
-      required.push('INLINE - ' + zone);
-      required.push('ENDLINE - ' + zone);
-      required.push('AQL - ' + zone);
-      required.push('WORKORDER - ' + zone);
-    });
-    
     required.push('INLINE');
     required.push('FINAL AUDIT');
     required.push('CUSTOMER_COMPLAINTS');
     
     required.forEach(s => getOrCreateSheet(s));
+
+    // Auto-create separate zoned sheets for ALL operational data modules across every active zone
+    // while keeping admin sheets (USERS, ZONE, UNIT, SETTINGS, ADMIN, ITEMS, SUPPLIERS) consolidated
+    zones.forEach(function(zone) {
+      ensureZonedSheetsForZone(zone);
+    });
     
     // Explicit headers for CUSTOMER_COMPLAINTS sheet
     const ccSheet = findExistingSheetBySynonym('CUSTOMER_COMPLAINTS') || getSS().getSheetByName('CUSTOMER_COMPLAINTS');
@@ -1302,16 +1423,6 @@ function api_createSheets() {
     if (unitSheet && unitSheet.getLastColumn() === 0) {
       unitSheet.appendRow(['id', 'unit', 'zone', 'timestamp']);
     }
-
-    // Explicit headers for MATERIAL zoned sheets
-    const materialHeaders = ['timestamp', 'receivedDate', 'checkingDate', 'grn', 'billNo', 'supplierName', 'materialType', 'itemName', 'receivedQuantity', 'checkedQuantity', 'passQuantity', 'rejectedQuantity', 'itemRemarks', 'generalRemarks', 'zone', 'inspector', 'id'];
-    zones.forEach(function(zone) {
-      const name = 'MATERIAL - ' + zone;
-      const sh = findExistingSheetBySynonym(name) || getSS().getSheetByName(name);
-      if (sh && sh.getLastColumn() === 0) {
-        sh.appendRow(materialHeaders);
-      }
-    });
     
     // Seed USERS if empty
     const users = api_getUsers();
@@ -1397,7 +1508,7 @@ function api_getInitialData(params) {
         var allowedZones = {};
         allowedZones[uppercaseZone] = true;
 
-        var zoneRows = api_getWorkorders('ZONE') || [];
+        var zoneRows = api_getZoneMappings() || [];
         for (var i = 0; i < zoneRows.length; i++) {
           var z = String(zoneRows[i].zone || '').toUpperCase().trim();
           var id = String(zoneRows[i].id || '').toUpperCase().trim();
@@ -1839,6 +1950,8 @@ function aggregateZonedData(baseName) {
       'AQL REPORT': 'AQL',
       'WORKORDER': 'WORKORDER',
       'FINAL AUDIT': 'FINAL AUDIT',
+      'FINAL INSPECTION': 'FINAL AUDIT',
+      'FINAL INSPECTION REPORT': 'FINAL AUDIT',
       '8ROUND SYSTEM': 'INLINE',
       '8ROUND': 'INLINE',
       '8 ROUND SYSTEM': 'INLINE',
@@ -1846,23 +1959,16 @@ function aggregateZonedData(baseName) {
       '8 ROUNDS': 'INLINE',
       'REWORK': 'REWORK',
       'REWORK REPORT': 'REWORK',
-      'REWORK QUALITY': 'REWORK'
+      'REWORK QUALITY': 'REWORK',
+      'REPORTS_SOP': 'REPORTS_SOP',
+      'CUSTOMER_COMPLAINTS': 'CUSTOMER_COMPLAINTS',
+      'CUSTOMER COMPLAINTS': 'CUSTOMER_COMPLAINTS'
     };
     
-    const canonicalPrefix = canonicalMapping[baseName] || baseName;
+    const canonicalPrefix = canonicalMapping[baseName] || getCanonicalBase(baseName) || baseName;
     
     // Synonyms and prefix names to aggregate for this base
-    const prefixSynonyms = {
-      'USERS': ['USERS', 'USER'],
-      'MATERIAL': ['MATERIAL', 'MATERIAL REPORT'],
-      'CUTTING': ['CUTTING', 'CUTTING QUALITY', 'CUTTING REPORT'],
-      'INLINE': ['INLINE', 'INLINE QUALITY', 'INLINE REPORT', 'SEWING DEFECT', 'SEWING DEFECTS', '8ROUND SYSTEM', '8ROUND_SYSTEM', '8ROUND', '8 ROUNDS', '8 ROUND SYSTEM'],
-      'ENDLINE': ['ENDLINE', 'ENDLINE QUALITY', 'ENDLINE REPORT'],
-      'AQL': ['AQL', 'AQL REPORT', 'AQL INSPECTION'],
-      'WORKORDER': ['WORKORDER', 'WORKORDERS', 'WORK ORDER'],
-      'FINAL AUDIT': ['FINAL AUDIT', 'FINAL AUDIT REPORT', 'FINAL REPORT'],
-      'REWORK': ['REWORK', 'REWORK REPORT', 'REWORK QUALITY']
-    };
+    const prefixSynonyms = getModulePrefixSynonyms();
     
     const allowedPrefixes = prefixSynonyms[canonicalPrefix] || [canonicalPrefix];
     
@@ -1977,7 +2083,7 @@ function api_updateWorkorder(wo) {
 }
 
 function api_deleteWorkorder(id, zone) {
-  return api_deleteDataBySheet('WORKORDER', id);
+  return api_deleteDataBySheet('WORKORDER', id, zone);
 }
 
 function api_ping() {
@@ -2183,51 +2289,68 @@ function api_saveMaterialReportBulk(data) {
 
 function api_saveMATERIALREPORT(report) { return saveDataToSheet('MATERIAL REPORT', report); }
 
-function internal_updateWorkorderStatus(woNum, zone, nextStatus) {
+function internal_updateWorkorderStatus(woNum, zone, nextStatus, woId) {
   try {
-    const ss = getSS();
-    const allSheets = ss.getSheets();
-    let updated = false;
     const targetWo = String(woNum || '').trim().toUpperCase();
-    if (!targetWo) return { success: false, error: "Empty WO" };
-    
-    for (let sIdx = 0; sIdx < allSheets.length; sIdx++) {
-      const sheet = allSheets[sIdx];
-      const sNameClean = sheet.getName().toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
-      if (sNameClean === 'WORKORDER' || sNameClean === 'WORKORDERS' || sNameClean.startsWith('WORKORDER')) {
-        const data = sheet.getDataRange().getValues();
-        if (data.length > 0) {
-          const headers = data[0];
-          const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
-          
-          let idIdx = normHeaders.indexOf('id');
-          let woIdx = normHeaders.indexOf('workordernumber');
-          if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
-          if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
-          if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
-          if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
-          if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
-          
-          let statusIdx = normHeaders.indexOf('status');
-          if (statusIdx === -1) statusIdx = normHeaders.indexOf('state');
-          
-          if (woIdx !== -1 || idIdx !== -1) {
-            let colToUpdate = statusIdx;
-            if (statusIdx === -1) {
-              colToUpdate = headers.length;
-              sheet.getRange(1, colToUpdate + 1).setValue('status');
-            }
-            
+    const targetId = String(woId || '').trim().toUpperCase();
+    if (!targetWo && !targetId) return { success: false, error: "Empty WO" };
+
+    const candidateSheets = getMatchingSheetsForModule('WORKORDER', zone);
+    let updated = false;
+
+    for (let sIdx = 0; sIdx < candidateSheets.length; sIdx++) {
+      const sheet = candidateSheets[sIdx];
+      const data = sheet.getDataRange().getValues();
+      if (data.length > 0) {
+        const headers = data[0];
+        const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+        
+        let idIdx = normHeaders.indexOf('id');
+        let woIdx = normHeaders.indexOf('workordernumber');
+        if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
+        if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
+        if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
+        if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
+        if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
+        
+        let statusIdx = normHeaders.indexOf('status');
+        if (statusIdx === -1) statusIdx = normHeaders.indexOf('state');
+        
+        if (woIdx !== -1 || idIdx !== -1) {
+          let colToUpdate = statusIdx;
+          if (statusIdx === -1) {
+            colToUpdate = headers.length;
+            sheet.getRange(1, colToUpdate + 1).setValue('status');
+          }
+
+          var matchRowIdx = -1;
+          if (targetId && idIdx !== -1) {
             for (let i = 1; i < data.length; i++) {
-              var rowWo = woIdx !== -1 ? String(data[i][woIdx] || '').trim().toUpperCase() : '';
-              var rowId = idIdx !== -1 ? String(data[i][idIdx] || '').trim().toUpperCase() : '';
-              if ((rowWo && rowWo === targetWo) || (rowId && rowId === targetWo)) {
-                sheet.getRange(i + 1, colToUpdate + 1).setValue(nextStatus);
-                updated = true;
-                clearSheetCache(sheet.getName());
+              var rowIdExact = String(data[i][idIdx] || '').trim().toUpperCase();
+              if (rowIdExact && rowIdExact === targetId) {
+                matchRowIdx = i;
                 break;
               }
             }
+          }
+
+          if (matchRowIdx === -1) {
+            for (let i = 1; i < data.length; i++) {
+              var rowWo = woIdx !== -1 ? String(data[i][woIdx] || '').trim().toUpperCase() : '';
+              var rowId = idIdx !== -1 ? String(data[i][idIdx] || '').trim().toUpperCase() : '';
+              if ((targetWo && rowWo && rowWo === targetWo) || (targetWo && rowId && rowId === targetWo)) {
+                matchRowIdx = i;
+                break;
+              }
+            }
+          }
+
+          if (matchRowIdx !== -1) {
+            sheet.getRange(matchRowIdx + 1, colToUpdate + 1).setValue(nextStatus);
+            updated = true;
+            clearSheetCache(sheet.getName());
+            clearSheetCache('WORKORDER');
+            break;
           }
         }
       }
@@ -2254,7 +2377,7 @@ function api_saveCUTTINGQUALITY(report) {
     } else {
       nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'CUTTING_PASS_AND_HOLD' : 'INLINE_AND_ENDLINE';
     }
-    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus, report.woId);
   }
   return res;
 }
@@ -2411,8 +2534,8 @@ function api_update8ROUNDSYSTEM(record) {
 }
 function api_saveENDLINEQUALITY(report) { 
   const res = saveDataToSheet('ENDLINE QUALITY', report);
-  if (res.success && report.moveToAQL && report.wo) {
-    internal_updateWorkorderStatus(report.wo, report.zone || report.location, 'AQL');
+  if (res.success && report.moveToAQL && (report.wo || report.workorderNumber)) {
+    internal_updateWorkorderStatus(report.wo || report.workorderNumber, report.zone || report.location, 'AQL', report.woId);
   }
   return res;
 }
@@ -2421,7 +2544,7 @@ function api_saveAQLREPORT(report) {
   var woTarget = report.wo || report.workorderNumber;
   if (res.success && (report.moveToFinal || report.auditStatus === 'PASS') && woTarget) {
     var nextStatus = (report.passAndHold === true || report.passAndHold === 'true') ? 'AQL_PASS_AND_HOLD' : 'FINAL';
-    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus, report.woId);
   }
   return res;
 }
@@ -2429,8 +2552,9 @@ function api_saveFINALAUDIT(report) {
   const res = saveDataToSheet('FINAL AUDIT', report);
   var woTarget = report.wo || report.workorderNumber;
   if (res.success && woTarget) {
-    var nextStatus = report.moveToComplete ? 'COMPLETED' : ((report.passAndHold === true || report.passAndHold === 'true') ? 'FINAL_PASS_AND_HOLD' : 'COMPLETED');
-    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus);
+    var isComplete = (report.moveToComplete === true || report.moveToComplete === 'true');
+    var nextStatus = isComplete ? 'COMPLETED' : 'FINAL_PASS_AND_HOLD';
+    internal_updateWorkorderStatus(woTarget, report.zone || report.location, nextStatus, report.woId);
   }
   return res;
 }
@@ -2454,32 +2578,37 @@ function api_getDataBySheet(sheetName) {
 
 function api_deleteDataBySheet(sheetName, id, zone) {
   try {
-    const targetSheetName = getReportSheetName(sheetName, { zone: zone });
-    
-    clearSheetCache(targetSheetName);
-    const sheet = getOrCreateSheet(targetSheetName);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
-    let idIdx = normHeaders.indexOf('id');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
-    if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
-    
-    if (idIdx !== -1) {
-      for (let i = 1; i < data.length; i++) {
-        var cellVal = String(data[i][idIdx] || '').trim();
-        var targetId = String(id || '').trim();
-        if (cellVal === targetId) {
-          sheet.deleteRow(i + 1);
-          return { success: true };
+    const targetId = String(id || '').trim();
+    if (!targetId) return { success: false, error: "Empty ID" };
+
+    const candidateSheets = getMatchingSheetsForModule(sheetName, zone);
+    for (let s = 0; s < candidateSheets.length; s++) {
+      const sheet = candidateSheets[s];
+      if (!sheet || sheet.getLastRow() < 2) continue;
+
+      const sName = sheet.getName();
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
+      let idIdx = normHeaders.indexOf('id');
+      if (idIdx === -1) idIdx = normHeaders.indexOf('workordernumber');
+      if (idIdx === -1) idIdx = normHeaders.indexOf('wo');
+      if (idIdx === -1) idIdx = normHeaders.indexOf('usercode');
+
+      if (idIdx !== -1) {
+        for (let i = 1; i < data.length; i++) {
+          var cellVal = String(data[i][idIdx] || '').trim();
+          if (cellVal === targetId) {
+            sheet.deleteRow(i + 1);
+            SpreadsheetApp.flush();
+            clearSheetCache(sName);
+            clearSheetCache(sheetName);
+            return { success: true };
+          }
         }
       }
     }
-    
-    if (targetSheetName !== sheetName) {
-       return api_deleteDataBySheet(sheetName, id);
-    }
-    
+
     return { success: false, error: "Record not found" };
   } catch (e) {
     return { success: false, error: e.toString() };
@@ -2488,78 +2617,100 @@ function api_deleteDataBySheet(sheetName, id, zone) {
 
 function api_updateDataBySheet(sheetName, record) {
   try {
-    const targetSheetName = getReportSheetName(sheetName, record);
+    record = record || {};
+    const recordZone = String(record.zone || record.location || '').trim().toUpperCase();
+    const expectedSheetName = getReportSheetName(sheetName, record);
+    const hasExplicitZone = !!(recordZone && recordZone !== 'ALL' && recordZone !== 'SYSTEM' && recordZone !== 'WORKORDER' && recordZone !== 'COMMON');
+    const candidateSheets = getMatchingSheetsForModule(sheetName, recordZone);
 
-    clearSheetCache(targetSheetName);
-    const sheet = getOrCreateSheet(targetSheetName);
-    const data = sheet.getDataRange().getValues();
-    if (!data || data.length === 0) return { success: false, error: "Empty sheet" };
+    for (let s = 0; s < candidateSheets.length; s++) {
+      const sheet = candidateSheets[s];
+      if (!sheet || sheet.getLastRow() < 2) continue;
 
-    const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
-    
-    let idIdx = normHeaders.indexOf('id');
-    let woIdx = normHeaders.indexOf('workordernumber');
-    if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
-    if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
-    if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
-    if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
-    if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
-    let userCodeIdx = normHeaders.indexOf('usercode');
-    if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('username');
+      const sName = sheet.getName();
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+      
+      let idIdx = normHeaders.indexOf('id');
+      let woIdx = normHeaders.indexOf('workordernumber');
+      if (woIdx === -1) woIdx = normHeaders.indexOf('workorderno');
+      if (woIdx === -1) woIdx = normHeaders.indexOf('wo');
+      if (woIdx === -1) woIdx = normHeaders.indexOf('wonum');
+      if (woIdx === -1) woIdx = normHeaders.indexOf('wonumber');
+      if (woIdx === -1) woIdx = normHeaders.indexOf('workorder');
+      let userCodeIdx = normHeaders.indexOf('usercode');
+      if (userCodeIdx === -1) userCodeIdx = normHeaders.indexOf('username');
 
-    let matchedRow = -1;
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      // 1. Check direct ID if non-empty
-      if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
-        matchedRow = i;
-        break;
-      }
-      // 2. Check workorder number
-      if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
-        const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
-        if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+      let matchedRow = -1;
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (idIdx !== -1 && record.id && String(row[idIdx] || '').trim() && String(row[idIdx]).trim().toLowerCase() === String(record.id).trim().toLowerCase()) {
           matchedRow = i;
           break;
         }
-      }
-      // 3. Check user code
-      if (userCodeIdx !== -1 && (record.userCode || record.username)) {
-        const targetUser = String(record.userCode || record.username).trim().toLowerCase();
-        if (String(row[userCodeIdx] || '').trim().toLowerCase() === targetUser) {
-          matchedRow = i;
-          break;
+        if (woIdx !== -1 && (record.workorderNumber || record.wo)) {
+          const targetWo = String(record.workorderNumber || record.wo).trim().toUpperCase();
+          if (String(row[woIdx] || '').trim().toUpperCase() === targetWo) {
+            matchedRow = i;
+            break;
+          }
         }
-      }
-    }
-
-    // Fallback: general idIdx check
-    if (matchedRow === -1 && idIdx !== -1) {
-      const fallbackId = String(record.id || record.workorderNumber || record.wo || record.userCode || '').trim().toUpperCase();
-      if (fallbackId) {
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][idIdx] || '').trim().toUpperCase() === fallbackId) {
+        if (userCodeIdx !== -1 && (record.userCode || record.username)) {
+          const targetUser = String(record.userCode || record.username).trim().toLowerCase();
+          if (String(row[userCodeIdx] || '').trim().toLowerCase() === targetUser) {
             matchedRow = i;
             break;
           }
         }
       }
-    }
 
-    if (matchedRow !== -1) {
-      const existingRow = data[matchedRow];
-      const newRow = headers.map(function(h, cIdx) {
-        const val = resolveSynonymValue(h, record);
-        if (val !== undefined && val !== null) {
-          return (typeof val === 'object') ? JSON.stringify(val) : val;
+      if (matchedRow === -1 && idIdx !== -1) {
+        const fallbackId = String(record.id || record.workorderNumber || record.wo || record.userCode || '').trim().toUpperCase();
+        if (fallbackId) {
+          for (let i = 1; i < data.length; i++) {
+            if (String(data[i][idIdx] || '').trim().toUpperCase() === fallbackId) {
+              matchedRow = i;
+              break;
+            }
+          }
         }
-        return existingRow && existingRow[cIdx] !== undefined ? existingRow[cIdx] : "";
-      });
-      sheet.getRange(matchedRow + 1, 1, 1, headers.length).setValues([newRow]);
-      SpreadsheetApp.flush();
-      clearSheetCache(targetSheetName);
-      return { success: true };
+      }
+
+      if (matchedRow !== -1) {
+        const existingRow = data[matchedRow];
+        // If record has an explicit zone and its current sheet doesn't match the target zoned sheet, move it cleanly
+        if (hasExplicitZone && sName.trim().toUpperCase() !== expectedSheetName.trim().toUpperCase()) {
+          const mergedObj = {};
+          headers.forEach(function(h, cIdx) {
+            mergedObj[h] = existingRow[cIdx];
+          });
+          Object.keys(record).forEach(function(k) {
+            mergedObj[k] = record[k];
+          });
+          const saveRes = saveDataToSheet(sheetName, mergedObj);
+          if (saveRes && saveRes.success !== false) {
+            sheet.deleteRow(matchedRow + 1);
+            SpreadsheetApp.flush();
+            clearSheetCache(sName);
+            clearSheetCache(expectedSheetName);
+          }
+          return saveRes;
+        }
+
+        const newRow = headers.map(function(h, cIdx) {
+          const val = resolveSynonymValue(h, record);
+          if (val !== undefined && val !== null) {
+            return (typeof val === 'object') ? JSON.stringify(val) : val;
+          }
+          return existingRow && existingRow[cIdx] !== undefined ? existingRow[cIdx] : "";
+        });
+        sheet.getRange(matchedRow + 1, 1, 1, headers.length).setValues([newRow]);
+        SpreadsheetApp.flush();
+        clearSheetCache(sName);
+        clearSheetCache(expectedSheetName);
+        return { success: true };
+      }
     }
 
     return { success: false, error: "Record not found" };
@@ -2586,8 +2737,6 @@ function filterModuleRecordsByZone(data, params) {
   const cTarget = clean(targetZone);
   if (!cTarget || cTarget === 'ALL') return data;
 
-  const KNOWN_ZONES = ['KERALA', 'TIRUPUR', 'BANGALORE'];
-
   return data.filter(function(row) {
     if (!row) return false;
     const rZone = String(row.zone || row.location || row.ZONE || row.LOCATION || '').trim().toUpperCase();
@@ -2595,13 +2744,13 @@ function filterModuleRecordsByZone(data, params) {
     const cZone = clean(rZone);
     const cUnit = clean(rUnit);
 
-    // If explicitly assigned to a known zone and target is another known zone, reject
-    if (cZone && KNOWN_ZONES.indexOf(cZone) !== -1 && KNOWN_ZONES.indexOf(cTarget) !== -1 && cZone !== cTarget) {
-      return false;
+    if (cZone === cTarget) return true;
+    // If record explicitly carries a zone, match strictly against zone (do not cross-match via unit name)
+    if (cZone && cZone !== 'ALL' && cZone !== 'COMMON' && cZone !== 'SYSTEM' && cZone !== 'WORKORDER') {
+      return cZone.length >= 3 && (cZone.indexOf(cTarget) !== -1 || cTarget.indexOf(cZone) !== -1) && Math.abs(cZone.length - cTarget.length) <= 4;
     }
 
-    if (cZone === cTarget || cUnit === cTarget) return true;
-    if (cZone && cZone.length >= 3 && (cZone.indexOf(cTarget) !== -1 || cTarget.indexOf(cZone) !== -1)) return true;
+    if (cUnit === cTarget) return true;
     if (cUnit && cUnit.length >= 3 && (cUnit.indexOf(cTarget) !== -1 || cTarget.indexOf(cUnit) !== -1)) return true;
     return false;
   });
@@ -3322,34 +3471,54 @@ function api_uploadSOPFile(fileName, base64Data, mimeType, category) {
  */
 function api_saveREPORTS_SOP(report) {
   try {
-    const sheet = getOrCreateSheet('REPORTS_SOP');
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
-    const idIdx = normHeaders.indexOf('id');
-    
+    report = report || {};
     // Generate an ID if not exists
     if (!report.id) {
       report.id = 'sop-' + Math.random().toString(36).substr(2, 9);
     }
-    
-    // Check if we are updating an existing row
-    if (idIdx !== -1 && data.length > 1) {
+
+    const targetSheetName = getReportSheetName('REPORTS_SOP', report);
+    const candidateSheets = getMatchingSheetsForModule('REPORTS_SOP', report.zone || report.location);
+
+    // Check if we are updating an existing row across zoned/base REPORTS_SOP sheets
+    for (let s = 0; s < candidateSheets.length; s++) {
+      const sheet = candidateSheets[s];
+      if (!sheet || sheet.getLastRow() < 2) continue;
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+      const idIdx = normHeaders.indexOf('id');
+      if (idIdx === -1) continue;
+
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][idIdx]) === String(report.id)) {
-          // Found matching row to update. Generate row array matching original headers
-          const updatedRow = headers.map(function(header) {
-            const val = resolveSynonymValue(header, report);
-            return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
-          });
-          sheet.getRange(i + 1, 1, 1, headers.length).setValues([updatedRow]);
-          clearSheetCache('REPORTS_SOP');
-          return { success: true, id: report.id };
+          const sName = sheet.getName();
+          if (sName.trim().toUpperCase() === targetSheetName.trim().toUpperCase()) {
+            const updatedRow = headers.map(function(header) {
+              const val = resolveSynonymValue(header, report);
+              return (val && typeof val === 'object') ? JSON.stringify(val) : (val === undefined ? "" : val);
+            });
+            sheet.getRange(i + 1, 1, 1, headers.length).setValues([updatedRow]);
+            SpreadsheetApp.flush();
+            clearSheetCache(sName);
+            clearSheetCache('REPORTS_SOP');
+            return { success: true, id: report.id };
+          } else {
+            const moveRes = saveDataToSheet('REPORTS_SOP', report);
+            if (moveRes && moveRes.success !== false) {
+              sheet.deleteRow(i + 1);
+              SpreadsheetApp.flush();
+              clearSheetCache(sName);
+              clearSheetCache('REPORTS_SOP');
+              moveRes.id = report.id;
+            }
+            return moveRes;
+          }
         }
       }
     }
-    
-    // Fallback: Use standard append row route
+
+    // Fallback: Use standard append row route into zone-resolved sheet
     const res = saveDataToSheet('REPORTS_SOP', report);
     if (res.success) {
       res.id = report.id;
@@ -3369,7 +3538,7 @@ function api_getREPORTS_SOPData(params) {
   var mergedData = [];
   var seenIds = {};
   
-  // 1. Fetch from the main 'REPORTS_SOP' sheet
+  // 1. Fetch from the main 'REPORTS_SOP' sheet if present
   var mainData = getDataFromSheet('REPORTS_SOP') || [];
   if (Array.isArray(mainData)) {
     for (var i = 0; i < mainData.length; i++) {
@@ -3381,16 +3550,21 @@ function api_getREPORTS_SOPData(params) {
     }
   }
   
-  // 2. Fetch from any other zoned SOP sheets (like 'REPORTS_SOP - KERALA')
+  // 2. Fetch from all zoned SOP sheets (e.g. 'REPORTS_SOP - KERALA', 'REPORTS_SOP - CHENNAI', etc.)
   for (var s = 0; s < allSheets.length; s++) {
     var sheet = allSheets[s];
-    var name = sheet.getName().toUpperCase().trim();
+    var rawName = sheet.getName().trim();
+    var name = rawName.toUpperCase();
     if (name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
-      var zonedData = getDataFromSheet(sheet.getName()) || [];
+      var zonedData = getDataFromSheet(rawName) || [];
+      var inferredZone = name.indexOf('REPORTS_SOP - ') === 0 ? name.split(' - ')[1].trim() : '';
       if (Array.isArray(zonedData)) {
         for (var j = 0; j < zonedData.length; j++) {
           var zRow = zonedData[j];
           if (zRow && zRow.id && !seenIds[String(zRow.id)]) {
+            if (inferredZone && !zRow.zone && !zRow.ZONE && !zRow.location && !zRow.LOCATION) {
+              zRow.zone = inferredZone;
+            }
             mergedData.push(zRow);
             seenIds[String(zRow.id)] = true;
           }
@@ -3416,6 +3590,7 @@ function api_deleteREPORTS_SOP(id) {
       const name = sheet.getName().toUpperCase().trim();
       
       if (name === 'REPORTS_SOP' || name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
+        if (sheet.getLastRow() < 2) continue;
         const data = sheet.getDataRange().getValues();
         const headers = data[0];
         const normHeaders = headers.map(function(h) { return String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''); });
@@ -3471,7 +3646,11 @@ function api_deleteREPORTS_SOP(id) {
  */
 function api_getCustomerComplaints(params) {
   try {
-    const zoneArg = typeof params === 'string' ? params : (params && params[0] ? (typeof params[0] === 'string' ? params[0] : params[0].zone) : null);
+    const zoneArg = typeof params === 'string'
+      ? params
+      : (Array.isArray(params)
+          ? (params[0] ? (typeof params[0] === 'string' ? params[0] : (params[0].zone || params[0].location)) : null)
+          : (params && typeof params === 'object' ? (params.zone || params.location) : null));
     let data = getDataFromSheet('CUSTOMER_COMPLAINTS') || [];
     let altData = getDataFromSheet('CUSTOMER COMPLAINTS') || [];
 
@@ -3486,11 +3665,16 @@ function api_getCustomerComplaints(params) {
       const ss = getSS();
       const sheets = ss.getSheets();
       for (var i = 0; i < sheets.length; i++) {
-        var sName = sheets[i].getName().toUpperCase().trim();
+        var rawName = sheets[i].getName().trim();
+        var sName = rawName.toUpperCase();
         if (sName.indexOf('CUSTOMER_COMPLAINTS - ') === 0 || sName.indexOf('CUSTOMER COMPLAINTS - ') === 0) {
-          var zRows = getDataFromSheet(sheets[i].getName()) || [];
+          var inferredZone = sName.indexOf(' - ') !== -1 ? sName.split(' - ')[1].trim() : '';
+          var zRows = getDataFromSheet(rawName) || [];
           zRows.forEach(function(r) {
             if (r && r.id) {
+              if (inferredZone && !r.zone && !r.ZONE && !r.location && !r.LOCATION) {
+                r.zone = inferredZone;
+              }
               map[r.id] = r;
             }
           });
@@ -3503,7 +3687,7 @@ function api_getCustomerComplaints(params) {
       result.push(map[k]);
     }
 
-    if (zoneArg && zoneArg !== 'ALL') {
+    if (zoneArg && String(zoneArg).trim().toUpperCase() !== 'ALL') {
       const zTarget = String(zoneArg).trim().toUpperCase();
       result = result.filter(function(r) {
         const rZone = String(r.zone || r.location || '').trim().toUpperCase();
@@ -3547,6 +3731,28 @@ function api_saveCustomerComplaint(complaint) {
       }).filter(Boolean);
       complaint.images = imgLinks.length > 0 ? imgLinks.join(' | ') : JSON.stringify(complaint.images);
     }
+
+    // If record with matching ID already exists in any CUSTOMER_COMPLAINTS sheet, update instead of duplicating
+    const candidateSheets = getMatchingSheetsForModule('CUSTOMER_COMPLAINTS', complaint.zone || complaint.location);
+    for (let s = 0; s < candidateSheets.length; s++) {
+      const sh = candidateSheets[s];
+      if (!sh || sh.getLastRow() < 2) continue;
+      const vals = sh.getDataRange().getValues();
+      const hdrs = vals[0].map(function(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); });
+      const idCol = hdrs.indexOf('id');
+      if (idCol !== -1) {
+        for (let r = 1; r < vals.length; r++) {
+          if (String(vals[r][idCol] || '').trim() === String(complaint.id).trim()) {
+            const updRes = api_updateDataBySheet('CUSTOMER_COMPLAINTS', complaint);
+            if (updRes && updRes.success !== false) {
+              updRes.id = complaint.id;
+            }
+            return updRes;
+          }
+        }
+      }
+    }
+
     const res = saveDataToSheet('CUSTOMER_COMPLAINTS', complaint);
     if (res.success) {
       res.id = complaint.id;
@@ -3745,7 +3951,9 @@ function api_saveZoneMapping(record) {
       };
       
       saveDataToSheet('UNIT', unitRecord);
-      return saveDataToSheet('ZONE', unitRecord);
+      const unitSaveRes = saveDataToSheet('ZONE', unitRecord);
+      ensureZonedSheetsForZone(zone);
+      return unitSaveRes;
     }
     
     // Case 3: Saving a Zone
@@ -3764,7 +3972,9 @@ function api_saveZoneMapping(record) {
         timestamp: record.timestamp
       };
       
-      return saveDataToSheet('ZONE', zoneRecord);
+      const zoneSaveRes = saveDataToSheet('ZONE', zoneRecord);
+      ensureZonedSheetsForZone(zone);
+      return zoneSaveRes;
     }
     
     return { success: false, error: "Invalid zone mapping record." };
@@ -3902,8 +4112,8 @@ function api_deleteZoneMapping(param) {
         }
       }
       
-      // 2. Delete or clear zone-specific sheets for this zone (e.g. MATERIAL - KERALA, CUTTING - KERALA, etc.)
-      const modules = ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER'];
+      // 2. Delete or clear zone-specific sheets for this zone
+      const modules = ['WORKORDER', 'MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL AUDIT', 'REWORK', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS'];
       modules.forEach(function(mod) {
         const zoneSheetName = mod + ' - ' + targetZone;
         const zSheet = findExistingSheetBySynonym(zoneSheetName);
@@ -3943,7 +4153,7 @@ function api_deleteZoneMapping(param) {
       sheets.forEach(function(sh) {
         const name = sh.getName();
         const nameUpper = name.toUpperCase();
-        const isSystemSheet = ['USERS', 'SETTINGS', 'ADMIN', 'FINAL AUDIT', 'MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER'].some(function(sys) {
+        const isSystemSheet = ['USERS', 'SETTINGS', 'ADMIN', 'FINAL AUDIT', 'MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER', 'REWORK', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS'].some(function(sys) {
           return nameUpper === sys || nameUpper.startsWith(sys + " - ") || nameUpper.startsWith(sys + " ");
         });
         if (!isSystemSheet && nameUpper !== 'ZONE') {
@@ -4015,7 +4225,7 @@ function api_resetAllDatabase() {
       }
       
       const isSystemSheet = standardSheets.indexOf(nameUpper) !== -1 ||
-        ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER', 'FINAL AUDIT'].some(function(sys) {
+        ['MATERIAL', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'WORKORDER', 'FINAL AUDIT', 'REWORK', 'REPORTS_SOP', 'CUSTOMER_COMPLAINTS'].some(function(sys) {
           return nameUpper === sys || nameUpper.startsWith(sys + " - ") || nameUpper.startsWith(sys + " ");
         });
       

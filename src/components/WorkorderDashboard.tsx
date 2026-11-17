@@ -16,25 +16,11 @@ interface WorkorderDashboardProps {
 }
 
 const normalizeStatus = (statusStr: string): string => {
-  const s = String(statusStr || "")
+  return String(statusStr || "")
     .toUpperCase()
     .trim()
     .replace(/&/g, "AND")
     .replace(/[^A-Z0-9]/g, "");
-  
-  if (s === 'PRECUTTINGPASSANDHOLD' || s === 'PRECUTTINGPASSED' || s === 'CUTTINGPASSANDHOLD') {
-    return 'CUTTING';
-  }
-  if (s === 'ENDLINEPASSANDHOLD') {
-    return 'INLINEANDENDLINE';
-  }
-  if (s === 'AQLPASSANDHOLD') {
-    return 'AQL';
-  }
-  if (s === 'FINALPASSANDHOLD') {
-    return 'FINAL';
-  }
-  return s;
 };
 
 const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, setWorkorders, user, settings, refreshData, triggerSuccess, globalZone }) => {
@@ -437,12 +423,17 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                     <label>Workflow Status</label>
                     <SearchableSelect className="w-full font-bold text-slate-800" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
                     <option value="PRECUTTING">PRECUTTING</option>
+                    <option value="PRECUTTING_PASS_AND_HOLD">PRECUTTING PASS & HOLD</option>
                     <option value="CUTTING">CUTTING</option>
+                    <option value="CUTTING_PASS_AND_HOLD">CUTTING PASS & HOLD</option>
                     <option value="INLINE_AND_ENDLINE">INLINE & ENDLINE</option>
                     <option value="INLINE">INLINE</option>
                     <option value="ENDLINE">ENDLINE</option>
+                    <option value="ENDLINE_PASS_AND_HOLD">ENDLINE PASS & HOLD</option>
                     <option value="AQL">AQL</option>
+                    <option value="AQL_PASS_AND_HOLD">AQL PASS & HOLD</option>
                     <option value="FINAL">FINAL AUDIT</option>
+                    <option value="FINAL_PASS_AND_HOLD">FINAL AUDIT (HOLD)</option>
                     <option value="COMPLETED">COMPLETED</option>
                   </SearchableSelect>
                 </div>
@@ -538,7 +529,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                       let isPast = false;
                       let isActive = false;
                       
-                      if (statusVal === 'COMPLETED') {
+                      if (statusVal === 'COMPLETED' || statusVal === 'CLOSED') {
                         isPast = true;
                       } else if (statusVal === 'INLINEANDENDLINE') {
                         if (step === 'PRECUTTING' || step === 'CUTTING') {
@@ -552,10 +543,26 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
                         } else if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
                           isActive = true;
                         }
-                      } else if (statusVal === 'PRECUTTINGPASSANDHOLD') {
+                      } else if (statusVal === 'PRECUTTINGPASSANDHOLD' || statusVal === 'PRECUTTINGPASSED') {
                         if (step === 'PRECUTTING' || step === 'CUTTING') {
                           isActive = true;
                         }
+                      } else if (statusVal === 'ENDLINEPASSANDHOLD' || statusVal === 'INLINEPASSANDHOLD') {
+                        if (step === 'PRECUTTING' || step === 'CUTTING') {
+                          isPast = true;
+                        } else if (step === 'INLINE' || step === 'ENDLINE' || step === 'AQL') {
+                          isActive = true;
+                        }
+                      } else if (statusVal === 'AQLPASSANDHOLD') {
+                        if (step === 'PRECUTTING' || step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
+                          isPast = true;
+                        } else if (step === 'AQL' || step === 'FINAL') {
+                          isActive = true;
+                        }
+                      } else if (statusVal === 'FINALPASSANDHOLD') {
+                        const activeIdx = ['PRECUTTING', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL'].indexOf('FINAL');
+                        isPast = idx < activeIdx;
+                        isActive = step === 'FINAL';
                       } else {
                         const activeIdx = ['PRECUTTING', 'CUTTING', 'INLINE', 'ENDLINE', 'AQL', 'FINAL'].indexOf(statusVal);
                         isPast = activeIdx > -1 && idx < activeIdx;

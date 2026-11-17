@@ -4,6 +4,7 @@ import { ZONES } from '../constants';
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
+import { isWorkorderVisibleInStage } from '../utils/workorderFlow';
 
 interface CuttingQualityProps {
   user: any;
@@ -206,6 +207,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
       const payload = {
         ...selectedWOPre,
         id: 'cut-pre-' + Math.random().toString(36).substring(2) + '-' + Date.now(),
+        woId: selectedWOPre?.id,
         workorderNumber: resolvedWo,
         submodule: 'PRECUTTING',
         zone: formPre.zone,
@@ -316,6 +318,7 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         ...selectedWO, 
         ...form, 
         id: 'cut-main-' + Math.random().toString(36).substring(2) + '-' + Date.now(),
+        woId: selectedWO?.id,
         workorderNumber: resolvedWo,
         wo: resolvedWo,
         fabricType: form.fabricType || 'N/A',
@@ -441,16 +444,9 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                     }
 
                     const rawStatus = getWorkorderStatus(w);
-                    const status = String(rawStatus || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const isClosed = status === 'COMPLETED' || status === 'CLOSED';
-                    return matchesZone && !isClosed;
+                    return matchesZone && isWorkorderVisibleInStage(rawStatus, 'PRECUTTING');
                   });
-                  const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                    const rawStatus = getWorkorderStatus(w);
-                    const status = String(rawStatus || 'PRECUTTING').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    return status !== 'COMPLETED' && status !== 'CLOSED';
-                  });
-                  return (list.length > 0 ? list : workorders).map(w => (
+                  return filtered.map(w => (
                     <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>
@@ -663,16 +659,9 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
                     }
 
                     const rawStatus = getWorkorderStatus(w);
-                    const status = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const isClosed = status === 'COMPLETED' || status === 'CLOSED';
-                    return matchesZone && !isClosed;
+                    return matchesZone && isWorkorderVisibleInStage(rawStatus, 'CUTTING');
                   });
-                  const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                    const rawStatus = getWorkorderStatus(w);
-                    const status = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    return status !== 'COMPLETED' && status !== 'CLOSED';
-                  });
-                  return (list.length > 0 ? list : workorders).map(w => (
+                  return filtered.map(w => (
                     <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                       {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                     </option>

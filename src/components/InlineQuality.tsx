@@ -5,6 +5,7 @@ import { ZONES, UNITS, WORKERS, MACHINES, COLORS, SIZES, CUPSIZES } from '../con
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
+import { isWorkorderVisibleInStage } from '../utils/workorderFlow';
 
 interface InlineQualityProps {
   user: any;
@@ -719,6 +720,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
+  useEffect(() => {
+    if (form.wo && selectedWO && !isWorkorderVisibleInStage(selectedWO.status, 'INLINE')) {
+      setForm(prev => ({ ...prev, wo: '' }));
+    }
+  }, [form.wo, selectedWO]);
+
   const woCupOptions = useMemo(() => {
     const raw = selectedWO?.cup || selectedWO?.cupSize || selectedWO?.cupsize;
     if (raw) {
@@ -1176,14 +1183,9 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
                   );
                 }
                 const matchesUnit = (fUnit === "" || fUnit === "COMMON" || wUnit === "" || wUnit === fUnit || wUnit === "COMMON");
-                const isClosed = status === 'COMPLETED' || status === 'CLOSED';
-                return matchesZone && matchesUnit && !isClosed;
+                return matchesZone && matchesUnit && isWorkorderVisibleInStage(w.status, 'INLINE');
               });
-              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                const s = normalizeStatus(w.status);
-                return s !== 'COMPLETED' && s !== 'CLOSED';
-              });
-              return (list.length > 0 ? list : workorders).map(w => (
+              return filtered.map(w => (
                 <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>

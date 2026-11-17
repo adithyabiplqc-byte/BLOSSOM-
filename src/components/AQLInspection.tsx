@@ -5,6 +5,7 @@ import { getEffectiveZones, getEffectiveUnits, getDropboxList } from '../utils/s
 import Icon from './Icon';
 import WorkorderDetailCard from './WorkorderDetailCard';
 import SearchableSelect from './SearchableSelect';
+import { isWorkorderVisibleInStage } from '../utils/workorderFlow';
 
 interface AQLInspectionProps {
   user: any;
@@ -232,6 +233,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       const payload = {
         zone: form.zone,
         wo: resolvedWo,
+        woId: selectedWO?.id,
         workorderNumber: resolvedWo,
         unit: form.unit,
         remarks: form.remarks || '',
@@ -317,14 +319,9 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
                   );
                 }
                 const rawStatus = getWorkorderStatus(w);
-                const wStatus = String(rawStatus || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                return matchesZone && wStatus !== 'CLOSED';
+                return matchesZone && isWorkorderVisibleInStage(rawStatus, 'AQL');
               });
-              const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                const s = String(getWorkorderStatus(w) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                return s !== 'CLOSED';
-              });
-              return (list.length > 0 ? list : workorders).map(w => (
+              return filtered.map(w => (
                 <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                   {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                 </option>
@@ -347,7 +344,7 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
       {selectedWO && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-zoom-in">
           {/* Left: Workorder Information */}
-          <WorkorderDetailCard wo={selectedWO} settings={settings} />
+          <WorkorderDetailCard wo={{ ...selectedWO, status: getWorkorderStatus(selectedWO) }} settings={settings} />
 
           {/* Right: Dynamic AQL Chart Parameters */}
           <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col justify-between">

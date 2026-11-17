@@ -4,6 +4,7 @@ import { ZONES, UNITS, DEFECTS, OPERATIONS, WORKERS, MACHINES, SIZES, COLORS, LI
 import Icon from './Icon';
 import SearchableSelect from './SearchableSelect';
 import { getDropboxList, getEffectiveZones, getEffectiveUnits } from '../utils/settingUtils';
+import { isWorkorderVisibleInStage } from '../utils/workorderFlow';
 
 interface EndlineQualityProps {
   user: any;
@@ -431,8 +432,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
           .filter(r => String(r.wo || r.workorderNumber) === String(form.wo))
           .reduce((sum, r) => sum + (Number(r.passQty) || 0), 0);
         
-        const statusUpper = String(activeWO.status || '').toUpperCase();
-        const isClosed = ['AQL', 'FINAL', 'COMPLETED', 'CLOSED'].includes(statusUpper) || (targetQty > 0 && passedQty >= targetQty);
+        const isClosed = !isWorkorderVisibleInStage(activeWO.status, 'ENDLINE') || (targetQty > 0 && passedQty >= targetQty);
 
         if (isClosed) {
           setForm(prev => ({ ...prev, wo: '' }));
@@ -566,6 +566,37 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
       return true;
     }
     return false;
+  };
+
+  // Pass & Hold partial passed quantity to AQL while keeping remaining quantity in Endline/Inline
+  const handlePassAndHoldToAQL = async () => {
+    if (isSubmitting || !selectedWO) return;
+    if (passedSoFar <= 0) {
+      setLocalError("Please submit at least 1 passed piece before using Pass & Hold to AQL.");
+      return;
+    }
+    setLocalError(null);
+    setIsSubmitting(true);
+    try {
+      const woTarget = selectedWO?.workorderNumber || form.wo;
+      selectedWO.status = 'ENDLINE_PASS_AND_HOLD';
+      await api.run('api_updateWorkorder', {
+        ...(selectedWO || {}),
+        id: selectedWO?.id || form.wo,
+        wo: woTarget,
+        workorderNumber: woTarget,
+        status: 'ENDLINE_PASS_AND_HOLD'
+      });
+      if (refreshData) {
+        await refreshData();
+      }
+      triggerSuccess(`WORKORDER ${woTarget} PASSED TO AQL (${passedSoFar}/${totalQuantity} PCS) & HELD IN ENDLINE.`);
+    } catch (e) {
+      console.error("Failed to Pass & Hold workorder to AQL:", e);
+      setLocalError("Failed to update workorder status for Pass & Hold.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Submit Bundle is the primary driver
@@ -910,14 +941,9 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   }
                   if (!matchesZone) return false;
 
-                  const statusUpper = normalizeStatus(w.status);
-                  return statusUpper !== 'COMPLETED' && statusUpper !== 'CLOSED';
+                  return isWorkorderVisibleInStage(w.status, 'ENDLINE');
                 });
-                const list = filtered.length > 0 ? filtered : workorders.filter(w => {
-                  const s = normalizeStatus(w.status);
-                  return s !== 'COMPLETED' && s !== 'CLOSED';
-                });
-                return (list.length > 0 ? list : workorders).map(w => (
+                return filtered.map(w => (
                   <option key={w.id || w.workorderNumber} value={w.workorderNumber || w.id}>
                     {w.workorderNumber} ({w.style || w.styleName || w.itemName || w.item || 'N/A'})
                   </option>
@@ -1359,6 +1385,19 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                   <Icon name="rotate-ccw" size={15} />
                   Bundle Rework ({currentBundleCap} pcs)
                 </button>
+
+                {/* Pass & Hold partial passed qty to AQL while keeping remaining qty in Endline */}
+                {passedSoFar > 0 && !isWorkorderCompleted && (
+                  <button
+                    type="button"
+                    onClick={handlePassAndHoldToAQL}
+                    disabled={isSubmitting}
+                    className="w-full py-4 rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 border-2 border-indigo-200 hover:border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-all text-center focus:outline-none cursor-pointer disabled:opacity-50"
+                  >
+                    <Icon name="save" size={15} />
+                    Pass & Hold to AQL ({passedSoFar} pcs Passed)
+                  </button>
+                )}
                 
               </div>
 

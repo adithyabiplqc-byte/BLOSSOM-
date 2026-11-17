@@ -6,25 +6,11 @@ interface WorkorderDetailCardProps {
 }
 
 const normalizeStatus = (statusStr: string): string => {
-  const s = String(statusStr || "")
+  return String(statusStr || "")
     .toUpperCase()
     .trim()
     .replace(/&/g, "AND")
     .replace(/[^A-Z0-9]/g, "");
-  
-  if (s === 'PRECUTTINGPASSANDHOLD' || s === 'PRECUTTINGPASSED' || s === 'CUTTINGPASSANDHOLD') {
-    return 'CUTTING';
-  }
-  if (s === 'ENDLINEPASSANDHOLD') {
-    return 'INLINEANDENDLINE';
-  }
-  if (s === 'AQLPASSANDHOLD') {
-    return 'AQL';
-  }
-  if (s === 'FINALPASSANDHOLD') {
-    return 'FINAL';
-  }
-  return s;
 };
 
 const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings }) => {
@@ -87,20 +73,20 @@ const WorkorderDetailCard: React.FC<WorkorderDetailCardProps> = ({ wo, settings 
             let isPast = false;
             let isActive = false;
             
-            if (statusVal === 'INLINEANDENDLINE') {
+            if (statusVal === 'COMPLETED' || statusVal === 'CLOSED') {
+              isPast = true;
+            } else if (statusVal === 'INLINEANDENDLINE') {
               if (step === 'CUTTING') {
                 isPast = true;
               } else if (step === 'INLINE' || step === 'ENDLINE') {
                 isActive = true;
               }
-            } else if (statusVal === 'PRECUTTINGPASSANDHOLD') {
+            } else if (statusVal === 'PRECUTTINGPASSANDHOLD' || statusVal === 'PRECUTTINGPASSED') {
               if (step === 'CUTTING') {
                 isActive = true;
               }
             } else if (statusVal === 'CUTTINGPASSANDHOLD') {
-              if (step === 'CUTTING') {
-                isPast = true;
-              } else if (step === 'INLINE' || step === 'ENDLINE') {
+              if (step === 'CUTTING' || step === 'INLINE' || step === 'ENDLINE') {
                 isActive = true;
               }
             } else if (statusVal === 'INLINEPASSANDHOLD' || statusVal === 'ENDLINEPASSANDHOLD') {
