@@ -10,46 +10,87 @@
       "canDownload": true,
       "zone": "COMMON",
       "userSettings": {
-        "ZONE": [
-          "KERALA"
+        "STYLE_NAME": [
+          "A 6",
+          "A6 THIN",
+          "ABSOLUTE PLUS",
+          "AUTHENTIC BRA",
+          "BRIDAL FOAM",
+          "CARE U",
+          "CIRCET BRA",
+          "COOL FOAM",
+          "ESSENTIAL BRA",
+          "ETHNIC BRA",
+          "FAVOURITE",
+          "FULL MOON",
+          "HAKO DSA",
+          "HAKO LIFT",
+          "HONEST BRA",
+          "JASMINE",
+          "LOVELY PAD",
+          "MADAMS",
+          "MAGNA FIT",
+          "MAX SUPPORT",
+          "MERCY SSU",
+          "PLUS SIZE",
+          "PRETTY PLUS",
+          "PRIYA MOHINI",
+          "PRIYA SAJINI",
+          "PRIYA SP",
+          "RINGLET",
+          "RUBY",
+          "SAREE BRA",
+          "STYLE 1",
+          "STYLE 2",
+          "STYLE A",
+          "STYLE B",
+          "STYLE C",
+          "TRUST ME",
+          "TUNIC DSA",
+          "WELL SUPPORT",
+          "WOVEN RINGS"
         ],
-        "UNIT": [
-          "MUVATTUPUZHA",
-          "ANGAMALY",
-          "RAW MATERIAL STORE"
+        "SIZE": [
+          "30",
+          "32",
+          "34",
+          "36",
+          "38",
+          "40",
+          "42",
+          "44"
         ],
-        "SUPPLIER": [
-          "VARDHAMAN TEXTILES",
-          "VARDHAMAN YARNS",
-          "SACHINAM",
-          "KONIKA",
-          "VGS CLOTHING",
-          "POLY ELASTIC",
-          "KAKADIYA INDUSTRIES",
-          "FRESH FEEL APPARELS",
-          "GINZA INDUSTRIES",
-          "RICCIES",
-          "BASKER",
-          "SIVAM TRADERS",
-          "M LACHMANDAS",
-          "MOM PACKERS",
-          "SHEELA FOAM",
-          "STRAPTEX",
-          "ANASWARA POLYFLEX"
+        "CUPSIZE": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G"
         ],
-        "ITEMS": [],
-        "COLOR": [],
-        "SIZE": [],
-        "CUPSIZE": [],
-        "DEFECTS": [],
-        "OPERATION": [],
-        "MACHINE": [],
-        "WORKERS": [
-          "WORKER 1",
-          "WORKER 2"
+        "COLOR": [
+          "WHITE",
+          "NUDE",
+          "BLACK",
+          "MIXED"
         ],
-        "LINE": [],
-        "STYLE_NAME": []
+        "LINE": [
+          "LINE 1",
+          "LINE 2"
+        ],
+        "MACHINE": [
+          "M001",
+          "M002"
+        ],
+        "OPERATION": [
+          "OP 1",
+          "OP 2"
+        ],
+        "DEFECTS": [
+          "STAIN",
+          "HOLE",
+          "SHADING"
+        ]
       }
     },
     {
@@ -92,8 +133,7 @@
         "A4",
         "A3",
         "A2",
-        "A8",
-        "B10"
+        "A8"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -419,8 +459,7 @@
         "B6",
         "B2",
         "B",
-        "A8",
-        "B10"
+        "A8"
       ],
       "canDownload": false,
       "zone": "KERALA",
@@ -1063,14 +1102,96 @@
     },
     {
       "userCode": "A001",
-      "username": "admin",
+      "username": "ADMIN",
       "password": "admin123",
       "role": "ADMIN",
-      "location": "SYSTEM",
+      "location": "COMMON",
       "restrictions": [],
       "canDownload": true,
-      "zone": "",
-      "userSettings": {}
+      "zone": "COMMON",
+      "userSettings": {
+        "STYLE_NAME": [
+          "A 6",
+          "A6 THIN",
+          "ABSOLUTE PLUS",
+          "AUTHENTIC BRA",
+          "BRIDAL FOAM",
+          "CARE U",
+          "CIRCET BRA",
+          "COOL FOAM",
+          "ESSENTIAL BRA",
+          "ETHNIC BRA",
+          "FAVOURITE",
+          "FULL MOON",
+          "HAKO DSA",
+          "HAKO LIFT",
+          "HONEST BRA",
+          "JASMINE",
+          "LOVELY PAD",
+          "MADAMS",
+          "MAGNA FIT",
+          "MAX SUPPORT",
+          "MERCY SSU",
+          "PLUS SIZE",
+          "PRETTY PLUS",
+          "PRIYA MOHINI",
+          "PRIYA SAJINI",
+          "PRIYA SP",
+          "RINGLET",
+          "RUBY",
+          "SAREE BRA",
+          "STYLE 1",
+          "STYLE 2",
+          "STYLE A",
+          "STYLE B",
+          "STYLE C",
+          "TRUST ME",
+          "TUNIC DSA",
+          "WELL SUPPORT",
+          "WOVEN RINGS"
+        ],
+        "SIZE": [
+          "30",
+          "32",
+          "34",
+          "36",
+          "38",
+          "40",
+          "42",
+          "44"
+        ],
+        "CUPSIZE": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G"
+        ],
+        "COLOR": [
+          "WHITE",
+          "NUDE",
+          "BLACK",
+          "MIXED"
+        ],
+        "LINE": [
+          "LINE 1",
+          "LINE 2"
+        ],
+        "MACHINE": [
+          "M001",
+          "M002"
+        ],
+        "OPERATION": [
+          "OP 1",
+          "OP 2"
+        ],
+        "DEFECTS": [
+          "STAIN",
+          "HOLE",
+          "SHADING"
+        ]
+      }
     },
     {
       "userCode": "U017",
@@ -1094,7 +1215,6 @@
         "B7",
         "B8",
         "B9",
-        "B10",
         "C",
         "C1",
         "C2",
@@ -1135,7 +1255,6 @@
         "B7",
         "B8",
         "B9",
-        "B10",
         "C",
         "C1",
         "C2",
@@ -1169,7 +1288,6 @@
         "B7",
         "B8",
         "B9",
-        "B10",
         "C",
         "A2",
         "A3",
@@ -1498,6 +1616,104 @@
       "canDownload": true,
       "zone": "TIRUPUR",
       "userSettings": ""
+    },
+    {
+      "userCode": "U022",
+      "username": "RENJITHA SURESH",
+      "password": 123,
+      "role": "USER",
+      "location": "MUVATTUPUZHA",
+      "restrictions": [
+        "A5",
+        "A2",
+        "A1",
+        "A3",
+        "A6",
+        "A7",
+        "A8",
+        "B",
+        "C"
+      ],
+      "canDownload": false,
+      "zone": "KERALA",
+      "userSettings": {}
+    },
+    {
+      "userCode": "U022",
+      "username": "RENJITHA SURESH",
+      "password": 123,
+      "role": "USER",
+      "location": "MUVATTUPUZHA",
+      "restrictions": [
+        "A5",
+        "A2",
+        "A1",
+        "A3",
+        "A6",
+        "A7",
+        "A8",
+        "B",
+        "C"
+      ],
+      "canDownload": false,
+      "zone": "KERALA",
+      "userSettings": {}
+    },
+    {
+      "userCode": "U023",
+      "username": "MANJU JOHNSON",
+      "password": 123,
+      "role": "USER",
+      "location": "COMMON",
+      "restrictions": [
+        "B",
+        "C",
+        "A1",
+        "A2",
+        "A4",
+        "A6",
+        "A8",
+        "A7",
+        "A5"
+      ],
+      "canDownload": false,
+      "zone": "KERALA",
+      "userSettings": {
+        "STYLE_NAME": [],
+        "SIZE": [
+          "30",
+          "32",
+          "34",
+          "36",
+          "38",
+          "40",
+          "42",
+          "44"
+        ],
+        "CUPSIZE": [
+          "B",
+          "C",
+          "E",
+          "F",
+          "G",
+          "H"
+        ],
+        "COLOR": [
+          "WHITE",
+          "BLACK",
+          "NUDE",
+          "MIXED"
+        ],
+        "LINE": [],
+        "MACHINE": [
+          "SINGLE NEEDLE",
+          "DOUBLE NEEDLE"
+        ],
+        "OPERATION": [
+          "HOOK & EYE ATTACHMENT"
+        ],
+        "DEFECTS": []
+      }
     }
   ],
   "workorders": [
@@ -20598,8 +20814,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 0,
+      "totalQty": "100",
+      "openQty": "90",
       "remarks": "Passed pieces from Bundle B10",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:43.883Z",
@@ -20630,8 +20846,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 20,
+      "totalQty": "100",
+      "openQty": "80",
       "remarks": "Passed pieces from Bundle B8",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:38.251Z",
@@ -20662,8 +20878,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 20,
+      "totalQty": "100",
+      "openQty": "70",
       "remarks": "Passed pieces from Bundle B8",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:32.290Z",
@@ -20694,8 +20910,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 30,
+      "totalQty": "100",
+      "openQty": "60",
       "remarks": "Passed pieces from Bundle B7",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:25.565Z",
@@ -20726,8 +20942,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 40,
+      "totalQty": "100",
+      "openQty": "50",
       "remarks": "Passed pieces from Bundle B6",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:16.954Z",
@@ -20758,8 +20974,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 60,
+      "totalQty": "100",
+      "openQty": "40",
       "remarks": "Passed pieces from Bundle B4",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:09.267Z",
@@ -20790,8 +21006,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 60,
+      "totalQty": "100",
+      "openQty": "30",
       "remarks": "Passed pieces from Bundle B4",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:29:03.635Z",
@@ -20822,8 +21038,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 70,
+      "totalQty": "100",
+      "openQty": "20",
       "remarks": "Passed pieces from Bundle B3",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:58.101Z",
@@ -20854,8 +21070,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 80,
+      "totalQty": "100",
+      "openQty": "10",
       "remarks": "Passed pieces from Bundle B2",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:52.380Z",
@@ -20886,12 +21102,12 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 100,
-      "openQty": 90,
+      "totalQty": "100",
+      "openQty": "0",
       "remarks": "Passed pieces from Bundle B1",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:28:44.355Z",
-      "moveToAQL": false
+      "moveToAQL": true
     },
     {
       "id": "endline_bpass_1790320948078_7ovmu",
@@ -20918,8 +21134,8 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 1300,
-      "openQty": 1280,
+      "totalQty": "1300",
+      "openQty": "1290",
       "remarks": "Passed pieces from Bundle B2",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:22:28.078Z",
@@ -20950,11 +21166,715 @@
       "operation": "",
       "defect": "",
       "machine": "",
-      "totalQty": 1300,
-      "openQty": 1290,
+      "totalQty": "1300",
+      "openQty": "1280",
       "remarks": "Passed pieces from Bundle B1",
       "inspector": "ADITHYA",
       "timestamp": "2026-09-25T07:22:21.833Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bpass_1794893203114_lylz1",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10183,
+      "workorderNumber": 10183,
+      "style": "WELL SUPPORT",
+      "styleName": "WELL SUPPORT",
+      "color": "MIXED",
+      "size": "32 - 40",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B1",
+      "checkedQty": 10,
+      "pcsChecked": 10,
+      "passQty": 10,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "",
+      "operation": "",
+      "defect": "",
+      "machine": "",
+      "totalQty": "4000",
+      "openQty": "3990",
+      "remarks": "Passed pieces from Bundle B1",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-17T05:26:43.114Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812865934_rhao",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1399",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:45.934Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812862817_p6gz",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1398",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:42.817Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812859417_l51y",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1397",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:39.417Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812856184_mmhi",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1396",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:36.184Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812853000_pyem",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1395",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:33.000Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812849884_2q9k",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1394",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:29.884Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812846752_8li8",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1393",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:26.752Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812843519_zl5r",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1392",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:23.519Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812835000_0it0",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1391",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:15.000Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_rework_resolution_1794812831752_0x42",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 0,
+      "pcsChecked": 0,
+      "passQty": 1,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework pieces declared as: PASS",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:11.752Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_4_t43l",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_5_razb",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_6_sden",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_7_5of0",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_8_un89",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822787_9_uv9v",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.787Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822786_0_8m44",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.786Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822786_1_9hbr",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.786Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822786_2_pgjk",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.786Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bdefect_1794812822786_3_0zyv",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B2",
+      "checkedQty": 1,
+      "pcsChecked": 1,
+      "passQty": 0,
+      "reworkQty": 1,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "101 - SUSAN V C",
+      "operation": "FRONT ATTACH",
+      "defect": "SHOULDER STRAP DAMAGE",
+      "machine": "SNLS",
+      "totalQty": "1400",
+      "openQty": "1390",
+      "remarks": "Rework queued: SHOULDER STRAP DAMAGE assigned to 101 - SUSAN V C",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:07:02.786Z",
+      "moveToAQL": false
+    },
+    {
+      "id": "endline_bpass_1794812793705_25k5w",
+      "zone": "KERALA",
+      "location": "KERALA",
+      "wo": 10182,
+      "workorderNumber": 10182,
+      "style": "MADAMS",
+      "styleName": "MADAMS",
+      "color": "WHITE",
+      "size": "34 - 44",
+      "cupsize": "B",
+      "cup": "B",
+      "line": 3,
+      "unit": "KERALA",
+      "bundleNo": "B1",
+      "checkedQty": 10,
+      "pcsChecked": 10,
+      "passQty": 10,
+      "reworkQty": 0,
+      "failQty": 0,
+      "complaintPcs": 0,
+      "worker": "",
+      "operation": "",
+      "defect": "",
+      "machine": "",
+      "totalQty": "1400",
+      "openQty": "1380",
+      "remarks": "Passed pieces from Bundle B1",
+      "inspector": "RENJITHA SURESH",
+      "timestamp": "2026-11-16T07:06:33.705Z",
       "moveToAQL": false
     }
   ],
@@ -21127,7 +22047,7 @@
       "status": "CLOSED",
       "createdBy": "ADITHYA",
       "zone": "ALL",
-      "location": "ALL",
+      "location": "",
       "timestamp": "2026-09-21T10:09:32.115Z"
     },
     {
@@ -21149,7 +22069,7 @@
       "status": "CLOSED",
       "createdBy": "ADITHYA",
       "zone": "ALL",
-      "location": "ALL",
+      "location": "",
       "timestamp": "2026-09-21T10:10:04.110Z"
     },
     {
@@ -21206,725 +22126,725 @@
       "timestamp": "2026-07-06T15:23:35.197Z"
     },
     {
-      "id": "zmap-7185017",
+      "id": "zmap-5269209",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "101 - SUSAN V C",
-      "timestamp": "2026-11-06T11:36:33.705Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2812440",
+      "id": "zmap-5670789",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "102 - SYAMALA K K",
-      "timestamp": "2026-11-06T11:36:33.705Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6177337",
+      "id": "zmap-5833525",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "106 - SHEELA N K",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6172900",
+      "id": "zmap-4960222",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "108 - SUJATHA K O",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3887892",
+      "id": "zmap-3430669",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "112 - PREETHA VINODKUMAR",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7360832",
+      "id": "zmap-8254453",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1128 - AJITHA M V",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-750215",
+      "id": "zmap-7560198",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1129 - VIMALA N C",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9800921",
+      "id": "zmap-7664398",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "113 - KRISHNA GIREESH",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8269630",
+      "id": "zmap-5721528",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1132 - SABITHA K M",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5221199",
+      "id": "zmap-5637470",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "115 - JANCY GEORGE",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4531661",
+      "id": "zmap-7800866",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1152 - BINDU P K",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5147781",
+      "id": "zmap-4014370",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "121 - VIJAYAMMA JAYAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5479028",
+      "id": "zmap-4630595",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1240 - VINITHA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2885181",
+      "id": "zmap-7050125",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1245 - SANDHYA SUBHASH",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2148425",
+      "id": "zmap-7809125",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1246 - GINIMOL",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-82269",
+      "id": "zmap-2086747",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1247 - DEEPA K M",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1925422",
+      "id": "zmap-9018140",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "126 - SANTHA SHAJI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8012665",
+      "id": "zmap-2282420",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "128 - SAJITHA V K",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1057684",
+      "id": "zmap-3928713",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "130 - SOBHANA VIJAYAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6344820",
+      "id": "zmap-3095397",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "136 - JULI SUNNY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5045687",
+      "id": "zmap-2885832",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1367 - RAMESH KARAKARIA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4794996",
+      "id": "zmap-507235",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "137 - P K LATHA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5351480",
+      "id": "zmap-2357766",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1398 - SANITHA SUNIL",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1895940",
+      "id": "zmap-6001595",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "14 - SUNIL K V",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7512634",
+      "id": "zmap-2547877",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1435 - NEETHU ANTONY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1432877",
+      "id": "zmap-7979786",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1459 - SOUMYA RAJAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8406602",
+      "id": "zmap-4413838",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "147 - SHIJI SAJU",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9685578",
+      "id": "zmap-3684854",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1490 - MINI JOHN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1450539",
+      "id": "zmap-9726004",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1541 - JOLLY THOMAS",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4706913",
+      "id": "zmap-4540602",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1553 - BINILA P K",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1113714",
+      "id": "zmap-9342913",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1675 - SALINI A B",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-96771",
+      "id": "zmap-3590658",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1676 - LAYA UMESH",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6492530",
+      "id": "zmap-4979551",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1795 - SOBINI SOMAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3864796",
+      "id": "zmap-4946984",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1860 - REMYA SHINO",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7869771",
+      "id": "zmap-5810427",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "189 - SONIYA BABY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7226623",
+      "id": "zmap-8073482",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "195 - LIJIMOLE C V",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-171453",
+      "id": "zmap-9237492",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "1972 - SANJU KUMAR HANSDA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8408683",
+      "id": "zmap-9676129",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "214 - SUDHA VIJAYAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2192586",
+      "id": "zmap-7377423",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "225 - VINEETHA M D",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7298486",
+      "id": "zmap-7414588",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2274 - AJIMOL K A",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4212696",
+      "id": "zmap-6590395",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "228 - JAYA M A",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2079595",
+      "id": "zmap-7376746",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "229 - SHEELA SURESH",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7682292",
+      "id": "zmap-450311",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2317 - REJITHA SAJEEV",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8018194",
+      "id": "zmap-6685421",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2318 - BINDU T T",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-562067",
+      "id": "zmap-2588727",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "232 - SARITHA BIJU",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2128218",
+      "id": "zmap-6814114",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2334 - BEENA SREERAJ",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6627498",
+      "id": "zmap-5141279",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2339 - PRIYA GIBI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1058065",
+      "id": "zmap-4734127",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2354 - SHAIJA KRISHNANKUTTY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4436040",
+      "id": "zmap-2290457",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2427 - SINDHU GEORGE",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7623382",
+      "id": "zmap-9120098",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2532 - PRIYA K THANKAPPAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5153970",
+      "id": "zmap-7771762",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2535 - PREEJA JEEMON",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8242658",
+      "id": "zmap-4037717",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2536 - AJITHA BIJU",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2708475",
+      "id": "zmap-4526396",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "260 - LATHA K B",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8960836",
+      "id": "zmap-2344734",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2630 - JALAJA KRISHNAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2103389",
+      "id": "zmap-1949599",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2631 - SURAMYA PK",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-654133",
+      "id": "zmap-9273353",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2640 - SUJATHA PRAKASAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6117300",
+      "id": "zmap-9050957",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2645 - SUKANYA KUMAR CK",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8014727",
+      "id": "zmap-6521076",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2650 - AMRITHA RAJAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-821631",
+      "id": "zmap-6301381",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2659 - SABITHA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6992933",
+      "id": "zmap-8955454",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "267 - NITHA C V",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2839631",
+      "id": "zmap-3115681",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2704 - RAMYA SREE MOHANAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2420274",
+      "id": "zmap-859828",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2705 - SHIJI PR",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5261201",
+      "id": "zmap-692407",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2765 - NISHA CP",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7075746",
+      "id": "zmap-5892042",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2767 - KALEESWARI A",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1281151",
+      "id": "zmap-8369157",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2774 - BINAYA PRADHAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1061582",
+      "id": "zmap-9793239",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "2811 - RATHEESHKUMAR R",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1642513",
+      "id": "zmap-8868848",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "308 - RADHA M N",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7761513",
+      "id": "zmap-4725643",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "31 - USHA BABY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-6706676",
+      "id": "zmap-9812064",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "321 - SWAPNA SANTHOSH",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2297785",
+      "id": "zmap-2304930",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "322 - SOUMYA KRISHNAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3170303",
+      "id": "zmap-5544242",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "333 - MANJU SAJI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2485225",
+      "id": "zmap-1672531",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "351 - SANDHYA KRISHNAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9169565",
+      "id": "zmap-1231859",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "371 - SUNIMOL A K",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7266497",
+      "id": "zmap-2186973",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "384 - ANITHA SIVAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5887009",
+      "id": "zmap-4324685",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "42 - SIJI VARGHESE",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9582695",
+      "id": "zmap-2645045",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "511 - BINDU GOPALAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9785989",
+      "id": "zmap-1519415",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "6 - PAILYKUNJU T P",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1854735",
+      "id": "zmap-9985476",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "644 - DHANYA REVI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3815686",
+      "id": "zmap-7819832",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "654 - SUJATHA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1842067",
+      "id": "zmap-9389633",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "681 - SINI N M",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4565059",
+      "id": "zmap-978168",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "69 - SINDHU GIGI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-941894",
+      "id": "zmap-4996312",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "70 - GEETHA S",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3165172",
+      "id": "zmap-1328574",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "72 - SANI BABY",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-7694424",
+      "id": "zmap-2473957",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "73 - SALY JOHN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9919211",
+      "id": "zmap-2868450",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "74 - SUSEELA SHIBU",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2959877",
+      "id": "zmap-8755077",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "79 - RAJANI N",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8638732",
+      "id": "zmap-9580140",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "84 - LATHIKA VISWANATHAN",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-5535159",
+      "id": "zmap-7323386",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "86 - GEETHA V U",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-4139865",
+      "id": "zmap-8199832",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "87 - OMANA E A",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-876601",
+      "id": "zmap-9197326",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "92 - PAUL N J",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1813055",
+      "id": "zmap-115510",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "934 - SIJO VARGHESE",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-3164750",
+      "id": "zmap-4612286",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "94 - P K SHEELA",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-1689281",
+      "id": "zmap-9011810",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "95 - SHAINY K J",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-8982543",
+      "id": "zmap-4592620",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "97 - SINDHU JOJI",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-9143614",
+      "id": "zmap-9885500",
       "zone": "KERALA",
       "unit": "MUVATTUPUZHA",
       "worker": "98 - SINI K N",
-      "timestamp": "2026-11-06T11:36:33.706Z"
+      "timestamp": "2026-11-17T10:04:56.482Z"
     },
     {
-      "id": "zmap-2012191",
+      "id": "zmap-8771866",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ADITHYA",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-7489390",
+      "id": "zmap-5140428",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "GOPAKUMAR",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-7315567",
+      "id": "zmap-4778679",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHOK",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-6123271",
+      "id": "zmap-9908309",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "ASHIR",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-5990501",
+      "id": "zmap-2203174",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SREEJITH",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-571314",
+      "id": "zmap-9191344",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "SHARATH",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-4478561",
+      "id": "zmap-3371525",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "CHRISTY",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
-      "id": "zmap-8071121",
+      "id": "zmap-2844775",
       "zone": "KERALA",
       "unit": "ANGAMALY",
       "worker": "MIDHUN",
-      "timestamp": "2026-11-06T11:36:33.749Z"
+      "timestamp": "2026-11-17T10:04:56.520Z"
     },
     {
       "id": "zmap-177980",
@@ -29781,6 +30701,1140 @@
       "action": "UPDATE_SETTINGS",
       "details": "Updated Settings for GLOBAL: Dropdown Update",
       "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-07T05:15:33.993Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for GLOBAL: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-07T05:15:35.316Z",
+      "module": "SYSTEM",
+      "action": "BULK EDIT COMMON SUPPLIERS",
+      "details": "Updated 240 common suppliers",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-07T05:15:35.852Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for SUPPLIERS: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-07T05:18:53.866Z",
+      "module": "SYSTEM",
+      "action": "BULK EDIT COMMON SUPPLIERS",
+      "details": "Updated 240 common suppliers",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-07T05:18:54.333Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for SUPPLIERS: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-07T05:18:55.388Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for GLOBAL: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:16:53.155Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:17:18.036Z",
+      "module": "SYSTEM",
+      "action": "ADD USER",
+      "details": "Created user U022 (RENJITHA SURESH)",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:17:49.771Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:31.482Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:30.819Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:31.626Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:32.260Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:31.994Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:33.574Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:34.255Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:35.510Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:35.542Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:37.162Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:37.852Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:35.723Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:38.040Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:35.736Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:36.344Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:40.478Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B4 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:39.009Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:40.123Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:41.297Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:38.874Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:41.245Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:38.910Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:40.863Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:41.153Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:41.926Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:41.905Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:40.869Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:42.332Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:44.422Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:42.326Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:45.292Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:46.109Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:45.696Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:45.324Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:46.602Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B9 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:46.661Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:47.672Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:49.528Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:49.870Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.452Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.538Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.789Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:50.747Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.453Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C4 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.647Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:51.550Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:53.148Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:50.663Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:55.987Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:56.235Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:55.777Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:58.956Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:58.799Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:58.957Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:59.566Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:18:59.364Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:03.400Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:03.680Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:11.715Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:12.563Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:13.503Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:14.250Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:19.497Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:20:30.912Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T07:23:09.788Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:32:56.662Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:32:57.090Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:01.569Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:32:58.844Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:01.967Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:02.520Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:02.760Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:32:59.984Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:04.659Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:05.713Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:17.482Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:29.983Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:38.456Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:48.754Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:33:57.158Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:34:08.089Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:34:19.040Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-16T11:34:33.147Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:16.690Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:19.455Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:21.690Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:24.949Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:27.133Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:29.281Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:31.847Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:34.419Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:36.910Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:39.467Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:41.802Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:43.964Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:46.958Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:48.944Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:50.810Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:52.964Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:55.094Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:57.835Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:45:59.787Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:01.635Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:03.515Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:05.438Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:07.275Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:09.355Z",
+      "module": "SYSTEM",
+      "action": "ADD COMMON SUPPLIER",
+      "details": "Added common supplier: CLASSIC CARTONS",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:09.118Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:10.757Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for GLOBAL: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:10.228Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for SUPPLIERS: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:11.691Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:14.003Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:16.555Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A4 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:18.536Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:21.309Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A1 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:23.152Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A3 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:25.022Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A4 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:27.197Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:29.865Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:32.857Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:35.014Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:37.736Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U022",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T04:46:39.999Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U022 (RENJITHA SURESH)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:39:28.311Z",
+      "module": "USER_MGMT",
+      "action": "SAVE_USERS",
+      "details": "Saved record to USERS",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:39:43.493Z",
+      "module": "SYSTEM",
+      "action": "ADD USER",
+      "details": "Created user U023 (MANJU JOHNSON)",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:34.583Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:44.335Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated DOWNLOAD_RESTRICTION for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:44.973Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:50.868Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated B for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:51.554Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:40:59.964Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated C for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:41:00.821Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:02.359Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:12.130Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:12.090Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A2 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:17.315Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A4 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:18.335Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:27.665Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:27.376Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A6 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:33.808Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:33.586Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A8 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:39.047Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A7 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:39.622Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:44:44.858Z",
+      "module": "SYSTEM",
+      "action": "RESTRICTION CHANGE",
+      "details": "Updated A5 for U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:32.626Z",
+      "module": "SYSTEM",
+      "action": "USERWISE DROPBOX SETTINGS",
+      "details": "Updated dropdown options for user A001",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:33.327Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User A001 (ADMIN)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:41.127Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for A001: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:47.047Z",
+      "module": "SYSTEM",
+      "action": "USERWISE DROPBOX SETTINGS",
+      "details": "Updated dropdown options for user A001",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:47.743Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User A001 (ADMIN)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:48:53.094Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for A001: Dropdown Update",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:52:56.687Z",
+      "module": "USER_MGMT",
+      "action": "EDIT USER",
+      "details": "Updated User U023 (MANJU JOHNSON)",
+      "admin": "SYSTEM"
+    },
+    {
+      "timestamp": "2026-11-17T09:52:56.504Z",
+      "module": "SYSTEM",
+      "action": "USERWISE DROPBOX SETTINGS",
+      "details": "Updated dropdown options for user U023",
+      "admin": "ADITHYA S MENON"
+    },
+    {
+      "timestamp": "2026-11-17T09:53:01.355Z",
+      "module": "SETTINGS",
+      "action": "UPDATE_SETTINGS",
+      "details": "Updated Settings for U023: Dropdown Update",
+      "admin": "SYSTEM"
     }
   ],
   "settings": {
@@ -29791,6 +31845,7 @@
         "BANGALORE"
       ],
       "SUPPLIER": [
+        "CLASSIC CARTONS",
         "BLOSSOM INNERS PVT LTD - BANGALORE",
         "RAJA GANAPATHY TRADERS",
         "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -29809,14 +31864,14 @@
         "ASSOCIATED CLOTHINGS",
         "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
         "AURAM EXPORTS AND IMPORTS",
-        "Amba Linen Fabs",
+        "AMBA LINEN FABS",
         "B R ELASTICS INDIA PRIVATE LIMITED",
         "BALAJI FABIANA VENTURES LLP",
         "BALAJI METALING",
         "BALAJI TRADING CO - AHMEDABAD",
         "BANNARI AMMAN PRINTING",
         "BANNARI AMMAN SPINNING MILLS LIMITED",
-        "BASKER",
+        "BASKER EMBROIDERY - TIRUPUR",
         "BEEKAY FOAMS",
         "BHAVANI TECH PACK",
         "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -29854,7 +31909,7 @@
         "FLEXCON ELASTOMERICS",
         "FOCUS TEXTILES",
         "FRESH FEEL APPARELS",
-        "Fastech S&S India Private Limited",
+        "FASTECH S&S INDIA PRIVATE LIMITED",
         "G J TRADERS",
         "G M S PROCESSORS (P) LTD",
         "G P YARNS",
@@ -30012,7 +32067,7 @@
         "THREE KAY EMPORIUM",
         "TIRUCHENDUR CARTON INDUSTRIES",
         "TRYLO INDUSTRIES",
-        "Twenty First Century Creations Private Limited",
+        "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
         "ULTRON TEXTILES LLP",
         "UNIK TECHNOLOGYZ",
         "V K N FABRICS - TIRUPUR",
@@ -30027,7 +32082,7 @@
         "VIMA TAPES",
         "VIN SPORTS",
         "VISHAL TRADING CO",
-        "Vardhaman Yarns and Threads Limited",
+        "VARDHAMAN YARNS AND THREADS LIMITED",
         "WELCO AGENCIES PRIVATE LIMITED",
         "WELSO LIFE PRIVATE LIMITED",
         "WHITE SQUARE"
@@ -37870,6 +39925,7 @@
         "WOVEN RINGS"
       ],
       "SUPPLIERS": [
+        "CLASSIC CARTONS",
         "BLOSSOM INNERS PVT LTD - BANGALORE",
         "RAJA GANAPATHY TRADERS",
         "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -37888,14 +39944,14 @@
         "ASSOCIATED CLOTHINGS",
         "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
         "AURAM EXPORTS AND IMPORTS",
-        "Amba Linen Fabs",
+        "AMBA LINEN FABS",
         "B R ELASTICS INDIA PRIVATE LIMITED",
         "BALAJI FABIANA VENTURES LLP",
         "BALAJI METALING",
         "BALAJI TRADING CO - AHMEDABAD",
         "BANNARI AMMAN PRINTING",
         "BANNARI AMMAN SPINNING MILLS LIMITED",
-        "BASKER",
+        "BASKER EMBROIDERY - TIRUPUR",
         "BEEKAY FOAMS",
         "BHAVANI TECH PACK",
         "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -37933,7 +39989,7 @@
         "FLEXCON ELASTOMERICS",
         "FOCUS TEXTILES",
         "FRESH FEEL APPARELS",
-        "Fastech S&S India Private Limited",
+        "FASTECH S&S INDIA PRIVATE LIMITED",
         "G J TRADERS",
         "G M S PROCESSORS (P) LTD",
         "G P YARNS",
@@ -38091,7 +40147,7 @@
         "THREE KAY EMPORIUM",
         "TIRUCHENDUR CARTON INDUSTRIES",
         "TRYLO INDUSTRIES",
-        "Twenty First Century Creations Private Limited",
+        "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
         "ULTRON TEXTILES LLP",
         "UNIK TECHNOLOGYZ",
         "V K N FABRICS - TIRUPUR",
@@ -38106,7 +40162,7 @@
         "VIMA TAPES",
         "VIN SPORTS",
         "VISHAL TRADING CO",
-        "Vardhaman Yarns and Threads Limited",
+        "VARDHAMAN YARNS AND THREADS LIMITED",
         "WELCO AGENCIES PRIVATE LIMITED",
         "WELSO LIFE PRIVATE LIMITED",
         "WHITE SQUARE"
@@ -53491,6 +55547,7 @@
         "ELASTIC NARROW WOVEN ARROW 84%NYLON 16%SPANDEX 18MM ORCHID BLOOM"
       ],
       "SUPPLIER NAME": [
+        "CLASSIC CARTONS",
         "BLOSSOM INNERS PVT LTD - BANGALORE",
         "RAJA GANAPATHY TRADERS",
         "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -53509,14 +55566,14 @@
         "ASSOCIATED CLOTHINGS",
         "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
         "AURAM EXPORTS AND IMPORTS",
-        "Amba Linen Fabs",
+        "AMBA LINEN FABS",
         "B R ELASTICS INDIA PRIVATE LIMITED",
         "BALAJI FABIANA VENTURES LLP",
         "BALAJI METALING",
         "BALAJI TRADING CO - AHMEDABAD",
         "BANNARI AMMAN PRINTING",
         "BANNARI AMMAN SPINNING MILLS LIMITED",
-        "BASKER",
+        "BASKER EMBROIDERY - TIRUPUR",
         "BEEKAY FOAMS",
         "BHAVANI TECH PACK",
         "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -53554,7 +55611,7 @@
         "FLEXCON ELASTOMERICS",
         "FOCUS TEXTILES",
         "FRESH FEEL APPARELS",
-        "Fastech S&S India Private Limited",
+        "FASTECH S&S INDIA PRIVATE LIMITED",
         "G J TRADERS",
         "G M S PROCESSORS (P) LTD",
         "G P YARNS",
@@ -53712,7 +55769,7 @@
         "THREE KAY EMPORIUM",
         "TIRUCHENDUR CARTON INDUSTRIES",
         "TRYLO INDUSTRIES",
-        "Twenty First Century Creations Private Limited",
+        "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
         "ULTRON TEXTILES LLP",
         "UNIK TECHNOLOGYZ",
         "V K N FABRICS - TIRUPUR",
@@ -53727,7 +55784,7 @@
         "VIMA TAPES",
         "VIN SPORTS",
         "VISHAL TRADING CO",
-        "Vardhaman Yarns and Threads Limited",
+        "VARDHAMAN YARNS AND THREADS LIMITED",
         "WELCO AGENCIES PRIVATE LIMITED",
         "WELSO LIFE PRIVATE LIMITED",
         "WHITE SQUARE"
@@ -53741,11 +55798,10 @@
       ]
     },
     "ZONE": [
-      "KERALA",
-      "TIRUPUR",
-      "BANGALORE"
+      "KERALA"
     ],
     "SUPPLIER": [
+      "CLASSIC CARTONS",
       "BLOSSOM INNERS PVT LTD - BANGALORE",
       "RAJA GANAPATHY TRADERS",
       "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -53764,14 +55820,14 @@
       "ASSOCIATED CLOTHINGS",
       "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
       "AURAM EXPORTS AND IMPORTS",
-      "Amba Linen Fabs",
+      "AMBA LINEN FABS",
       "B R ELASTICS INDIA PRIVATE LIMITED",
       "BALAJI FABIANA VENTURES LLP",
       "BALAJI METALING",
       "BALAJI TRADING CO - AHMEDABAD",
       "BANNARI AMMAN PRINTING",
       "BANNARI AMMAN SPINNING MILLS LIMITED",
-      "BASKER",
+      "BASKER EMBROIDERY - TIRUPUR",
       "BEEKAY FOAMS",
       "BHAVANI TECH PACK",
       "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -53809,7 +55865,7 @@
       "FLEXCON ELASTOMERICS",
       "FOCUS TEXTILES",
       "FRESH FEEL APPARELS",
-      "Fastech S&S India Private Limited",
+      "FASTECH S&S INDIA PRIVATE LIMITED",
       "G J TRADERS",
       "G M S PROCESSORS (P) LTD",
       "G P YARNS",
@@ -53967,7 +56023,7 @@
       "THREE KAY EMPORIUM",
       "TIRUCHENDUR CARTON INDUSTRIES",
       "TRYLO INDUSTRIES",
-      "Twenty First Century Creations Private Limited",
+      "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
       "ULTRON TEXTILES LLP",
       "UNIK TECHNOLOGYZ",
       "V K N FABRICS - TIRUPUR",
@@ -53982,7 +56038,7 @@
       "VIMA TAPES",
       "VIN SPORTS",
       "VISHAL TRADING CO",
-      "Vardhaman Yarns and Threads Limited",
+      "VARDHAMAN YARNS AND THREADS LIMITED",
       "WELCO AGENCIES PRIVATE LIMITED",
       "WELSO LIFE PRIVATE LIMITED",
       "WHITE SQUARE"
@@ -61674,71 +63730,131 @@
       "ELASTIC NARROW WOVEN ARROW 84%NYLON 16%SPANDEX 18MM CANAL BLUE",
       "ELASTIC NARROW WOVEN ARROW 84%NYLON 16%SPANDEX 18MM ORCHID BLOOM"
     ],
-    "COLOR": [
-      "BLACK",
-      "WHITE",
-      "NAVY"
-    ],
-    "DEFECTS": [
-      "STAIN",
-      "HOLE",
-      "SHADING"
-    ],
+    "COLOR": [],
+    "DEFECTS": [],
     "WORKERS": [
-      "WORKER 1",
-      "WORKER 2",
-      "WORKER 3",
-      "WORKER 4",
-      "WORKER 5"
+      "101 - SUSAN V C",
+      "102 - SYAMALA K K",
+      "106 - SHEELA N K",
+      "108 - SUJATHA K O",
+      "112 - PREETHA VINODKUMAR",
+      "1128 - AJITHA M V",
+      "1129 - VIMALA N C",
+      "113 - KRISHNA GIREESH",
+      "1132 - SABITHA K M",
+      "115 - JANCY GEORGE",
+      "1152 - BINDU P K",
+      "121 - VIJAYAMMA JAYAN",
+      "1240 - VINITHA",
+      "1245 - SANDHYA SUBHASH",
+      "1246 - GINIMOL",
+      "1247 - DEEPA K M",
+      "126 - SANTHA SHAJI",
+      "128 - SAJITHA V K",
+      "130 - SOBHANA VIJAYAN",
+      "136 - JULI SUNNY",
+      "1367 - RAMESH KARAKARIA",
+      "137 - P K LATHA",
+      "1398 - SANITHA SUNIL",
+      "14 - SUNIL K V",
+      "1435 - NEETHU ANTONY",
+      "1459 - SOUMYA RAJAN",
+      "147 - SHIJI SAJU",
+      "1490 - MINI JOHN",
+      "1541 - JOLLY THOMAS",
+      "1553 - BINILA P K",
+      "1675 - SALINI A B",
+      "1676 - LAYA UMESH",
+      "1795 - SOBINI SOMAN",
+      "1860 - REMYA SHINO",
+      "189 - SONIYA BABY",
+      "195 - LIJIMOLE C V",
+      "1972 - SANJU KUMAR HANSDA",
+      "214 - SUDHA VIJAYAN",
+      "225 - VINEETHA M D",
+      "2274 - AJIMOL K A",
+      "228 - JAYA M A",
+      "229 - SHEELA SURESH",
+      "2317 - REJITHA SAJEEV",
+      "2318 - BINDU T T",
+      "232 - SARITHA BIJU",
+      "2334 - BEENA SREERAJ",
+      "2339 - PRIYA GIBI",
+      "2354 - SHAIJA KRISHNANKUTTY",
+      "2427 - SINDHU GEORGE",
+      "2532 - PRIYA K THANKAPPAN",
+      "2535 - PREEJA JEEMON",
+      "2536 - AJITHA BIJU",
+      "260 - LATHA K B",
+      "2630 - JALAJA KRISHNAN",
+      "2631 - SURAMYA PK",
+      "2640 - SUJATHA PRAKASAN",
+      "2645 - SUKANYA KUMAR CK",
+      "2650 - AMRITHA RAJAN",
+      "2659 - SABITHA",
+      "267 - NITHA C V",
+      "2704 - RAMYA SREE MOHANAN",
+      "2705 - SHIJI PR",
+      "2765 - NISHA CP",
+      "2767 - KALEESWARI A",
+      "2774 - BINAYA PRADHAN",
+      "2811 - RATHEESHKUMAR R",
+      "308 - RADHA M N",
+      "31 - USHA BABY",
+      "321 - SWAPNA SANTHOSH",
+      "322 - SOUMYA KRISHNAN",
+      "333 - MANJU SAJI",
+      "351 - SANDHYA KRISHNAN",
+      "371 - SUNIMOL A K",
+      "384 - ANITHA SIVAN",
+      "42 - SIJI VARGHESE",
+      "511 - BINDU GOPALAN",
+      "6 - PAILYKUNJU T P",
+      "644 - DHANYA REVI",
+      "654 - SUJATHA",
+      "681 - SINI N M",
+      "69 - SINDHU GIGI",
+      "70 - GEETHA S",
+      "72 - SANI BABY",
+      "73 - SALY JOHN",
+      "74 - SUSEELA SHIBU",
+      "79 - RAJANI N",
+      "84 - LATHIKA VISWANATHAN",
+      "86 - GEETHA V U",
+      "87 - OMANA E A",
+      "92 - PAUL N J",
+      "934 - SIJO VARGHESE",
+      "94 - P K SHEELA",
+      "95 - SHAINY K J",
+      "97 - SINDHU JOJI",
+      "98 - SINI K N",
+      "ADITHYA",
+      "GOPAKUMAR",
+      "ASHOK",
+      "ASHIR",
+      "SREEJITH",
+      "SHARATH",
+      "CHRISTY",
+      "MIDHUN"
     ],
-    "MACHINE": [
-      "M001",
-      "M002"
-    ],
-    "OPERATION": [
-      "OP 1",
-      "OP 2"
-    ],
-    "SIZE": [
-      "S",
-      "M",
-      "L",
-      "XL"
-    ],
-    "CUPSIZE": [
-      "A",
-      "B",
-      "C"
-    ],
+    "MACHINE": [],
+    "OPERATION": [],
+    "SIZE": [],
+    "CUPSIZE": [],
     "UNIT": [
       "MUVATTUPUZHA",
       "ANGAMALY",
-      "RAW MATERIAL STORE",
-      "RAW MATERIAL STORE - TUP",
-      "RAW MATERIAL STORE - BNGLR"
+      "RAW MATERIAL STORE"
     ],
-    "LINE": [
-      "LINE 1",
-      "LINE 2"
-    ],
-    "STYLE_NAME": [
-      "STYLE A",
-      "STYLE B",
-      "STYLE C",
-      "STYLE 1",
-      "STYLE 2"
-    ],
+    "LINE": [],
+    "STYLE_NAME": [],
     "ZONES": [
-      "KERALA",
-      "TIRUPUR",
-      "BANGALORE"
+      "KERALA"
     ],
     "UNITS": [
       "MUVATTUPUZHA",
       "ANGAMALY",
-      "RAW MATERIAL STORE",
-      "RAW MATERIAL STORE - TUP",
-      "RAW MATERIAL STORE - BNGLR"
+      "RAW MATERIAL STORE"
     ],
     "SETTINGS": {
       "ZONE": [
@@ -61747,6 +63863,7 @@
         "BANGALORE"
       ],
       "SUPPLIER": [
+        "CLASSIC CARTONS",
         "BLOSSOM INNERS PVT LTD - BANGALORE",
         "RAJA GANAPATHY TRADERS",
         "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -61765,14 +63882,14 @@
         "ASSOCIATED CLOTHINGS",
         "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
         "AURAM EXPORTS AND IMPORTS",
-        "Amba Linen Fabs",
+        "AMBA LINEN FABS",
         "B R ELASTICS INDIA PRIVATE LIMITED",
         "BALAJI FABIANA VENTURES LLP",
         "BALAJI METALING",
         "BALAJI TRADING CO - AHMEDABAD",
         "BANNARI AMMAN PRINTING",
         "BANNARI AMMAN SPINNING MILLS LIMITED",
-        "BASKER",
+        "BASKER EMBROIDERY - TIRUPUR",
         "BEEKAY FOAMS",
         "BHAVANI TECH PACK",
         "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -61810,7 +63927,7 @@
         "FLEXCON ELASTOMERICS",
         "FOCUS TEXTILES",
         "FRESH FEEL APPARELS",
-        "Fastech S&S India Private Limited",
+        "FASTECH S&S INDIA PRIVATE LIMITED",
         "G J TRADERS",
         "G M S PROCESSORS (P) LTD",
         "G P YARNS",
@@ -61968,7 +64085,7 @@
         "THREE KAY EMPORIUM",
         "TIRUCHENDUR CARTON INDUSTRIES",
         "TRYLO INDUSTRIES",
-        "Twenty First Century Creations Private Limited",
+        "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
         "ULTRON TEXTILES LLP",
         "UNIK TECHNOLOGYZ",
         "V K N FABRICS - TIRUPUR",
@@ -61983,7 +64100,7 @@
         "VIMA TAPES",
         "VIN SPORTS",
         "VISHAL TRADING CO",
-        "Vardhaman Yarns and Threads Limited",
+        "VARDHAMAN YARNS AND THREADS LIMITED",
         "WELCO AGENCIES PRIVATE LIMITED",
         "WELSO LIFE PRIVATE LIMITED",
         "WHITE SQUARE"
@@ -69739,6 +71856,7 @@
         "RAW MATERIAL STORE - BNGLR"
       ],
       "SUPPLIERS": [
+        "CLASSIC CARTONS",
         "BLOSSOM INNERS PVT LTD - BANGALORE",
         "RAJA GANAPATHY TRADERS",
         "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -69757,14 +71875,14 @@
         "ASSOCIATED CLOTHINGS",
         "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
         "AURAM EXPORTS AND IMPORTS",
-        "Amba Linen Fabs",
+        "AMBA LINEN FABS",
         "B R ELASTICS INDIA PRIVATE LIMITED",
         "BALAJI FABIANA VENTURES LLP",
         "BALAJI METALING",
         "BALAJI TRADING CO - AHMEDABAD",
         "BANNARI AMMAN PRINTING",
         "BANNARI AMMAN SPINNING MILLS LIMITED",
-        "BASKER",
+        "BASKER EMBROIDERY - TIRUPUR",
         "BEEKAY FOAMS",
         "BHAVANI TECH PACK",
         "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -69802,7 +71920,7 @@
         "FLEXCON ELASTOMERICS",
         "FOCUS TEXTILES",
         "FRESH FEEL APPARELS",
-        "Fastech S&S India Private Limited",
+        "FASTECH S&S INDIA PRIVATE LIMITED",
         "G J TRADERS",
         "G M S PROCESSORS (P) LTD",
         "G P YARNS",
@@ -69960,7 +72078,7 @@
         "THREE KAY EMPORIUM",
         "TIRUCHENDUR CARTON INDUSTRIES",
         "TRYLO INDUSTRIES",
-        "Twenty First Century Creations Private Limited",
+        "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
         "ULTRON TEXTILES LLP",
         "UNIK TECHNOLOGYZ",
         "V K N FABRICS - TIRUPUR",
@@ -69975,7 +72093,7 @@
         "VIMA TAPES",
         "VIN SPORTS",
         "VISHAL TRADING CO",
-        "Vardhaman Yarns and Threads Limited",
+        "VARDHAMAN YARNS AND THREADS LIMITED",
         "WELCO AGENCIES PRIVATE LIMITED",
         "WELSO LIFE PRIVATE LIMITED",
         "WHITE SQUARE"
@@ -72118,6 +74236,7 @@
       "SUPPLIERS": []
     },
     "SUPPLIERS": [
+      "CLASSIC CARTONS",
       "BLOSSOM INNERS PVT LTD - BANGALORE",
       "RAJA GANAPATHY TRADERS",
       "BLOSSOM INNERS PVT LTD - TIRUPUR",
@@ -72136,14 +74255,14 @@
       "ASSOCIATED CLOTHINGS",
       "ATOZ PACKAGINGS AND PRINTING PRIVATE LIMITED",
       "AURAM EXPORTS AND IMPORTS",
-      "Amba Linen Fabs",
+      "AMBA LINEN FABS",
       "B R ELASTICS INDIA PRIVATE LIMITED",
       "BALAJI FABIANA VENTURES LLP",
       "BALAJI METALING",
       "BALAJI TRADING CO - AHMEDABAD",
       "BANNARI AMMAN PRINTING",
       "BANNARI AMMAN SPINNING MILLS LIMITED",
-      "BASKER",
+      "BASKER EMBROIDERY - TIRUPUR",
       "BEEKAY FOAMS",
       "BHAVANI TECH PACK",
       "BIRLA ADVANCED KNITS PRIVATE LIMITED",
@@ -72181,7 +74300,7 @@
       "FLEXCON ELASTOMERICS",
       "FOCUS TEXTILES",
       "FRESH FEEL APPARELS",
-      "Fastech S&S India Private Limited",
+      "FASTECH S&S INDIA PRIVATE LIMITED",
       "G J TRADERS",
       "G M S PROCESSORS (P) LTD",
       "G P YARNS",
@@ -72339,7 +74458,7 @@
       "THREE KAY EMPORIUM",
       "TIRUCHENDUR CARTON INDUSTRIES",
       "TRYLO INDUSTRIES",
-      "Twenty First Century Creations Private Limited",
+      "TWENTY FIRST CENTURY CREATIONS PRIVATE LIMITED",
       "ULTRON TEXTILES LLP",
       "UNIK TECHNOLOGYZ",
       "V K N FABRICS - TIRUPUR",
@@ -72354,7 +74473,7 @@
       "VIMA TAPES",
       "VIN SPORTS",
       "VISHAL TRADING CO",
-      "Vardhaman Yarns and Threads Limited",
+      "VARDHAMAN YARNS AND THREADS LIMITED",
       "WELCO AGENCIES PRIVATE LIMITED",
       "WELSO LIFE PRIVATE LIMITED",
       "WHITE SQUARE"
@@ -88011,14 +90130,14 @@
     "setBy": "admin"
   },
   "presence": {
-    "U007": {
-      "id": "U007",
-      "userCode": "U007",
-      "username": "ADITHYA S MENON",
-      "role": "ADMIN",
-      "zone": "ALL",
-      "location": "COMMON",
-      "lastSeen": 1793963540572
+    "U022": {
+      "id": "U022",
+      "userCode": "U022",
+      "username": "RENJITHA SURESH",
+      "role": "USER",
+      "zone": "KERALA",
+      "location": "MUVATTUPUZHA",
+      "lastSeen": 1794910055180
     }
   }
 }

@@ -119,11 +119,12 @@ function getLocalFallbackData(method: string, args: any[]): any {
     }
     case 'api_getInlineData':
     case 'api_get8ROUNDSYSTEMData': {
+      let inlineRows = INITIAL_DB?.sewing_reports || [];
       try {
         const cached = JSON.parse(localStorage.getItem('bqos_cache_sewing') || '[]');
-        if (Array.isArray(cached) && cached.length > 0) return filterByZone(cached);
+        if (Array.isArray(cached) && cached.length > 0) inlineRows = cached;
       } catch (e) {}
-      return filterByZone(INITIAL_DB?.sewing_reports || []);
+      return filterByZone(applyPendingInlineSubmissions(inlineRows));
     }
     case 'api_getEndlineData': {
       try {
@@ -846,6 +847,201 @@ function applyPendingUserOverrides(users: any[]): any[] {
   return result;
 }
 
+const PENDING_INLINE_SUBMISSIONS_KEY = 'bqos_recent_inline_submissions';
+const INLINE_SUBMISSION_TTL_MS = 120000;
+const inlineMutationChains = new Map<string, Promise<any>>();
+
+interface PendingInlineSubmission {
+  id: string;
+  key: string;
+  report: any;
+  updatedAt: number;
+  synced: boolean;
+}
+
+function normalizeInlineDateSimple(val: any): string {
+  if (!val) return '';
+  const s = String(val).trim();
+  if (s.includes('T')) {
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const istTime = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+        return `${istTime.getUTCFullYear()}-${String(istTime.getUTCMonth() + 1).padStart(2, '0')}-${String(istTime.getUTCDate()).padStart(2, '0')}`;
+      }
+    } catch (e) {}
+  }
+  const part = s.split(/[ T]/)[0].replace(/[\/.]/g, '-');
+  const p = part.split('-');
+  if (p.length === 3) {
+    if (p[0].length === 4) return `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
+    if (p[2].length === 4) return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+  }
+  return part;
+}
+
+function getInlineReportKey(r: any): string {
+  if (!r || typeof r !== 'object') return '';
+  const worker = String(r.worker || r.Worker || r.operator || r.operatorName || r.WORKER || '').trim().toUpperCase().replace(/\s+/g, '');
+  const rIdx = Number(r.roundIndex || r.ROUNDINDEX || r.round_index || 0);
+  const rLabel = String(r.round || r.ROUND || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const roundPart = rIdx >= 1 && rIdx <= 8 ? `R${rIdx}` : rLabel;
+  const datePart = normalizeInlineDateSimple(r.checkingDate || r.date || r.CHECKINGDATE || r.DATE || r.timestamp || r.TIMESTAMP || r.createdAt || r.CREATEDAT);
+  if (!worker || !roundPart || !datePart) return '';
+  return `${worker}::${roundPart}::${datePart}`;
+}
+
+function readPendingInlineSubmissions(): PendingInlineSubmission[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(PENDING_INLINE_SUBMISSIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writePendingInlineSubmissions(list: PendingInlineSubmission[]) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (!list || list.length === 0) {
+      localStorage.removeItem(PENDING_INLINE_SUBMISSIONS_KEY);
+    } else {
+      localStorage.setItem(PENDING_INLINE_SUBMISSIONS_KEY, JSON.stringify(list.slice(-100)));
+    }
+  } catch (e) {}
+}
+
+function recordPendingInlineSubmission(report: any, synced = false) {
+  if (!report || typeof report !== 'object') return;
+  const id = String(report.id || '');
+  const key = getInlineReportKey(report);
+  const existing = readPendingInlineSubmissions().filter(item => {
+    if (id && item.id === id) return false;
+    if (key && item.key === key) return false;
+    return true;
+  });
+  existing.push({
+    id,
+    key,
+    report: { ...report },
+    updatedAt: Date.now(),
+    synced
+  });
+  writePendingInlineSubmissions(existing);
+}
+
+function markPendingInlineSubmissionSynced(id: string, key: string) {
+  const list = readPendingInlineSubmissions();
+  let changed = false;
+  for (const item of list) {
+    if ((id && item.id === id) || (key && item.key === key)) {
+      item.synced = true;
+      item.updatedAt = Date.now();
+      changed = true;
+    }
+  }
+  if (changed) writePendingInlineSubmissions(list);
+}
+
+function removePendingInlineSubmission(id: string, key: string) {
+  const list = readPendingInlineSubmissions().filter(item => {
+    if (id && item.id === id) return false;
+    if (key && item.key === key) return false;
+    return true;
+  });
+  writePendingInlineSubmissions(list);
+}
+
+function rollbackLocalInlineMutation(report: any) {
+  const id = String(report?.id || '');
+  const key = getInlineReportKey(report);
+  removePendingInlineSubmission(id, key);
+  if (INITIAL_DB && Array.isArray(INITIAL_DB.sewing_reports)) {
+    INITIAL_DB.sewing_reports = INITIAL_DB.sewing_reports.filter((r: any) => String(r?.id || '') !== id);
+    try { localStorage.setItem('bqos_cache_sewing', JSON.stringify(INITIAL_DB.sewing_reports)); } catch (e) {}
+  }
+}
+
+function getQueuedInlineIdsAndKeys(): { ids: Set<string>; keys: Set<string> } {
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  if (typeof localStorage === 'undefined') return { ids, keys };
+  try {
+    const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
+    if (!rawQueue) return { ids, keys };
+    const queue = JSON.parse(rawQueue);
+    if (Array.isArray(queue)) {
+      for (const item of queue) {
+        if (item && (item.action === 'api_save8ROUNDSYSTEM' || item.action === 'api_update8ROUNDSYSTEM')) {
+          const rep = item.params?.[0];
+          if (rep?.id) ids.add(String(rep.id));
+          const k = getInlineReportKey(rep);
+          if (k) keys.add(k);
+        }
+      }
+    }
+  } catch (e) {}
+  return { ids, keys };
+}
+
+function applyPendingInlineSubmissions(reports: any[], zoneArg?: string): any[] {
+  const baseList = Array.isArray(reports) ? [...reports] : [];
+  const pending = readPendingInlineSubmissions();
+  if (pending.length === 0) return baseList;
+
+  const { ids: queuedIds, keys: queuedKeys } = getQueuedInlineIdsAndKeys();
+  const now = Date.now();
+  const remaining: PendingInlineSubmission[] = [];
+  const zTarget = String(zoneArg || '').trim().toUpperCase();
+  const matchesTargetZone = (rep: any) => {
+    if (!zTarget || zTarget === 'ALL' || zTarget === 'COMMON' || zTarget === 'SYSTEM' || zTarget === 'WORKORDER' || zTarget === 'SELECT...') {
+      return true;
+    }
+    const rZone = String(rep?.zone || rep?.location || '').trim().toUpperCase();
+    const rUnit = String(rep?.unit || '').trim().toUpperCase();
+    return !rZone || rZone === zTarget || rUnit === zTarget || rZone.includes(zTarget) || zTarget.includes(rZone);
+  };
+
+  for (const item of pending) {
+    const presentInServer = baseList.some(r => {
+      if (item.id && String(r?.id || '') === item.id) return true;
+      const rKey = getInlineReportKey(r);
+      return Boolean(item.key && rKey && rKey === item.key);
+    });
+    const isQueued = (item.id && queuedIds.has(item.id)) || (item.key && queuedKeys.has(item.key));
+    const isFresh = (now - (item.updatedAt || 0)) < INLINE_SUBMISSION_TTL_MS;
+
+    if (presentInServer && item.synced && !isQueued) {
+      continue;
+    }
+    if (!item.synced || isQueued || isFresh) {
+      remaining.push(item);
+      if (!presentInServer && matchesTargetZone(item.report)) {
+        baseList.unshift(item.report);
+      }
+    }
+  }
+
+  writePendingInlineSubmissions(remaining);
+  return baseList;
+}
+
+function serializeInlineMutation<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const lockKey = String(key || '__DEFAULT_INLINE__');
+  const prev = inlineMutationChains.get(lockKey) || Promise.resolve();
+  const next = prev.catch(() => {}).then(task);
+  inlineMutationChains.set(lockKey, next);
+  next.finally(() => {
+    if (inlineMutationChains.get(lockKey) === next) {
+      inlineMutationChains.delete(lockKey);
+    }
+  });
+  return next;
+}
+
 function enqueueOfflineMutation(mutationRecord: any) {
   try {
     const rawQueue = localStorage.getItem('bqos_offline_sync_queue');
@@ -881,7 +1077,7 @@ async function sendWriteRequestToBackend(
   spreadsheetId: string,
   customUrl?: string | null,
   customDriveUrl?: string | null
-): Promise<{ synced: boolean; data?: any; error?: string }> {
+): Promise<{ synced: boolean; rejected?: boolean; data?: any; error?: string }> {
   const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
   const resolvedCustomUrl = customUrl || (typeof localStorage !== 'undefined' ? localStorage.getItem('VITE_GAS_URL') : null);
   const resolvedCustomDriveUrl = customDriveUrl || (typeof localStorage !== 'undefined' ? localStorage.getItem('VITE_GAS_DRIVE_URL') : null);
@@ -913,7 +1109,7 @@ async function sendWriteRequestToBackend(
           if (parsed && parsed.success !== false) {
             return { synced: true, data: parsed };
           }
-          return { synced: false, error: parsed?.error || 'Backend returned failure' };
+          return { synced: false, rejected: true, error: parsed?.error || 'Backend returned failure' };
         } catch (parseErr) {
           // Non-JSON response, fall through to direct GAS
         }
@@ -943,7 +1139,7 @@ async function sendWriteRequestToBackend(
         if (parsedDirect && parsedDirect.success !== false) {
           return { synced: true, data: parsedDirect };
         }
-        return { synced: false, error: parsedDirect?.error || 'Apps Script returned failure' };
+        return { synced: false, rejected: true, error: parsedDirect?.error || 'Apps Script returned failure' };
       }
     }
   } catch (directErr: any) {
@@ -998,11 +1194,18 @@ async function flushOfflineSyncQueue() {
           item.params,
           item.spreadsheetId || sheetsService.getSpreadsheetId() || "BOUND_TO_SCRIPT"
         );
-        if (!res.synced) {
+        if (res.rejected) {
+          if (item.action === 'api_save8ROUNDSYSTEM' || item.action === 'api_update8ROUNDSYSTEM') {
+            rollbackLocalInlineMutation(item.params?.[0]);
+          }
+        } else if (!res.synced) {
           remaining.push(item);
         } else if (item.action === 'api_updateUser' || item.action === 'api_saveUser') {
           const uCode = item.params?.[0]?.userCode;
           if (uCode) markPendingUserOverrideSynced(uCode);
+        } else if (item.action === 'api_save8ROUNDSYSTEM' || item.action === 'api_update8ROUNDSYSTEM') {
+          const rep = item.params?.[0];
+          markPendingInlineSubmissionSynced(String(rep?.id || ''), getInlineReportKey(rep));
         }
       } catch (err) {
         remaining.push(item);
@@ -2313,6 +2516,13 @@ export const api = {
               clientReadCache.set(cacheKey, { timestamp: Date.now(), data: protectedUsers });
             }
             return protectedUsers;
+          } else if ((method === 'api_get8ROUNDSYSTEMData' || method === 'api_getInlineData') && Array.isArray(directResult)) {
+            const zoneArg = typeof sanitizedArgs[0] === 'string' ? sanitizedArgs[0] : (sanitizedArgs[0]?.zone || sanitizedArgs[0]?.location);
+            const protectedInline = applyPendingInlineSubmissions(directResult, zoneArg);
+            if (isCacheable && cacheKey) {
+              clientReadCache.set(cacheKey, { timestamp: Date.now(), data: protectedInline });
+            }
+            return protectedInline;
           }
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: directResult });
@@ -2380,11 +2590,16 @@ export const api = {
                              method === 'api_setMaintenanceStatus';
       if (!isCacheable && !isSystemAction && !isUploadAction) {
         const isUserMutation = method === 'api_updateUser' || method === 'api_saveUser';
+        const isInlineMutation = method === 'api_save8ROUNDSYSTEM' || method === 'api_update8ROUNDSYSTEM';
         if (isUserMutation && sanitizedArgs[0]) {
           recordPendingUserOverride(sanitizedArgs[0], false);
         }
 
         const localMutationResult = applyLocalMutation(method, sanitizedArgs);
+        if (isInlineMutation && sanitizedArgs[0]) {
+          const savedId = localMutationResult?.id || sanitizedArgs[0]?.id;
+          recordPendingInlineSubmission({ ...sanitizedArgs[0], id: savedId }, false);
+        }
         clientReadCache.clear();
 
         const mutationRecord = {
@@ -2407,7 +2622,7 @@ export const api = {
             );
             if (writeRes.synced) {
               markPendingUserOverrideSynced(userCode);
-            } else {
+            } else if (!writeRes.rejected) {
               enqueueOfflineMutation(mutationRecord);
             }
             return writeRes;
@@ -2422,6 +2637,44 @@ export const api = {
           };
         }
 
+        if (isInlineMutation) {
+          const reportObj = { ...(sanitizedArgs[0] || {}), id: localMutationResult?.id || sanitizedArgs[0]?.id };
+          const inlineId = String(reportObj.id || '');
+          const inlineKey = getInlineReportKey(reportObj) || inlineId || 'INLINE_DEFAULT';
+          const syncResult = await serializeInlineMutation(inlineKey, async () => {
+            const writeRes = await sendWriteRequestToBackend(
+              gasMethod,
+              gasArgs,
+              mutationRecord.spreadsheetId,
+              customUrl,
+              customDriveUrl
+            );
+            if (writeRes.synced) {
+              markPendingInlineSubmissionSynced(inlineId, getInlineReportKey(reportObj));
+            } else if (writeRes.rejected) {
+              rollbackLocalInlineMutation(reportObj);
+            } else {
+              enqueueOfflineMutation(mutationRecord);
+            }
+            return writeRes;
+          });
+
+          clientReadCache.clear();
+          if (syncResult.rejected) {
+            return {
+              success: false,
+              error: syncResult.error || 'Duplicate round submission detected.'
+            };
+          }
+          return {
+            success: true,
+            offline: !syncResult.synced,
+            id: inlineId || args[0]?.id || generateUuid(),
+            ...(syncResult.data && typeof syncResult.data === 'object' ? syncResult.data : {}),
+            ...localMutationResult
+          };
+        }
+
         // Non-blocking background sync with full static-host GAS fallback
         (async () => {
           const writeRes = await sendWriteRequestToBackend(
@@ -2431,7 +2684,7 @@ export const api = {
             customUrl,
             customDriveUrl
           );
-          if (!writeRes.synced) {
+          if (!writeRes.synced && !writeRes.rejected) {
             enqueueOfflineMutation(mutationRecord);
           }
         })();
@@ -2540,6 +2793,9 @@ export const api = {
             result = applyPendingUserOverrides(result);
             INITIAL_DB.users = result;
             try { localStorage.setItem('bqos_cache_users', JSON.stringify(result)); } catch (e) {}
+          } else if ((method === 'api_get8ROUNDSYSTEMData' || method === 'api_getInlineData') && Array.isArray(result)) {
+            const zoneArg = typeof sanitizedArgs[0] === 'string' ? sanitizedArgs[0] : (sanitizedArgs[0]?.zone || sanitizedArgs[0]?.location);
+            result = applyPendingInlineSubmissions(result, zoneArg);
           }
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: result });

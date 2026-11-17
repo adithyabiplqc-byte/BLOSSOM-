@@ -3928,6 +3928,10 @@ async function startServer() {
 
       // For standard write actions: Persist locally instantly, spawn background sync to Google Sheets, and return immediately (<5ms)
       if (!isReadAction) {
+        if (localWriteResult && typeof localWriteResult === 'object' && localWriteResult.success === false) {
+          return res.json(localWriteResult);
+        }
+
         const healthyUrls = candidateUrls.filter(isUrlHealthy);
         const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
         const isUserWrite = action === 'api_updateUser' || action === 'api_saveUser';

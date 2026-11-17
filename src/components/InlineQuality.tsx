@@ -244,10 +244,13 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
   const activeRoundIdx = getActiveRoundIndexByTime();
   const [selectedRoundIdx, setSelectedRoundIdx] = useState<number>(activeRoundIdx);
   const lastSyncKeyRef = useRef("");
+  const hasUserSelectedRoundRef = useRef(false);
 
-  // Sync selectedRoundIdx with activeRoundIdx when activeRoundIdx changes, but only if they haven't chosen something else
+  // Sync selectedRoundIdx with activeRoundIdx when hour advances, unless user manually selected another round or has unsaved input
   useEffect(() => {
-    setSelectedRoundIdx(activeRoundIdx);
+    if (!hasUserSelectedRoundRef.current && !roundInputsRef.current.checkedQty && !roundInputsRef.current.complaintPcs && !roundInputsRef.current.remarks) {
+      setSelectedRoundIdx(activeRoundIdx);
+    }
   }, [activeRoundIdx]);
 
   const [form, setForm] = useState({ 
@@ -292,7 +295,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
   useEffect(() => {
     if (currentUnits.length === 1 && form.unit !== currentUnits[0]) {
-      setForm(prev => ({ ...prev, unit: currentUnits[0], wo: '' }));
+      setForm(prev => ({ ...prev, unit: currentUnits[0] }));
     }
   }, [currentUnits, form.unit]);
 
@@ -360,16 +363,20 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     complaintPcs: '',
     remarks: ''
   });
+  const roundInputsRef = useRef(roundInputs);
+  roundInputsRef.current = roundInputs;
+  const recentLocalReportsRef = useRef<any[]>([]);
 
   const [savedReports, setSavedReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const exportMatrixToImage = async (mode: 'DOWNLOAD' | 'DRIVE') => {
     const element = document.getElementById('inline-matrix-board-container');
     if (!element) {
-      alert("Matrix board container not found.");
+      setFormError("Matrix board container not found.");
       return;
     }
     
@@ -440,7 +447,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       }
     } catch (err: any) {
       console.error(err);
-      alert("Failed to export image report: " + err.message);
+      setFormError("Failed to export image report: " + err.message);
     } finally {
       setIsExportingImage(false);
     }
@@ -631,21 +638,26 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     try {
       const res = await api.run('api_get8ROUNDSYSTEMData', { zone: form.zone });
       if (Array.isArray(res)) {
-        setSavedReports(() => {
-          // Keep server items, and merge with any local items that are in localStorage but not yet in server's res
-          const merged = [...res];
-          const cachedSubmissions = getLocalSubmissions();
+        const now = Date.now();
+        recentLocalReportsRef.current = recentLocalReportsRef.current.filter(
+          item => (now - (item.__savedAt || 0)) < 120000
+        );
 
-          cachedSubmissions.forEach(localItem => {
-            const alreadyInRes = res.some(serverItem => {
+        setSavedReports(() => {
+          // Keep server items, and merge with any recently saved items or cached items not yet reflected in server's res
+          const merged = [...res];
+          const extraItems = [...getLocalSubmissions(), ...recentLocalReportsRef.current];
+
+          extraItems.forEach(localItem => {
+            const alreadyInRes = merged.some(serverItem => {
               const rWorker = String(serverItem.worker || serverItem.Worker || serverItem.operator || serverItem.operatorName || serverItem.WORKER || '').trim().toUpperCase();
-              const lWorker = String(localItem.worker).trim().toUpperCase();
+              const lWorker = String(localItem.worker || '').trim().toUpperCase();
               
               const rRoundIdx = Number(serverItem.roundIndex || serverItem.ROUNDINDEX || serverItem.round_index || 0);
               const lRoundIdx = Number(localItem.roundIndex || 0);
               
               const rRound = String(serverItem.round || serverItem.ROUND || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-              const lRound = String(localItem.round).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+              const lRound = String(localItem.round || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
               const roundMatches = (rRoundIdx === lRoundIdx) || (rRound === lRound && rRound !== '');
               const dateMatches = isSameCheckingDate(serverItem.checkingDate || serverItem.date || serverItem.CHECKINGDATE || serverItem.DATE || serverItem.timestamp || serverItem.TIMESTAMP || serverItem.createdAt || serverItem.CREATEDAT, localItem.checkingDate);
@@ -654,10 +666,11 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             });
 
             if (!alreadyInRes) {
-              const dateMatchesCurrent = isSameCheckingDate(localItem.checkingDate, form.checkingDate);
-              const zoneMatches = String(localItem.zone || '').trim().toUpperCase() === String(form.zone || '').trim().toUpperCase();
+              const localZone = String(localItem.zone || '').trim().toUpperCase();
+              const currentZone = String(form.zone || '').trim().toUpperCase();
+              const zoneMatches = !currentZone || currentZone === 'ALL' || !localZone || localZone === currentZone;
               
-              if (dateMatchesCurrent && zoneMatches) {
+              if (zoneMatches) {
                 merged.push(localItem);
               }
             }
@@ -679,7 +692,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     }, 1000);
 
     const syncInterval = setInterval(() => {
-      if (document.visibilityState === 'visible' && form.zone) {
+      if (document.visibilityState === 'visible' && form.zone && !isSubmitting) {
         fetchInlineData(true);
       }
     }, 25000);
@@ -688,7 +701,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       clearInterval(clockInterval);
       clearInterval(syncInterval);
     };
-  }, [form.zone, form.checkingDate]);
+  }, [form.zone, isSubmitting]);
 
   // Sync with globalZone
   useEffect(() => {
@@ -699,10 +712,10 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     }
   }, [globalZone, currentZones, form.zone]);
 
-  // Load saved 8round quality checks for the selected parameters to power live syncing and coloring
+  // Load saved 8round quality checks for the selected zone cleanly without locking UI on dropdown edits
   useEffect(() => {
     fetchInlineData();
-  }, [form.zone, form.unit, form.wo, form.checkingDate, form.worker]);
+  }, [form.zone]);
 
   const selectedWO = workorders.find(w => String(w.id) === String(form.wo) || String(w.workorderNumber) === String(form.wo));
 
@@ -793,9 +806,13 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     });
 
     if (matched) {
-      const newChecked = String(matched.checkedQty || matched.pcsChecked || matched.CHECKEDQTY || matched.PCSCHECKED || '');
-      const newComplaint = String(matched.complaintPcs || matched.failQty || matched.failedPieces || matched.defectQty || matched.COMPLAINTPCS || matched.FAILQTY || '');
-      const newRemarks = String(matched.remarks || matched.itemRemarks || matched.generalRemarks || matched.REMARKS || '');
+      const rawChecked = matched.checkedQty ?? matched.pcsChecked ?? matched.CHECKEDQTY ?? matched.PCSCHECKED;
+      const rawComplaint = matched.complaintPcs ?? matched.failQty ?? matched.failedPieces ?? matched.defectQty ?? matched.COMPLAINTPCS ?? matched.FAILQTY;
+      const rawRemarks = matched.remarks ?? matched.itemRemarks ?? matched.generalRemarks ?? matched.REMARKS ?? '';
+
+      const newChecked = rawChecked !== undefined && rawChecked !== null ? String(rawChecked) : '';
+      const newComplaint = rawComplaint !== undefined && rawComplaint !== null ? String(rawComplaint) : '';
+      const newRemarks = String(rawRemarks || '');
 
       if (hasKeyChanged) {
         setRoundInputs({
@@ -805,9 +822,8 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         });
         lastSyncKeyRef.current = syncKey;
       } else {
-        // If the key didn't change but the user hasn't typed anything yet,
-        // and we have a newly saved report from the server, we load it.
-        if (!roundInputs.checkedQty && !roundInputs.complaintPcs && !roundInputs.remarks) {
+        const curInputs = roundInputsRef.current;
+        if (!curInputs.checkedQty && !curInputs.complaintPcs && !curInputs.remarks) {
           if (newChecked || newComplaint || newRemarks) {
             setRoundInputs({
               checkedQty: newChecked,
@@ -823,7 +839,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         lastSyncKeyRef.current = syncKey;
       }
     }
-  }, [selectedRoundIdx, form.worker, form.checkingDate, savedReports, roundInputs]);
+  }, [selectedRoundIdx, form.worker, form.checkingDate, savedReports]);
 
   // Determine round clock state
   const getRoundState = (round: typeof HOURLY_ROUNDS[0]) => {
@@ -905,47 +921,63 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
     e.preventDefault();
     if (isSubmitting) return;
 
-    // Compulsory field validation for all dropdowns, inputs, date selectors and remarks
+    setFormError(null);
+
+    // Resolve Unit gracefully if left on "All Units"
+    const resolvedUnit = form.unit || selectedWO?.unit || currentUnits.find((u: string) => u && u !== 'COMMON') || currentUnits[0] || 'COMMON';
+
+    // Compulsory field validation with clear inline feedback (never relies solely on iframe-blocked window.alert)
     if (!form.zone) {
-      return alert("Please select a Zone");
-    }
-    if (!form.unit) {
-      return alert("Please select a Unit");
+      setFormError("Please select a Zone.");
+      return;
     }
     if (!form.wo) {
-      return alert("Please select a Workorder");
+      setFormError("Please select a Workorder before saving.");
+      return;
     }
     if (!form.checkingDate) {
-      return alert("Please select a Checking Date");
+      setFormError("Please select a Checking Date.");
+      return;
     }
     if (!form.worker) {
-      return alert("Please select a Worker Operator");
+      setFormError("Please select a Worker / Operator.");
+      return;
     }
     if (!form.machine) {
-      return alert("Please select a Machine Number");
+      setFormError("Please select a Machine.");
+      return;
     }
     if (!form.color) {
-      return alert("Please select a Color");
+      setFormError("Please select a Color.");
+      return;
     }
     if (!form.size) {
-      return alert("Please select a Size");
+      setFormError("Please select a Size.");
+      return;
     }
     if (!form.cupsize) {
-      return alert("Please select a Cup size");
+      setFormError("Please select a Cup size.");
+      return;
     }
 
     const currentRound = HOURLY_ROUNDS[selectedRoundIdx];
     
     // Strict block if the round is locked (due to time or completed status)
     if (isRoundLocked(currentRound)) {
-      return alert("This round is locked.");
+      setFormError("This round is locked and cannot be submitted.");
+      return;
     }
 
-    if (roundInputs.checkedQty === '' || roundInputs.checkedQty === null) {
-      return alert("Please enter the number of Pcs Checked");
+    const checkedVal = roundInputs.checkedQty === '' || roundInputs.checkedQty === null ? NaN : Number(roundInputs.checkedQty);
+    if (isNaN(checkedVal) || checkedVal < 0) {
+      setFormError("Please enter the number of Pcs Checked.");
+      return;
     }
-    if (roundInputs.complaintPcs === '' || roundInputs.complaintPcs === null) {
-      return alert("Please enter the number of Complaint Pcs");
+
+    const complaintVal = roundInputs.complaintPcs === '' || roundInputs.complaintPcs === null ? 0 : Number(roundInputs.complaintPcs);
+    if (isNaN(complaintVal) || complaintVal < 0) {
+      setFormError("Please enter a valid number of Complaint Pcs (0 or more).");
+      return;
     }
 
     // Set submitting flag immediately to block duplicate fast clicks
@@ -964,17 +996,17 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         machine: form.machine,
         round: currentRound.label,
         roundIndex: currentRound.index,
-        checkedQty: Number(roundInputs.checkedQty) || 0,
-        pcsChecked: Number(roundInputs.checkedQty) || 0,
-        complaintPcs: Number(roundInputs.complaintPcs) || 0,
-        failQty: Number(roundInputs.complaintPcs) || 0,
+        checkedQty: checkedVal,
+        pcsChecked: checkedVal,
+        complaintPcs: complaintVal,
+        failQty: complaintVal,
         remarks: roundInputs.remarks,
         itemRemarks: roundInputs.remarks,
         generalRemarks: roundInputs.remarks,
         item: selectedWO?.item || selectedWO?.itemName || '',
         itemName: selectedWO?.item || selectedWO?.itemName || '',
         line: selectedWO?.line || selectedWO?.lineNo || '',
-        unit: form.unit || selectedWO?.unit || '',
+        unit: resolvedUnit,
         style: selectedWO?.style || selectedWO?.styleName || '',
         color: form.color || selectedWO?.colour || selectedWO?.color || '',
         size: form.size || selectedWO?.size || selectedWO?.sizeRange || '',
@@ -987,11 +1019,21 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
 
       const res = await api.run('api_save8ROUNDSYSTEM', report);
       if (res && res.success === false) {
-        setIsSubmitting(false);
-        return alert(res.error || "Duplicate round submission detected by internal system.");
+        setFormError(res.error || "Duplicate round submission detected by internal system.");
+        return;
       }
 
-      // Add to local submissions cache to keep the green tick permanent for the day!
+      // Preserve recently saved report locally in component state so background fetches never revert green lock state
+      recentLocalReportsRef.current = [
+        ...recentLocalReportsRef.current.filter(item => !(
+          String(item.worker || '').toUpperCase().trim() === String(report.worker).toUpperCase().trim() &&
+          Number(item.roundIndex) === Number(report.roundIndex) &&
+          isSameCheckingDate(item.checkingDate, report.checkingDate)
+        )),
+        { ...report, __savedAt: Date.now() }
+      ];
+
+      // Add to local submissions cache if enabled
       try {
         const cachedSubmissions = getLocalSubmissions();
         const updatedCache = cachedSubmissions.filter(item => {
@@ -1005,11 +1047,6 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         console.warn("Could not write local submissions cache", e);
       }
 
-      triggerSuccess(`ROUND ${currentRound.label} LOGGED FOR ${form.worker}`);
-      if (refreshData) {
-        refreshData();
-      }
-      
       let updatedList: any[] = [];
       setSavedReports(prev => {
         const filtered = prev.filter(r => {
@@ -1029,9 +1066,13 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
         return updatedList;
       });
 
-      // Simple set timeout to auto-advance to the next unlogged round
+      hasUserSelectedRoundRef.current = false;
+      triggerSuccess(`ROUND ${currentRound.label} LOGGED FOR ${form.worker}`);
+
+      // Advance only to a genuinely unlocked uncompleted round (avoid jumping to expired past rounds or future locked rounds for non-admins)
       setTimeout(() => {
-        const nextIdx = HOURLY_ROUNDS.findIndex((round) => {
+        const todayStr = getLocalYYYYMMDD();
+        const nextIdx = HOURLY_ROUNDS.findIndex((round, idx) => {
           const isCompleted = updatedList.some(r => {
             const rWorker = String(r.worker || r.Worker || r.operator || r.operatorName || r.WORKER || '').trim().toUpperCase();
             const sWorker = String(form.worker).trim().toUpperCase();
@@ -1045,18 +1086,22 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             
             return rWorker === sWorker && roundMatches && dateMatches;
           });
-          return !isCompleted;
+          if (isCompleted) return false;
+          if (user?.role === 'ADMIN') return true;
+          const isPast = idx < activeRoundIdx || form.checkingDate < todayStr;
+          const isFuture = idx > activeRoundIdx || form.checkingDate > todayStr;
+          return !isPast && !isFuture;
         });
 
-        if (nextIdx !== -1) {
+        if (nextIdx !== -1 && nextIdx !== selectedRoundIdx) {
           setSelectedRoundIdx(nextIdx);
         }
       }, 50);
 
-      await fetchInlineData();
-    } catch (error) {
+      await fetchInlineData(true);
+    } catch (error: any) {
       console.error(error);
-      alert('Error saving round check');
+      setFormError(error?.message || 'Error saving round check. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1080,6 +1125,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             value={form.zone} 
             onChange={e => {
               const newZone = e.target.value;
+              setFormError(null);
               setForm(prev => ({...prev, zone: newZone, unit: '', wo: ''}));
               fetchZoneSettings(newZone);
             }} 
@@ -1093,7 +1139,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1 font-bold">Unit Selection</label>
           <SearchableSelect 
             value={form.unit} 
-            onChange={e => setForm({...form, unit: e.target.value, wo: ''})} 
+            onChange={e => { setFormError(null); setForm({...form, unit: e.target.value, wo: ''}); }} 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           >
             <option value="">All Units</option>
@@ -1105,7 +1151,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Workorder #</label>
           <SearchableSelect 
             value={form.wo} 
-            onChange={e => setForm({...form, wo: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, wo: e.target.value}); }} 
             required 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           >
@@ -1151,7 +1197,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <input 
             type="date" 
             value={form.checkingDate} 
-            onChange={e => setForm({...form, checkingDate: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, checkingDate: e.target.value}); }} 
             required 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2.5 focus:border-indigo-500 transition-all font-sans"
           />
@@ -1164,7 +1210,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans">Worker / Operator</label>
           <SearchableSelect 
             value={form.worker} 
-            onChange={e => setForm({...form, worker: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, worker: e.target.value}); }} 
             required 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
@@ -1177,7 +1223,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans">Machine Dropdown</label>
           <SearchableSelect 
             value={form.machine} 
-            onChange={e => setForm({...form, machine: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, machine: e.target.value}); }} 
             required 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
@@ -1190,7 +1236,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1 font-sans font-bold">Select Colour</label>
           <SearchableSelect 
             value={form.color} 
-            onChange={e => setForm({...form, color: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, color: e.target.value}); }} 
             required 
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
           >
@@ -1203,7 +1249,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 font-sans font-bold">Garment Size</label>
           <SearchableSelect 
             value={form.size} 
-            onChange={e => setForm({...form, size: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, size: e.target.value}); }} 
             required 
             align="right"
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
@@ -1217,7 +1263,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 font-sans font-bold">Cup Category</label>
           <SearchableSelect 
             value={form.cupsize} 
-            onChange={e => setForm({...form, cupsize: e.target.value})} 
+            onChange={e => { setFormError(null); setForm({...form, cupsize: e.target.value}); }} 
             required 
             align="right"
             className="w-full bg-white border-2 border-slate-100 rounded-xl font-bold py-2 px-3 focus:border-indigo-500 transition-all font-sans text-xs"
@@ -1288,7 +1334,11 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
               <button
                 type="button"
                 key={round.index}
-                onClick={() => setSelectedRoundIdx(idx)}
+                onClick={() => {
+                  hasUserSelectedRoundRef.current = true;
+                  setFormError(null);
+                  setSelectedRoundIdx(idx);
+                }}
                 className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex flex-col items-center justify-center border-2 transition-all duration-300 relative select-none cursor-pointer ${colorClasses} ${
                   isSelected ? 'ring-4 ring-indigo-600 ring-offset-2 scale-110 z-10 font-bold' : 'opacity-95 hover:scale-105 active:scale-95'
                 }`}
@@ -1314,7 +1364,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
       </div>
 
       {/* SECTION 4: DETAILED ROUND FORM INPUT AND REMARK SUBMISSION PANEL */}
-      <form onSubmit={handleSaveRound} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+      <form onSubmit={handleSaveRound} noValidate className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div className="flex items-center justify-between border-b pb-4 border-slate-100">
           <h4 className="text-sm font-black text-indigo-700 uppercase tracking-wide flex items-center gap-2">
             <Icon name="edit-3" size={16} />
@@ -1381,10 +1431,12 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
               type="number" 
               placeholder="Enter number of pieces checked"
               value={roundInputs.checkedQty} 
-              onChange={e => setRoundInputs({...roundInputs, checkedQty: e.target.value})}
-              required
+              onChange={e => {
+                setFormError(null);
+                setRoundInputs({...roundInputs, checkedQty: e.target.value});
+              }}
               min="0"
-              disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || loadingReports || isSubmitting}
+              disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || isSubmitting}
               className="w-full bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 rounded-xl font-bold py-3 px-4 transition-all text-sm font-sans placeholder-slate-300 disabled:opacity-50 disabled:bg-slate-100"
             />
           </div>
@@ -1395,11 +1447,14 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             </label>
             <input 
               type="number" 
-              placeholder="Enter number of complaint pieces"
+              placeholder="0 (if no defects)"
               value={roundInputs.complaintPcs} 
-              onChange={e => setRoundInputs({...roundInputs, complaintPcs: e.target.value})}
+              onChange={e => {
+                setFormError(null);
+                setRoundInputs({...roundInputs, complaintPcs: e.target.value});
+              }}
               min="0"
-              disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || loadingReports || isSubmitting}
+              disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || isSubmitting}
               className="w-full bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 rounded-xl font-bold py-3 px-4 transition-all text-sm font-sans placeholder-slate-300 disabled:opacity-50 disabled:bg-slate-100"
             />
           </div>
@@ -1412,11 +1467,30 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
           <textarea 
             placeholder="Type any operator quality issues, complaint descriptions or checking feedback..." 
             value={roundInputs.remarks} 
-            onChange={e => setRoundInputs({...roundInputs, remarks: e.target.value})}
-            disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || loadingReports || isSubmitting}
+            onChange={e => {
+              setFormError(null);
+              setRoundInputs({...roundInputs, remarks: e.target.value});
+            }}
+            disabled={isRoundLocked(HOURLY_ROUNDS[selectedRoundIdx]) || isSubmitting}
             className="w-full min-h-[100px] bg-slate-50 border-2 border-slate-100 rounded-xl p-4 focus:border-indigo-500 outline-none transition-all font-medium text-sm font-sans placeholder-slate-300 disabled:opacity-50 disabled:bg-slate-100"
           />
         </div>
+
+        {formError && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs font-bold text-rose-700 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Icon name="alert-circle" size={18} className="text-rose-600 shrink-0" />
+              <span>{formError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormError(null)}
+              className="text-rose-400 hover:text-rose-600 p-1"
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="flex">
           {(() => {
@@ -1440,7 +1514,7 @@ const InlineQuality: React.FC<InlineQualityProps> = ({ user, settings, workorder
             return (
               <button 
                 type="submit" 
-                disabled={isSubmitting || loadingReports || isLocked || !form.wo || !form.worker || !form.machine}
+                disabled={isSubmitting || isLocked}
                 className={`w-full py-4 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl rounded-xl transition duration-200 cursor-pointer ${
                   isCompleted 
                     ? 'bg-emerald-600/70 text-emerald-100 cursor-not-allowed shadow-none' 
