@@ -234,7 +234,10 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         passAndHold: passAndHold
       };
 
-      await api.run('api_saveCUTTINGQUALITY', payload);
+      const saveRes = await api.run('api_saveCUTTINGQUALITY', payload);
+      if (saveRes && saveRes.success === false) {
+        throw new Error(saveRes.error || 'Error saving precutting report');
+      }
 
       triggerSuccess(passAndHold ? 'PRE-CUTTING DATA SAVED & PASSED (HELD IN PRE-CUTTING)' : 'PRE-CUTTING DATA SAVED & PASSED TO CUTTING');
       if (refreshData) {
@@ -336,7 +339,10 @@ const CuttingQuality: React.FC<CuttingQualityProps> = ({ user, settings, workord
         submodule: 'CUTTING'
       };
 
-      await api.run('api_saveCUTTINGQUALITY', payload);
+      const saveRes = await api.run('api_saveCUTTINGQUALITY', payload);
+      if (saveRes && saveRes.success === false) {
+        throw new Error(saveRes.error || 'Error saving cutting report');
+      }
       
       triggerSuccess(passAndHold ? 'DATA SAVED & PASSED (HELD IN CUTTING)' : 'DATA SAVED & MOVED TO INLINE & ENDLINE');
       if (refreshData) {

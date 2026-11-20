@@ -193,7 +193,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       };
 
       if (isEditing) {
-        await api.run('api_updateWorkorder', woData);
+        const res = await api.run('api_updateWorkorder', woData);
+        if (res && res.success === false) throw new Error(res.error || 'Failed to update workorder');
+        setWorkorders(workorders.map(w => (String(w.id) === String(woData.id) || (woData.workorderNumber && String(w.workorderNumber) === String(woData.workorderNumber))) ? { ...w, ...woData } : w));
+        api.clearCache();
         triggerSuccess(`WORKORDER ${woNum} UPDATED`);
       } else {
         const exists = workorders.some(w => 
@@ -206,7 +209,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
           setIsSubmitting(false);
           return;
         }
-        await api.run('api_saveWorkorder', woData);
+        const res = await api.run('api_saveWorkorder', woData);
+        if (res && res.success === false) throw new Error(res.error || 'Failed to save workorder');
+        setWorkorders([woData, ...workorders.filter(w => String(w.id) !== String(woData.id))]);
+        api.clearCache();
         triggerSuccess(`WORKORDER ${woNum} CREATED`);
       }
 
@@ -226,7 +232,7 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
       await refreshData();
     } catch (err: any) {
       console.error("WO Save Error:", err);
-      alert('Error saving workorder');
+      alert(err?.message || 'Error saving workorder');
     } finally {
       setIsSubmitting(false);
     }
@@ -240,7 +246,10 @@ const WorkorderDashboard: React.FC<WorkorderDashboardProps> = ({ workorders, set
     if (!window.confirm('Delete this workorder?')) return;
     setWorkorders(workorders.filter(w => w.id !== wo.id));
     api.run('api_deleteWorkorder', wo.id, wo.zone || wo.location)
-      .then(() => refreshData && refreshData())
+      .then(() => {
+        api.clearCache();
+        if (refreshData) return refreshData();
+      })
       .catch((err: any) => console.warn('Delete Workorder error:', err));
     setSelectedWO(null);
   };

@@ -139,7 +139,10 @@ const FinalAudit: React.FC<FinalAuditProps> = ({ user, settings, workorders, tri
         timestamp: new Date().toISOString() 
       };
 
-      await api.run('api_saveFINALAUDIT', finalAuditPayload);
+      const saveRes = await api.run('api_saveFINALAUDIT', finalAuditPayload);
+      if (saveRes && saveRes.success === false) {
+        throw new Error(saveRes.error || 'Error saving final audit');
+      }
 
       if (refreshData) {
         await refreshData();

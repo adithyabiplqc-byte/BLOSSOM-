@@ -30,10 +30,32 @@ const getSavedCache = (key: string, defaultVal: any) => {
   return defaultVal;
 };
 
+const dedupeUsersList = (list: any[]): any[] => {
+  if (!Array.isArray(list)) return [];
+  const byCode = new Map<string, number>();
+  const out: any[] = [];
+  for (const u of list) {
+    if (!u || typeof u !== 'object') continue;
+    const code = String(u.userCode || u.username || '').trim().toUpperCase();
+    if (!code) {
+      out.push(u);
+      continue;
+    }
+    const idx = byCode.get(code);
+    if (idx === undefined) {
+      byCode.set(code, out.length);
+      out.push(u);
+    } else {
+      out[idx] = u;
+    }
+  }
+  return out;
+};
+
 const App: React.FC = () => {
   const initialSession = React.useMemo(() => getSavedSession(), []);
   const [user, setUser] = useState<any>(initialSession);
-  const [users, setUsers] = useState<any[]>(() => getSavedCache('bqos_cache_users', INITIAL_DB?.users || []));
+  const [users, setUsers] = useState<any[]>(() => dedupeUsersList(getSavedCache('bqos_cache_users', INITIAL_DB?.users || [])));
   const [workorders, setWorkorders] = useState<any[]>(() => getSavedCache('bqos_cache_wo', INITIAL_DB?.workorders || []));
   const [settings, setSettings] = useState<any>(() => getSavedCache('bqos_cache_settings', INITIAL_DB?.settings || null));
   const [selectedSubmodule, setSelectedSubmodule] = useState<string>(() => {
@@ -192,10 +214,11 @@ const App: React.FC = () => {
         userCode: user?.userCode,
         username: user?.username,
         role: user?.role,
-        location: user?.location
+        location: user?.location,
+        ...(silent ? { forceRefresh: true } : {})
       }) as any;
       if (data) {
-        const freshUsers = Array.isArray(data.users) ? data.users : [];
+        const freshUsers = dedupeUsersList(Array.isArray(data.users) ? data.users : []);
         const freshWOs = Array.isArray(data.workorders) ? data.workorders : [];
         
         if (freshUsers.length > 0) {
@@ -203,6 +226,11 @@ const App: React.FC = () => {
           try { localStorage.setItem('bqos_cache_users', JSON.stringify(freshUsers)); } catch (e) {}
         }
         setWorkorders(prev => (JSON.stringify(prev) === JSON.stringify(freshWOs) ? prev : freshWOs));
+        try {
+          if (!zoneToFetch || zoneToFetch === 'ALL') {
+            localStorage.setItem('bqos_cache_wo', JSON.stringify(freshWOs));
+          }
+        } catch (e) {}
         if (data.settings) {
           setSettings(prev => (JSON.stringify(prev) === JSON.stringify(data.settings) ? prev : data.settings));
         }
@@ -256,8 +284,9 @@ const App: React.FC = () => {
       if (initResult.status === 'fulfilled' && initResult.value) {
         const initData = initResult.value as any;
         if (Array.isArray(initData.users) && initData.users.length > 0) {
-          setUsers(initData.users);
-          try { localStorage.setItem('bqos_cache_users', JSON.stringify(initData.users)); } catch(e){}
+          const cleanUsers = dedupeUsersList(initData.users);
+          setUsers(cleanUsers);
+          try { localStorage.setItem('bqos_cache_users', JSON.stringify(cleanUsers)); } catch(e){}
         }
         if (Array.isArray(initData.workorders)) {
           setWorkorders(initData.workorders);
@@ -274,7 +303,8 @@ const App: React.FC = () => {
         try { localStorage.setItem('bqos_cache_zm', JSON.stringify(zmResult.value)); } catch(e){}
       }
 
-      triggerSuccess("System data refreshed successfully.");
+      setSuccessMessage("System data refreshed successfully.");
+      setTimeout(() => setSuccessMessage(null), 2500);
     } catch (e: any) {
       console.warn("Manual refresh failed:", e);
     } finally {
@@ -378,12 +408,12 @@ const App: React.FC = () => {
           try { localStorage.setItem('bqos_cache_zm', JSON.stringify(zmResult.value)); } catch(e){}
         }
         
-        let allUsers = initialData?.users || [];
+        let allUsers = dedupeUsersList(initialData?.users || []);
         if (allUsers.length === 0) {
           try {
             const cached = JSON.parse(localStorage.getItem('bqos_cache_users') || '[]');
             if (Array.isArray(cached) && cached.length > 0) {
-              allUsers = cached;
+              allUsers = dedupeUsersList(cached);
             }
           } catch (e) {}
         }
@@ -395,10 +425,10 @@ const App: React.FC = () => {
         setUsers(allUsers);
         try { localStorage.setItem('bqos_cache_users', JSON.stringify(allUsers)); } catch(e){}
 
-        if (Array.isArray(initialData?.workorders) && initialData.workorders.length > 0) {
+        if (Array.isArray(initialData?.workorders)) {
           setWorkorders(initialData.workorders);
           try { localStorage.setItem('bqos_cache_wo', JSON.stringify(initialData.workorders)); } catch(e){}
-        } else if ((!initialData?.workorders || initialData.workorders.length === 0) && INITIAL_DB?.workorders) {
+        } else if (!initialData && INITIAL_DB?.workorders) {
           setWorkorders(INITIAL_DB.workorders);
           try { localStorage.setItem('bqos_cache_wo', JSON.stringify(INITIAL_DB.workorders)); } catch(e){}
         }

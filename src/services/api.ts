@@ -691,7 +691,7 @@ async function updateWorkorderStatus(woNum: string, nextStatus: string, woId?: s
 // Client-side cache and in-flight request deduplication map
 const clientReadCache = new Map<string, { timestamp: number; data: any }>();
 const inFlightRequests = new Map<string, Promise<any>>();
-const CLIENT_READ_CACHE_TTL = 30000; // 30s TTL for ultra-fast instant UI rendering
+const CLIENT_READ_CACHE_TTL = 10000; // 10s TTL, bypassed on forceRefresh and cleared on every write
 let cachedServerConfig: { data: any; timestamp: number } | null = null;
 
 const CACHEABLE_METHODS = new Set([
@@ -805,12 +805,31 @@ function getQueuedUserUpdateCodes(): Set<string> {
 
 function applyPendingUserOverrides(users: any[]): any[] {
   if (!Array.isArray(users)) return [];
+  // Deduplicate users by userCode (keep newest row)
+  const byCode = new Map<string, number>();
+  const dedupedRaw: any[] = [];
+  for (const rawUser of users) {
+    if (!rawUser || typeof rawUser !== 'object') continue;
+    const code = String(rawUser.userCode || rawUser.username || '').trim().toUpperCase();
+    if (!code) {
+      dedupedRaw.push(rawUser);
+      continue;
+    }
+    const existingIdx = byCode.get(code);
+    if (existingIdx === undefined) {
+      byCode.set(code, dedupedRaw.length);
+      dedupedRaw.push(rawUser);
+    } else {
+      dedupedRaw[existingIdx] = rawUser;
+    }
+  }
+
   const overrides = readPendingUserOverrides();
   const queuedCodes = getQueuedUserUpdateCodes();
   const now = Date.now();
   let overridesDirty = false;
 
-  const result = users.map((rawUser: any) => {
+  const result = dedupedRaw.map((rawUser: any) => {
     const u = normalizeUserRecord(rawUser);
     const code = String(u?.userCode || '').trim().toUpperCase();
     if (!code) return u;
@@ -1518,7 +1537,7 @@ export const api = {
         if (zClean && zClean !== 'ALL' && zClean !== 'COMMON' && zClean !== 'SYSTEM' && zClean !== 'WORKORDER') {
           const clean = (s: string) => s.replace(/^(ZONE|UNIT|MODULE|ZMAP)[-\s]*/i, '').replace(/[^A-Z0-9]/g, '');
           const cTarget = clean(zClean);
-          const filtered = workorders.filter(w => {
+          workorders = workorders.filter(w => {
             const rZone = String(w.zone || w.location || '').trim().toUpperCase();
             const rUnit = String(w.unit || '').trim().toUpperCase();
             if (!rZone && !rUnit) return true; // Keep untagged workorders visible
@@ -1527,9 +1546,6 @@ export const api = {
             if (cTarget && (clean(rZone) === cTarget || clean(rUnit) === cTarget)) return true;
             return rZone.includes(zClean) || zClean.includes(rZone);
           });
-          if (filtered.length > 0) {
-            workorders = filtered;
-          }
         }
         return workorders;
       }
@@ -2480,12 +2496,24 @@ export const api = {
     const sanitizedArgs = sanitizeArgs(args);
     const activeSheetId = sheetsService.getSpreadsheetId() || localStorage.getItem('VITE_SPREADSHEET_ID') || "";
     const isCacheable = CACHEABLE_METHODS.has(method);
-    const cacheKey = isCacheable ? `${method}::${JSON.stringify(sanitizedArgs)}::${activeSheetId}` : '';
+    const isForceRefresh = sanitizedArgs.some((a: any) => a && typeof a === 'object' && a.forceRefresh === true);
+    const cacheArgs = sanitizedArgs.map((a: any) => {
+      if (a && typeof a === 'object' && !Array.isArray(a) && 'forceRefresh' in a) {
+        const { forceRefresh, ...rest } = a;
+        return rest;
+      }
+      return a;
+    });
+    const cacheKey = isCacheable ? `${method}::${JSON.stringify(cacheArgs)}::${activeSheetId}` : '';
 
     if (isCacheable && cacheKey) {
-      const cached = clientReadCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp < CLIENT_READ_CACHE_TTL)) {
-        return cached.data;
+      if (isForceRefresh) {
+        clientReadCache.delete(cacheKey);
+      } else {
+        const cached = clientReadCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < CLIENT_READ_CACHE_TTL)) {
+          return cached.data;
+        }
       }
       if (inFlightRequests.has(cacheKey)) {
         return inFlightRequests.get(cacheKey);
@@ -2675,25 +2703,33 @@ export const api = {
           };
         }
 
-        // Non-blocking background sync with full static-host GAS fallback
-        (async () => {
-          const writeRes = await sendWriteRequestToBackend(
-            gasMethod,
-            gasArgs,
-            mutationRecord.spreadsheetId,
-            customUrl,
-            customDriveUrl
-          );
-          if (!writeRes.synced && !writeRes.rejected) {
-            enqueueOfflineMutation(mutationRecord);
-          }
-        })();
+        // Await backend & Google Sheets commit before resolving so follow-up refreshData() reads live committed data!
+        const writeRes = await sendWriteRequestToBackend(
+          gasMethod,
+          gasArgs,
+          mutationRecord.spreadsheetId,
+          customUrl,
+          customDriveUrl
+        );
+        clientReadCache.clear();
 
-        return { 
-          success: true, 
-          offline: false, 
-          id: args[0]?.id || generateUuid(), 
-          ...localMutationResult 
+        if (writeRes.rejected) {
+          return {
+            success: false,
+            error: writeRes.error || 'Operation rejected by server.'
+          };
+        }
+
+        if (!writeRes.synced) {
+          enqueueOfflineMutation(mutationRecord);
+        }
+
+        return {
+          success: true,
+          offline: !writeRes.synced,
+          id: args[0]?.id || (writeRes.data && writeRes.data.id) || generateUuid(),
+          ...(writeRes.data && typeof writeRes.data === 'object' ? writeRes.data : {}),
+          ...localMutationResult
         };
       }
 
@@ -2800,7 +2836,7 @@ export const api = {
           if (isCacheable && cacheKey) {
             clientReadCache.set(cacheKey, { timestamp: Date.now(), data: result });
           }
-          if (Array.isArray(result) && result.length > 0) {
+          if (Array.isArray(result)) {
             try {
               const mergeCache = (key: string, list: any[]) => {
                 try {
@@ -2825,13 +2861,16 @@ export const api = {
               };
 
               const hasZoneArg = sanitizedArgs.some((a: any) => {
-                if (typeof a === 'string') return a && a !== 'ALL' && a !== 'WORKORDER' && a !== 'COMMON';
-                if (a && typeof a === 'object') return a.zone && a.zone !== 'ALL' && a.zone !== 'WORKORDER' && a.zone !== 'COMMON';
+                if (typeof a === 'string') return a && a !== 'ALL' && a !== 'WORKORDER' && a !== 'COMMON' && a !== 'SYSTEM';
+                if (a && typeof a === 'object') return a.zone && a.zone !== 'ALL' && a.zone !== 'WORKORDER' && a.zone !== 'COMMON' && a.zone !== 'SYSTEM';
                 return false;
               });
               const saveToCache = (key: string, list: any[]) => {
-                if (hasZoneArg) mergeCache(key, list);
-                else localStorage.setItem(key, JSON.stringify(list));
+                if (hasZoneArg) {
+                  if (list.length > 0) mergeCache(key, list);
+                } else {
+                  localStorage.setItem(key, JSON.stringify(list));
+                }
               };
 
               if (method === 'api_getMaterialData') saveToCache('bqos_cache_material', result);
@@ -2843,6 +2882,13 @@ export const api = {
               else if (method === 'api_getWorkorders') saveToCache('bqos_cache_wo', result);
               else if (method === 'api_getREPORTS_SOPData') saveToCache('bqos_cache_sop', result);
               else if (method === 'api_getCustomerComplaints') saveToCache('bqos_cache_complaints', result);
+            } catch (e) {}
+          } else if (method === 'api_getInitialData' && result && Array.isArray(result.workorders)) {
+            try {
+              const hasZoneArg = sanitizedArgs.some((a: any) => a && typeof a === 'object' && a.zone && a.zone !== 'ALL' && a.zone !== 'WORKORDER' && a.zone !== 'COMMON' && a.zone !== 'SYSTEM');
+              if (!hasZoneArg) {
+                localStorage.setItem('bqos_cache_wo', JSON.stringify(result.workorders));
+              }
             } catch (e) {}
           }
           flushOfflineSyncQueue();

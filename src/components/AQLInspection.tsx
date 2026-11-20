@@ -255,7 +255,10 @@ const AQLInspection: React.FC<AQLInspectionProps> = ({ user, settings, workorder
         checkingDate: new Date().toISOString().split('T')[0]
       };
 
-      await api.run('api_saveAQLREPORT', payload);
+      const saveRes = await api.run('api_saveAQLREPORT', payload);
+      if (saveRes && saveRes.success === false) {
+        throw new Error(saveRes.error || 'Error saving AQL report');
+      }
 
       if (refreshData) {
         await refreshData();

@@ -361,13 +361,14 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     
     setDeleting(true);
     try {
-      const res = await api.run(sheetMapping[id], row.id || row.workorderNumber);
+      const res = await api.run(sheetMapping[id], row.id || row.workorderNumber, row.zone || row.location);
       if (res && res.success === false) throw new Error(res.error);
       
       setDeleteConfirmation({ isOpen: false, row: null });
       // Clear deleting status
       setDeleting(false);
-      fetchData();
+      api.clearCache();
+      fetchData(true);
     } catch (error: any) {
       setDeleting(false);
       alert(`Error deleting record: ${error.message || "Unknown error"}`);
@@ -630,7 +631,7 @@ const DataView: React.FC<DataViewProps> = ({ id, user, globalZone, settings, set
     });
 
     return result;
-  }, [normalizedData, selectedZone, selectedItem, activeSearch, searchTerm]);
+  }, [normalizedData, selectedZone, selectedItem, activeSearch, searchTerm, zoneMappings, workorders, id]);
 
   const uniqueDatesInInline = useMemo(() => {
     if (id !== 'B3' || !Array.isArray(normalizedData)) return [];

@@ -110,7 +110,7 @@ async function checkFirestoreAvailability(): Promise<boolean> {
 
 // High-performance response cache for read queries
 const apiReadCache = new Map<string, { timestamp: number; data: any }>();
-const READ_CACHE_TTL = 30000; // 30s TTL for ultra-fast instant UI rendering
+const READ_CACHE_TTL = 10000; // 10s short TTL, invalidated immediately on any write or forceRefresh
 
 function clearApiReadCache() {
   apiReadCache.clear();
@@ -191,12 +191,13 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
 
     async function callSheet(action: string, params: any[] = [{ zone: "ALL" }]) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 28000);
       try {
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action, params }),
+          redirect: 'follow',
           signal: controller.signal as any
         });
         clearTimeout(timeoutId);
@@ -215,91 +216,75 @@ async function syncGoogleSheetsData(quiet: boolean = false) {
     const initData = await callSheet("api_getInitialData", [{ zone: "ALL" }]);
     if (initData) {
       if (Array.isArray(initData.users) && initData.users.length > 0) {
-        db.users = initData.users;
+        db.users = mergePendingServerUserWrites(initData.users);
       }
-      if (Array.isArray(initData.workorders) && initData.workorders.length > 0) {
-        const woMap = new Map();
-        (db.workorders || []).forEach((w: any) => {
-          const k = String(w.id || w.workorderNumber || w.wo);
-          woMap.set(k, w);
-        });
-        initData.workorders.forEach((w: any) => {
-          const k = String(w.id || w.workorderNumber || w.wo);
-          woMap.set(k, { ...woMap.get(k), ...w });
-        });
-        db.workorders = Array.from(woMap.values());
+      if (Array.isArray(initData.workorders)) {
+        db.workorders = reconcileRemoteWithLocal('workorders', db.workorders, initData.workorders, db);
       }
-      if (initData.settings) {
+      if (initData.settings && !initData.settings.__isUserSettings) {
         db.settings = db.settings || {};
         db.settings["GLOBAL"] = initData.settings;
+        db.settings["SETTINGS"] = initData.settings;
       }
     }
 
     const wos = await callSheet("api_getWorkorders", [{ zone: "ALL" }]);
-    if (Array.isArray(wos) && wos.length > 0) {
-      const woMap = new Map();
-      (db.workorders || []).forEach((w: any) => {
-        const k = String(w.id || w.workorderNumber || w.wo);
-        woMap.set(k, w);
-      });
-      wos.forEach((w: any) => {
-        const k = String(w.id || w.workorderNumber || w.wo);
-        woMap.set(k, { ...woMap.get(k), ...w });
-      });
-      db.workorders = Array.from(woMap.values());
+    if (Array.isArray(wos)) {
+      db.workorders = reconcileRemoteWithLocal('workorders', db.workorders, wos, db);
     }
 
     const mat = await callSheet("api_getMaterialData");
-    if (Array.isArray(mat) && mat.length > 0) {
-      db.material_reports = mergeServerRecords(db.material_reports, mat);
+    if (Array.isArray(mat)) {
+      db.material_reports = reconcileRemoteWithLocal('material_reports', db.material_reports, mat, db);
     }
 
     const cut = await callSheet("api_getCuttingData");
-    if (Array.isArray(cut) && cut.length > 0) {
-      db.cutting_reports = mergeServerRecords(db.cutting_reports, cut);
+    if (Array.isArray(cut)) {
+      db.cutting_reports = reconcileRemoteWithLocal('cutting_reports', db.cutting_reports, cut, db);
     }
 
     const inline = await callSheet("api_getInlineData");
-    if (Array.isArray(inline) && inline.length > 0) {
-      db.sewing_reports = mergeServerRecords(db.sewing_reports, inline);
+    if (Array.isArray(inline)) {
+      db.sewing_reports = reconcileRemoteWithLocal('sewing_reports', db.sewing_reports, inline, db);
     }
 
     const endline = await callSheet("api_getEndlineData");
-    if (Array.isArray(endline) && endline.length > 0) {
-      db.endline_reports = mergeServerRecords(db.endline_reports, endline);
+    if (Array.isArray(endline)) {
+      db.endline_reports = reconcileRemoteWithLocal('endline_reports', db.endline_reports, endline, db);
     }
 
     const aql = await callSheet("api_getAQLData");
-    if (Array.isArray(aql) && aql.length > 0) {
-      db.aql_reports = mergeServerRecords(db.aql_reports, aql);
+    if (Array.isArray(aql)) {
+      db.aql_reports = reconcileRemoteWithLocal('aql_reports', db.aql_reports, aql, db);
     }
 
     const finalAudit = await callSheet("api_getFinalAuditData");
-    if (Array.isArray(finalAudit) && finalAudit.length > 0) {
-      db.final_reports = mergeServerRecords(db.final_reports, finalAudit);
+    if (Array.isArray(finalAudit)) {
+      db.final_reports = reconcileRemoteWithLocal('final_reports', db.final_reports, finalAudit, db);
     }
 
     const sop = await callSheet("api_getREPORTS_SOPData");
-    if (Array.isArray(sop) && sop.length > 0) {
-      db.reports_sop = mergeServerRecords(db.reports_sop, sop);
+    if (Array.isArray(sop)) {
+      db.reports_sop = reconcileRemoteWithLocal('reports_sop', db.reports_sop, sop, db);
     }
 
     const zones = await callSheet("api_getZoneMappings");
-    if (Array.isArray(zones) && zones.length > 0) {
+    if (Array.isArray(zones)) {
       db.zone = zones;
     }
 
     const logs = await callSheet("api_getAdminLogs");
-    if (Array.isArray(logs) && logs.length > 0) {
-      db.admin_logs = mergeServerRecords(db.admin_logs, logs);
+    if (Array.isArray(logs)) {
+      db.admin_logs = logs;
     }
 
     const complaints = await callSheet("api_getCustomerComplaints");
     if (Array.isArray(complaints)) {
-      db.customer_complaints = mergeServerRecords(db.customer_complaints, complaints);
+      db.customer_complaints = reconcileRemoteWithLocal('customer_complaints', db.customer_complaints, complaints, db);
     }
 
     writeLocalDb(db);
+    clearApiReadCache();
     if (!quiet) console.log(`[SYNC] Live Google Sheets sync complete! Users: ${db.users?.length || 0}, Workorders: ${db.workorders?.length || 0}, Material: ${db.material_reports?.length || 0}, Cutting: ${db.cutting_reports?.length || 0}, Zones: ${db.zone?.length || 0}`);
   } catch (syncErr: any) {
     console.warn("[SYNC] Live Google Sheets sync notice:", syncErr.message);
@@ -506,20 +491,8 @@ function readLocalDb(): any {
             setBy: ''
           };
 
-          // Preserve and restore real September 23 production data from INITIAL_DB if local state is missing tables
-          if (parsed.workorders.length === 0 && INITIAL_DB?.workorders?.length > 0) {
-            parsed.workorders = JSON.parse(JSON.stringify(INITIAL_DB.workorders));
-          }
-          if (parsed.material_reports.length === 0 && INITIAL_DB?.material_reports?.length > 0) {
-            parsed.material_reports = JSON.parse(JSON.stringify(INITIAL_DB.material_reports));
-          }
-          if (parsed.cutting_reports.length === 0 && INITIAL_DB?.cutting_reports?.length > 0) {
-            parsed.cutting_reports = JSON.parse(JSON.stringify(INITIAL_DB.cutting_reports));
-          }
-          if (parsed.endline_reports.length === 0 && INITIAL_DB?.endline_reports?.length > 0) {
-            parsed.endline_reports = JSON.parse(JSON.stringify(INITIAL_DB.endline_reports));
-          }
-          if (parsed.users.length <= 3 && INITIAL_DB?.users?.length > 3) {
+          // Ensure only emergency admin fallback if user table is completely empty on disk
+          if (parsed.users.length === 0 && INITIAL_DB?.users?.length > 0) {
             parsed.users = JSON.parse(JSON.stringify(INITIAL_DB.users));
           }
           if ((!parsed.settings || Object.keys(parsed.settings).length === 0) && INITIAL_DB?.settings) {
@@ -541,10 +514,7 @@ function readLocalDb(): any {
             parsed.settings.GLOBAL.SUPPLIER = parsed.settings.SUPPLIERS;
           }
 
-          if (parsed.zone.length === 0 && INITIAL_DB?.zone?.length > 0) {
-            parsed.zone = JSON.parse(JSON.stringify(INITIAL_DB.zone));
-          }
-
+          parsed._pending_ids = parsed._pending_ids || {};
           sanitizeEndlineData(parsed);
           return parsed;
         }
@@ -1644,10 +1614,66 @@ function normalizeCanDownloadFlag(raw: any): boolean {
   return true;
 }
 
+function dedupeUsersByCode(users: any[]): any[] {
+  if (!Array.isArray(users)) return [];
+  const byCode = new Map<string, number>();
+  const ordered: any[] = [];
+  for (const u of users) {
+    if (!u || typeof u !== 'object') continue;
+    const code = String(u.userCode || u.username || '').trim().toUpperCase();
+    if (!code) {
+      ordered.push(u);
+      continue;
+    }
+    const existingIdx = byCode.get(code);
+    if (existingIdx === undefined) {
+      byCode.set(code, ordered.length);
+      ordered.push(u);
+    } else {
+      ordered[existingIdx] = u;
+    }
+  }
+  return ordered;
+}
+
+const PRESERVED_EMPTY_IF_REMOTE_EMPTY = new Set(['reports_sop', 'endline_reports', 'aql_reports']);
+
+function reconcileRemoteWithLocal(key: string, localList: any[] = [], remoteList: any[] = [], db?: any): any[] {
+  const remote = Array.isArray(remoteList) ? remoteList.filter((r: any) => r && typeof r === 'object' && r.id !== '__DELETED_SOP_IDS__') : [];
+  const local = Array.isArray(localList) ? localList : [];
+  const pendingIds = new Set<string>(
+    db && db._pending_ids && Array.isArray(db._pending_ids[key]) ? db._pending_ids[key].map((id: any) => String(id)) : []
+  );
+
+  if (remote.length === 0 && PRESERVED_EMPTY_IF_REMOTE_EMPTY.has(key) && local.length > 0) {
+    return local;
+  }
+
+  const remoteKeys = new Set<string>();
+  remote.forEach((r: any) => {
+    const rk = String(r.id || r.workorderNumber || r.wo || '').trim();
+    if (rk) {
+      remoteKeys.add(rk);
+      pendingIds.delete(rk);
+    }
+  });
+  if (db && db._pending_ids && Array.isArray(db._pending_ids[key])) {
+    db._pending_ids[key] = Array.from(pendingIds);
+  }
+
+  const extrasFromPending = local.filter((r: any) => {
+    const lk = String(r?.id || r?.workorderNumber || r?.wo || '').trim();
+    return lk && pendingIds.has(lk) && !remoteKeys.has(lk);
+  });
+
+  return [...extrasFromPending, ...remote];
+}
+
 function mergePendingServerUserWrites(users: any[]): any[] {
   if (!Array.isArray(users)) return [];
+  const deduped = dedupeUsersByCode(users);
   const now = Date.now();
-  return users.map((u: any) => {
+  return deduped.map((u: any) => {
     const cleanRestrictions = normalizeRestrictionsList(u?.restrictions);
     const cleanCanDownload = normalizeCanDownloadFlag(u?.canDownload);
     const code = String(u?.userCode || '').trim().toUpperCase();
@@ -1943,13 +1969,9 @@ function executeLocalAction(action: string, params: any[]): any {
       const arg = params[0];
       const zone = (typeof arg === 'string' ? arg : arg?.zone);
       let workorders = db.workorders || [];
-      if (zone && zone !== 'ALL' && zone !== 'WORKORDER') {
+      if (zone && zone !== 'ALL' && zone !== 'WORKORDER' && zone !== 'COMMON' && zone !== 'SYSTEM') {
         const zoneRows = db.zone || [];
-        const filtered = workorders.filter((w: any) => isRecordMatchingZone(w, String(zone).toUpperCase().trim(), zoneRows));
-        // If filter matched rows, return them; otherwise if all workorders belong to company, return all to prevent blank UI
-        if (filtered.length > 0) {
-          workorders = filtered;
-        }
+        workorders = workorders.filter((w: any) => isRecordMatchingZone(w, String(zone).toUpperCase().trim(), zoneRows));
       }
       return workorders;
     }
@@ -3535,70 +3557,14 @@ async function startServer() {
 
 
 
-      // Ultra-fast instant launch: Serve initial data immediately from local database (<2ms) and sync with cloud in background
-      if (action === 'api_getInitialData') {
-        const localData = executeLocalAction('api_getInitialData', bodyPayload.params || []);
-        
-        // Spawn background sync to Google Apps Script so cloud updates persist into local db without holding up the user
-        (async () => {
-          const healthyUrls = candidateUrls.filter(isUrlHealthy);
-          const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
-          for (const targetUrl of urlsToTry) {
-            try {
-              const bgController = new AbortController();
-              const bgTimeout = setTimeout(() => bgController.abort(), 45000);
-              const bgRes = await fetch(targetUrl, {
-                method: "POST",
-                body: JSON.stringify(bodyPayload),
-                headers: { "Content-Type": "application/json" },
-                redirect: 'follow',
-                signal: bgController.signal as any
-              });
-              clearTimeout(bgTimeout);
-              if (bgRes.ok) {
-                const bgText = await bgRes.text();
-                if (!bgText.trim().startsWith("<")) {
-                  const parsed = JSON.parse(bgText);
-                  if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
-                    const currentDb = readLocalDb();
-                    currentDb.users = mergePendingServerUserWrites(parsed.users);
-                    if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) {
-                      const woMap = new Map();
-                      (currentDb.workorders || []).forEach((w: any) => {
-                        const k = String(w.id || w.workorderNumber || w.wo);
-                        woMap.set(k, w);
-                      });
-                      parsed.workorders.forEach((w: any) => {
-                        const k = String(w.id || w.workorderNumber || w.wo);
-                        woMap.set(k, { ...woMap.get(k), ...w });
-                      });
-                      currentDb.workorders = Array.from(woMap.values());
-                    }
-                    if (parsed.settings) currentDb.settings = { ...(currentDb.settings || {}), ...parsed.settings };
-                    writeLocalDb(currentDb);
-                    markUrlHealth(targetUrl, true);
-                    break;
-                  }
-                }
-              }
-            } catch (err: any) {
-              markUrlHealth(targetUrl, false, err.message);
-            }
-          }
-        })();
-
-        if (localData && Array.isArray(localData.users) && localData.users.length > 0) {
-          localData.users = mergePendingServerUserWrites(localData.users);
-          return res.json(localData);
-        }
-      }
-
       const READ_ACTIONS = new Set([
         'api_getInitialData',
         'api_getWorkorders',
         'api_getUsers',
         'api_getUserSettings',
+        'api_getGlobalSettings',
         'api_getZoneMappings',
+        'api_getZoneMapping',
         'api_getMaterialData',
         'api_getCuttingData',
         'api_getInlineData',
@@ -3609,243 +3575,233 @@ async function startServer() {
         'api_getREPORTS_SOPData',
         'api_getCustomerComplaints',
         'api_getAdminLogs',
+        'api_getDataBySheet',
         'aggregateZonedData'
       ]);
 
       const isReadAction = READ_ACTIONS.has(action);
-      const cacheKey = isReadAction ? `${action}_${JSON.stringify(bodyPayload.params || [])}_${bodyPayload.spreadsheetId || ''}` : '';
+      const isUploadAction = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
+      const forceRemote = bodyPayload.forceRefresh === true || (Array.isArray(bodyPayload.params) && bodyPayload.params.some((p: any) => p && typeof p === 'object' && p.forceRefresh === true));
+      const sanitizedCacheParams = Array.isArray(bodyPayload.params)
+        ? bodyPayload.params.map((p: any) => {
+            if (p && typeof p === 'object' && !Array.isArray(p) && 'forceRefresh' in p) {
+              const { forceRefresh, ...rest } = p;
+              return rest;
+            }
+            return p;
+          })
+        : [];
+      const cacheKey = isReadAction ? `${action}_${JSON.stringify(sanitizedCacheParams)}_${bodyPayload.spreadsheetId || ''}` : '';
+
+      const dedupeSopResult = (rawSop: any, db: any) => {
+        const deletedList = db.deleted_sop_ids || [];
+        let cleanResult = Array.isArray(rawSop) ? rawSop.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__') : [];
+        if (cleanResult.length === 0 && Array.isArray(db.reports_sop) && db.reports_sop.length > 0) {
+          cleanResult = [...db.reports_sop];
+        }
+        const seenIds = new Set<string>();
+        const seenDriveIds = new Set<string>();
+        const seenSignatures = new Set<string>();
+        const deduped: any[] = [];
+        for (const item of cleanResult) {
+          if (!item || typeof item !== 'object') continue;
+          const id = item.id ? String(item.id).trim().toLowerCase() : '';
+          const driveId = item.driveFileId ? String(item.driveFileId).trim().toLowerCase() : '';
+          const title = item.title ? String(item.title).trim().toLowerCase() : '';
+          const attach = (item.attachmentUrl || item.attachmentName || '').trim().toLowerCase();
+          const sig = `${title}:::${attach}`;
+          if (id && seenIds.has(id)) continue;
+          if (driveId && seenDriveIds.has(driveId)) continue;
+          if (title && attach && seenSignatures.has(sig)) continue;
+          if (id) seenIds.add(id);
+          if (driveId) seenDriveIds.add(driveId);
+          if (title && attach) seenSignatures.add(sig);
+          deduped.push(item);
+        }
+        deduped.push({ id: '__DELETED_SOP_IDS__', deletedList });
+        return deduped;
+      };
+
+      const syncRemoteReadToLocalDb = (act: string, params: any[], parsed: any) => {
+        try {
+          const db = readLocalDb();
+          const hasZoneFilter = Array.isArray(params) && params.some((p: any) => {
+            if (typeof p === 'string') {
+              const up = p.trim().toUpperCase();
+              return up && up !== 'ALL' && up !== 'WORKORDER' && up !== 'COMMON' && up !== 'SYSTEM';
+            }
+            if (p && typeof p === 'object' && p.zone) {
+              const up = String(p.zone).trim().toUpperCase();
+              return up && up !== 'ALL' && up !== 'WORKORDER' && up !== 'COMMON' && up !== 'SYSTEM';
+            }
+            return false;
+          });
+
+          const mergeZoned = (existing: any[] = [], incoming: any[] = []) => {
+            const map = new Map<string, any>();
+            (existing || []).forEach((r: any) => {
+              if (!r) return;
+              const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
+              map.set(k, r);
+            });
+            incoming.forEach((r: any) => {
+              if (!r) return;
+              const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
+              map.set(k, { ...(map.get(k) || {}), ...r });
+            });
+            return Array.from(map.values());
+          };
+
+          if (act === 'api_getInitialData' && parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.users) && parsed.users.length > 0) {
+              db.users = mergePendingServerUserWrites(parsed.users);
+              parsed.users = db.users;
+            }
+            if (Array.isArray(parsed.workorders)) {
+              db.workorders = hasZoneFilter
+                ? mergeZoned(db.workorders, parsed.workorders)
+                : reconcileRemoteWithLocal('workorders', db.workorders, parsed.workorders, db);
+            }
+            if (Array.isArray(parsed.zone) && parsed.zone.length > 0) {
+              db.zone = parsed.zone;
+            }
+            if (parsed.settings && typeof parsed.settings === 'object') {
+              db.settings = db.settings || {};
+              const reqUserCode = String(params?.[0]?.userCode || '').trim();
+              const isUserScoped = parsed.settings.__isUserSettings === true || (reqUserCode && String(params?.[0]?.role || '').toUpperCase() !== 'ADMIN');
+              if (reqUserCode && isUserScoped) {
+                db.settings[reqUserCode] = parsed.settings;
+              } else {
+                db.settings['GLOBAL'] = parsed.settings;
+                db.settings['SETTINGS'] = parsed.settings;
+              }
+              if (Array.isArray(parsed.settings.ITEMS) && parsed.settings.ITEMS.length > 0) {
+                db.settings.ITEMS = parsed.settings.ITEMS;
+                db.settings['GLOBAL'] = db.settings['GLOBAL'] || {};
+                db.settings['SETTINGS'] = db.settings['SETTINGS'] || {};
+                db.settings['GLOBAL'].ITEMS = parsed.settings.ITEMS;
+                db.settings['SETTINGS'].ITEMS = parsed.settings.ITEMS;
+              }
+              const sups = parsed.settings.SUPPLIERS || parsed.settings.SUPPLIER;
+              if (Array.isArray(sups) && sups.length > 0) {
+                db.settings.SUPPLIERS = sups;
+                db.settings.SUPPLIER = sups;
+                db.settings['GLOBAL'] = db.settings['GLOBAL'] || {};
+                db.settings['SETTINGS'] = db.settings['SETTINGS'] || {};
+                db.settings['GLOBAL'].SUPPLIERS = sups;
+                db.settings['GLOBAL'].SUPPLIER = sups;
+                db.settings['SETTINGS'].SUPPLIERS = sups;
+                db.settings['SETTINGS'].SUPPLIER = sups;
+              }
+            }
+            writeLocalDb(db);
+            return parsed;
+          }
+
+          if (act === 'api_getUsers' && Array.isArray(parsed)) {
+            db.users = mergePendingServerUserWrites(parsed);
+            writeLocalDb(db);
+            return db.users;
+          }
+
+          if ((act === 'api_getUserSettings' || act === 'api_getGlobalSettings') && parsed && typeof parsed === 'object') {
+            let targetUser = 'GLOBAL';
+            if (Array.isArray(params) && params.length > 0) {
+              const p = params[0];
+              if (typeof p === 'string') targetUser = p;
+              else if (p && typeof p === 'object') targetUser = p.userCode || p.target || p.sheetName || 'GLOBAL';
+            }
+            const settingsObj = (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : parsed;
+            db.settings = db.settings || {};
+            db.settings[targetUser] = settingsObj;
+            if (Array.isArray(settingsObj.ITEMS) && settingsObj.ITEMS.length > 0) {
+              db.settings.ITEMS = settingsObj.ITEMS;
+            }
+            const sups = settingsObj.SUPPLIERS || settingsObj.SUPPLIER;
+            if (Array.isArray(sups) && sups.length > 0) {
+              db.settings.SUPPLIERS = sups;
+              db.settings.SUPPLIER = sups;
+            }
+            if (targetUser === 'GLOBAL' || targetUser === 'SETTINGS') {
+              db.settings['GLOBAL'] = settingsObj;
+              db.settings['SETTINGS'] = settingsObj;
+            } else if (db.users) {
+              const uIdx = db.users.findIndex((u: any) =>
+                String(u.userCode || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase() ||
+                String(u.username || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase()
+              );
+              if (uIdx !== -1) {
+                db.users[uIdx].userSettings = settingsObj;
+              }
+            }
+            writeLocalDb(db);
+            return parsed;
+          }
+
+          if (Array.isArray(parsed)) {
+            if (act === 'api_getWorkorders') {
+              db.workorders = hasZoneFilter ? mergeZoned(db.workorders, parsed) : reconcileRemoteWithLocal('workorders', db.workorders, parsed, db);
+              writeLocalDb(db);
+              return hasZoneFilter ? parsed : db.workorders;
+            }
+            else if (act === 'api_getMaterialData') db.material_reports = hasZoneFilter ? mergeZoned(db.material_reports, parsed) : reconcileRemoteWithLocal('material_reports', db.material_reports, parsed, db);
+            else if (act === 'api_getCuttingData') db.cutting_reports = hasZoneFilter ? mergeZoned(db.cutting_reports, parsed) : reconcileRemoteWithLocal('cutting_reports', db.cutting_reports, parsed, db);
+            else if (act === 'api_getInlineData' || act === 'api_get8ROUNDSYSTEMData') db.sewing_reports = hasZoneFilter ? mergeZoned(db.sewing_reports, parsed) : reconcileRemoteWithLocal('sewing_reports', db.sewing_reports, parsed, db);
+            else if (act === 'api_getEndlineData') {
+              db.endline_reports = hasZoneFilter ? mergeZoned(db.endline_reports, parsed) : reconcileRemoteWithLocal('endline_reports', db.endline_reports, parsed, db);
+              writeLocalDb(db);
+              if (!hasZoneFilter) return db.endline_reports;
+              const pZone = typeof params?.[0] === 'string' ? params[0] : params?.[0]?.zone;
+              const zUp = String(pZone || '').trim().toUpperCase();
+              return zUp ? db.endline_reports.filter((r: any) => isRecordMatchingZone(r, zUp, db.zone || [], db.workorders || [])) : db.endline_reports;
+            }
+            else if (act === 'api_getAQLData') {
+              db.aql_reports = hasZoneFilter ? mergeZoned(db.aql_reports, parsed) : reconcileRemoteWithLocal('aql_reports', db.aql_reports, parsed, db);
+              writeLocalDb(db);
+              if (!hasZoneFilter) return db.aql_reports;
+              const pZone = typeof params?.[0] === 'string' ? params[0] : params?.[0]?.zone;
+              const zUp = String(pZone || '').trim().toUpperCase();
+              return zUp ? db.aql_reports.filter((r: any) => isRecordMatchingZone(r, zUp, db.zone || [], db.workorders || [])) : db.aql_reports;
+            }
+            else if (act === 'api_getFinalAuditData') db.final_reports = hasZoneFilter ? mergeZoned(db.final_reports, parsed) : reconcileRemoteWithLocal('final_reports', db.final_reports, parsed, db);
+            else if (act === 'api_getREPORTS_SOPData') {
+              const cleanSop = parsed.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__');
+              db.reports_sop = hasZoneFilter ? mergeZoned(db.reports_sop, cleanSop) : reconcileRemoteWithLocal('reports_sop', db.reports_sop, cleanSop, db);
+              writeLocalDb(db);
+              return dedupeSopResult(db.reports_sop, db);
+            }
+            else if (act === 'api_getCustomerComplaints') db.customer_complaints = hasZoneFilter ? mergeZoned(db.customer_complaints, parsed) : reconcileRemoteWithLocal('customer_complaints', db.customer_complaints, parsed, db);
+            else if (act === 'api_getZoneMappings' || act === 'api_getZoneMapping') db.zone = parsed;
+            else if (act === 'api_getAdminLogs') db.admin_logs = parsed;
+            writeLocalDb(db);
+          }
+          return parsed;
+        } catch (syncErr) {
+          return parsed;
+        }
+      };
 
       if (isReadAction) {
-        const cached = apiReadCache.get(cacheKey);
-        if (cached && (Date.now() - cached.timestamp < READ_CACHE_TTL)) {
-          return res.json(cached.data);
-        }
-
-        // Fast-path for all read actions: serve immediately from local database (<2ms)
-        // This guarantees that all modules launch instantly and never drop connection
-        const forceRemote = bodyPayload.forceRefresh === true;
-        if (!forceRemote) {
-          try {
-            const localData = executeLocalAction(action, bodyPayload.params || []);
-            if (localData !== undefined && localData !== null) {
-              if (cacheKey) {
-                apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localData });
-              }
-
-              // Spawn background sync to Google Apps Script so changes propagate to local db seamlessly
-              (async () => {
-                const healthyUrls = candidateUrls.filter(isUrlHealthy);
-                const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
-                for (const targetUrl of urlsToTry) {
-                  try {
-                    const bgController = new AbortController();
-                    const bgTimeout = setTimeout(() => bgController.abort(), 20000);
-                    const bgRes = await fetch(targetUrl, {
-                      method: "POST",
-                      body: JSON.stringify(bodyPayload),
-                      headers: { "Content-Type": "application/json" },
-                      redirect: 'follow',
-                      signal: bgController.signal as any
-                    });
-                    clearTimeout(bgTimeout);
-                    if (bgRes.ok) {
-                      const bgText = await bgRes.text();
-                      if (!bgText.trim().startsWith("<")) {
-                        const parsed = JSON.parse(bgText);
-                        if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
-                          markUrlHealth(targetUrl, true);
-                          if (Array.isArray(parsed) && parsed.length > 0) {
-                            const db = readLocalDb();
-                            const mergeList = (existing: any[] = [], incoming: any[] = []) => {
-                              const map = new Map<string, any>();
-                              (existing || []).forEach((r: any) => {
-                                const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
-                                map.set(k, r);
-                              });
-                              incoming.forEach((r: any) => {
-                                const k = String(r.id || r.workorderNumber || r.wo || r.grn || JSON.stringify(r));
-                                map.set(k, { ...(map.get(k) || {}), ...r });
-                              });
-                              return Array.from(map.values());
-                            };
-
-                            const hasZoneFilter = Array.isArray(bodyPayload.params) && bodyPayload.params.some((p: any) => p && typeof p === 'object' && p.zone && p.zone !== 'ALL');
-                            if (action === 'api_getWorkorders') db.workorders = hasZoneFilter ? mergeList(db.workorders, parsed) : parsed;
-                            else if (action === 'api_getMaterialData') db.material_reports = hasZoneFilter ? mergeList(db.material_reports, parsed) : parsed;
-                            else if (action === 'api_getCuttingData') db.cutting_reports = hasZoneFilter ? mergeList(db.cutting_reports, parsed) : parsed;
-                            else if (action === 'api_getInlineData' || action === 'api_get8ROUNDSYSTEMData') db.sewing_reports = hasZoneFilter ? mergeList(db.sewing_reports, parsed) : parsed;
-                            else if (action === 'api_getEndlineData') db.endline_reports = hasZoneFilter ? mergeList(db.endline_reports, parsed) : parsed;
-                            else if (action === 'api_getAQLData') db.aql_reports = hasZoneFilter ? mergeList(db.aql_reports, parsed) : parsed;
-                            else if (action === 'api_getFinalAuditData') db.final_reports = hasZoneFilter ? mergeList(db.final_reports, parsed) : parsed;
-                            else if (action === 'api_getREPORTS_SOPData') db.reports_sop = hasZoneFilter ? mergeList(db.reports_sop, parsed) : parsed;
-                            else if (action === 'api_getCustomerComplaints') db.customer_complaints = hasZoneFilter ? mergeList(db.customer_complaints, parsed) : parsed;
-                            else if (action === 'api_getZoneMappings') db.zone = parsed;
-                            else if (action === 'api_getAdminLogs') db.admin_logs = parsed;
-                            writeLocalDb(db);
-                            if (cacheKey) apiReadCache.delete(cacheKey);
-                          } else if (parsed && typeof parsed === 'object') {
-                            const db = readLocalDb();
-                            if (action === 'api_getUserSettings' || action === 'api_getGlobalSettings') {
-                              let targetUser = 'GLOBAL';
-                              if (Array.isArray(bodyPayload.params) && bodyPayload.params.length > 0) {
-                                const p = bodyPayload.params[0];
-                                if (typeof p === 'string') targetUser = p;
-                                else if (p && typeof p === 'object') targetUser = p.userCode || p.target || p.sheetName || 'GLOBAL';
-                              }
-                              const settingsObj = (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : parsed;
-                              db.settings = db.settings || {};
-                              db.settings[targetUser] = settingsObj;
-                              if (Array.isArray(settingsObj.ITEMS) && settingsObj.ITEMS.length > 0) {
-                                db.settings.ITEMS = settingsObj.ITEMS;
-                              }
-                              if (Array.isArray(settingsObj.SUPPLIER) && settingsObj.SUPPLIER.length > 0) {
-                                db.settings.SUPPLIERS = settingsObj.SUPPLIER;
-                                db.settings.SUPPLIER = settingsObj.SUPPLIER;
-                              } else if (Array.isArray(settingsObj.SUPPLIERS) && settingsObj.SUPPLIERS.length > 0) {
-                                db.settings.SUPPLIERS = settingsObj.SUPPLIERS;
-                                db.settings.SUPPLIER = settingsObj.SUPPLIERS;
-                              }
-                              if (targetUser === 'GLOBAL' || targetUser === 'SETTINGS') {
-                                db.settings['GLOBAL'] = settingsObj;
-                                db.settings['SETTINGS'] = settingsObj;
-                              }
-                              if (db.users && targetUser !== 'GLOBAL' && targetUser !== 'SETTINGS') {
-                                const uIdx = db.users.findIndex((u: any) => 
-                                  String(u.userCode || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase() ||
-                                  String(u.username || '').trim().toUpperCase() === String(targetUser).trim().toUpperCase()
-                                );
-                                if (uIdx !== -1) {
-                                  db.users[uIdx].userSettings = settingsObj;
-                                }
-                              }
-                              writeLocalDb(db);
-                              if (cacheKey) apiReadCache.delete(cacheKey);
-                            } else if (action === 'api_getInitialData') {
-                              if (Array.isArray(parsed.users) && parsed.users.length > 0) db.users = mergePendingServerUserWrites(parsed.users);
-                              if (Array.isArray(parsed.workorders) && parsed.workorders.length > 0) db.workorders = parsed.workorders;
-                              if (Array.isArray(parsed.zone) && parsed.zone.length > 0) db.zone = parsed.zone;
-                              if (parsed.settings && typeof parsed.settings === 'object') {
-                                db.settings = db.settings || {};
-                                db.settings['GLOBAL'] = parsed.settings;
-                                db.settings['SETTINGS'] = parsed.settings;
-                                if (Array.isArray(parsed.settings.ITEMS) && parsed.settings.ITEMS.length > 0) {
-                                  db.settings.ITEMS = parsed.settings.ITEMS;
-                                }
-                                if (Array.isArray(parsed.settings.SUPPLIER) && parsed.settings.SUPPLIER.length > 0) {
-                                  db.settings.SUPPLIERS = parsed.settings.SUPPLIER;
-                                  db.settings.SUPPLIER = parsed.settings.SUPPLIER;
-                                } else if (Array.isArray(parsed.settings.SUPPLIERS) && parsed.settings.SUPPLIERS.length > 0) {
-                                  db.settings.SUPPLIERS = parsed.settings.SUPPLIERS;
-                                  db.settings.SUPPLIER = parsed.settings.SUPPLIERS;
-                                }
-                              }
-                              writeLocalDb(db);
-                              if (cacheKey) apiReadCache.delete(cacheKey);
-                            }
-                          }
-                          break;
-                        }
-                      }
-                    }
-                  } catch (e: any) {}
-                }
-              })();
-
-              return res.json(localData);
-            }
-          } catch (localErr: any) {
-            console.warn(`[LOCAL DB READ] Fast-path notice for ${action}:`, localErr.message);
+        if (forceRemote) {
+          clearApiReadCache();
+        } else if (cacheKey) {
+          const cached = apiReadCache.get(cacheKey);
+          if (cached && (Date.now() - cached.timestamp < READ_CACHE_TTL)) {
+            return res.json(cached.data);
           }
         }
-      } else {
-        clearApiReadCache();
-      }
-      
-      // For write/mutation actions: Always persist immediately to local database first for instant 0ms durability!
-      let localWriteResult: any = null;
-      if (!isReadAction) {
-        try {
-          localWriteResult = executeLocalAction(action, bodyPayload.params || []);
-        } catch (e: any) {
-          console.warn(`[LOCAL WRITE] Immediate write execution notice for ${action}:`, e.message);
-        }
-      }
 
-      // Direct routing of SOP, PDF, and Customer Complaint actions to Google Sheets/Drive with cloud and local fallback
-      if (['api_uploadSOPFile', 'api_uploadComplaintImage', 'api_saveREPORTS_SOP', 'api_deleteREPORTS_SOP', 'api_getREPORTS_SOPData', 'api_getCustomerComplaints', 'api_saveCustomerComplaint', 'api_deleteCustomerComplaint', 'api_clearCustomerComplaints', 'api_clearAllCustomerComplaints'].includes(action)) {
-        console.log(`[API PROXY] Routing action "${action}" with cloud and local fallback...`);
-        
-        // Fast path for non-upload SOP and Complaint write actions: persist locally and sync to cloud in background
-        const isUpload = action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage';
-        const isSopRead = action === 'api_getREPORTS_SOPData' || action === 'api_getCustomerComplaints';
-
-        if (!isUpload && !isSopRead) {
-          try {
-            executeLocalAction(action, bodyPayload.params || []);
-          } catch (e) {}
-
-          // Spawn background sync to Apps Script so changes propagate to Google Sheets without delaying the user
-          (async () => {
-            const sopUrls = candidateUrls.filter(isUrlHealthy);
-            const urlsToTry = sopUrls.length > 0 ? sopUrls : candidateUrls;
-            for (const bgUrl of urlsToTry) {
-              try {
-                const bgController = new AbortController();
-                const bgTimeout = setTimeout(() => bgController.abort(), 45000);
-                const bgRes = await fetch(bgUrl, {
-                  method: "POST",
-                  body: JSON.stringify(bodyPayload),
-                  headers: { "Content-Type": "application/json" },
-                  redirect: 'follow',
-                  signal: bgController.signal as any
-                });
-                clearTimeout(bgTimeout);
-                if (bgRes.ok) {
-                  const bgText = await bgRes.text();
-                  if (!bgText.trim().startsWith("<")) {
-                    markUrlHealth(bgUrl, true);
-                    break;
-                  }
-                }
-              } catch (bgErr: any) {}
-            }
-          })();
-
-          return res.json({ success: true, id: bodyPayload.params?.[0]?.id || `loc-${Date.now()}` });
-        }
-
-        let appsScriptSuccess = false;
-        let appsScriptResult: any = null;
-
-        // Dedicated drive script candidate URLs
-        let sopCandidateUrls: string[] = [];
-        if (action === 'api_uploadSOPFile' || action === 'api_uploadComplaintImage') {
-          sopCandidateUrls.push(USER_DRIVE_URL);
-          let driveUrl = null;
-          try {
-            if (fs.existsSync(CONFIG_DRIVE_FILE)) {
-              driveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
-            }
-          } catch (e) {}
-          if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
-            driveUrl = fsConfig.gasDriveUrl;
-          }
-          if (driveUrl && !sopCandidateUrls.includes(driveUrl)) {
-            sopCandidateUrls.push(driveUrl);
-          }
-        } else {
-          sopCandidateUrls = [...candidateUrls];
-        }
-
-        const healthySopUrls = sopCandidateUrls.filter(isUrlHealthy);
-        const urlsToTry = healthySopUrls.length > 0 ? healthySopUrls : sopCandidateUrls;
+        // Always query live Google Sheets first so data added/updated/deleted in Sheet or on any device reflects immediately
+        const healthyUrls = candidateUrls.filter(isUrlHealthy);
+        const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
+        let responseData: any = null;
+        let success = false;
 
         for (const targetUrl of urlsToTry) {
           try {
             const controller = new AbortController();
-            const timeoutDuration = isUpload ? 60000 : 8000;
+            const timeoutDuration = 25000;
             const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-            
             const response = await fetch(targetUrl, {
               method: "POST",
               body: JSON.stringify(bodyPayload),
@@ -3854,7 +3810,122 @@ async function startServer() {
               signal: controller.signal as any
             });
             clearTimeout(timeoutId);
-            
+
+            const text = await response.text();
+            if (text.trim().startsWith("<") || text.includes("Page not found") || text.includes("Sorry, unable to open")) {
+              markUrlHealth(targetUrl, false, "HTML 404 response");
+              continue;
+            }
+            if (response.ok) {
+              try {
+                const parsed = JSON.parse(text);
+                if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
+                  responseData = parsed;
+                  success = true;
+                  markUrlHealth(targetUrl, true);
+                  break;
+                } else {
+                  markUrlHealth(targetUrl, false, parsed?.error || "success=false");
+                }
+              } catch (pErr) {
+                markUrlHealth(targetUrl, false, "Non-JSON response");
+              }
+            } else {
+              markUrlHealth(targetUrl, false, `HTTP ${response.status}`);
+            }
+          } catch (fetchErr: any) {
+            markUrlHealth(targetUrl, false, fetchErr.message);
+          }
+        }
+
+        if (success && responseData !== null && responseData !== undefined) {
+          const finalData = syncRemoteReadToLocalDb(action, bodyPayload.params || [], responseData);
+          if (cacheKey) {
+            apiReadCache.set(cacheKey, { timestamp: Date.now(), data: finalData });
+          }
+          return res.json(finalData);
+        }
+
+        // Fallback to local integrated DB ONLY if Google Apps Script was unreachable/slow
+        try {
+          const localResult = executeLocalAction(action, bodyPayload.params || []);
+          if (localResult !== undefined && localResult !== null) {
+            if (cacheKey) {
+              apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localResult });
+            }
+            return res.json(localResult);
+          }
+        } catch (localErr: any) {
+          console.error(`[API PROXY Fallback] Local database error for ${action}:`, localErr.message);
+        }
+
+        if (action === 'api_getInitialData') {
+          return res.json(executeLocalAction('api_getInitialData', bodyPayload.params || []));
+        }
+        return res.json([]);
+      }
+
+      // Write / Mutation / Upload path:
+      clearApiReadCache();
+
+      // 1. Validate & apply locally immediately (skip uploading if local business validation rejects, e.g. duplicate 8-Round)
+      let localWriteResult: any = null;
+      if (!isUploadAction) {
+        try {
+          localWriteResult = executeLocalAction(action, bodyPayload.params || []);
+          if (localWriteResult && typeof localWriteResult === 'object' && localWriteResult.success === false) {
+            return res.json(localWriteResult);
+          }
+        } catch (e: any) {
+          console.warn(`[LOCAL WRITE] Write notice for ${action}:`, e.message);
+        }
+      }
+
+      // 2. Await live Google Apps Script / Drive execution BEFORE returning so follow-up reads see the committed write!
+      let writeUrls: string[] = [];
+      if (isUploadAction) {
+        writeUrls.push(USER_DRIVE_URL);
+        let driveUrl = null;
+        try {
+          if (fs.existsSync(CONFIG_DRIVE_FILE)) {
+            driveUrl = fs.readFileSync(CONFIG_DRIVE_FILE, 'utf8').trim();
+          }
+        } catch (e) {}
+        if (!driveUrl && fsConfig && fsConfig.gasDriveUrl) {
+          driveUrl = fsConfig.gasDriveUrl;
+        }
+        if (driveUrl && !writeUrls.includes(driveUrl)) {
+          writeUrls.push(driveUrl);
+        }
+      } else {
+        writeUrls = [...candidateUrls];
+      }
+
+      const healthyWriteUrls = writeUrls.filter(isUrlHealthy);
+      const urlsToTry = healthyWriteUrls.length > 0 ? healthyWriteUrls : writeUrls;
+      const isUserWrite = action === 'api_updateUser' || action === 'api_saveUser';
+      const targetUserCode = String(bodyPayload.params?.[0]?.userCode || '').trim().toUpperCase();
+
+      const executeRemoteWrite = async () => {
+        let syncedToSheet = false;
+        let rejectedBySheet = false;
+        let rejectionError = '';
+        let parsedRemoteRes: any = null;
+
+        for (const targetUrl of urlsToTry) {
+          try {
+            const controller = new AbortController();
+            const timeoutDuration = isUploadAction ? 60000 : 25000;
+            const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+            const response = await fetch(targetUrl, {
+              method: "POST",
+              body: JSON.stringify(bodyPayload),
+              headers: { "Content-Type": "application/json" },
+              redirect: 'follow',
+              signal: controller.signal as any
+            });
+            clearTimeout(timeoutId);
+
             const text = await response.text();
             if (text.trim().startsWith("<") || text.includes("Page not found") || text.includes("Sorry, unable to open")) {
               markUrlHealth(targetUrl, false, "HTML 404 response");
@@ -3863,223 +3934,117 @@ async function startServer() {
 
             if (response.ok) {
               try {
-                const result = JSON.parse(text);
-                if (result && (result.success === true || (result.success !== false && !result.error))) {
-                  console.log(`[API PROXY] Action "${action}" successfully executed on Apps Script!`);
-                  markUrlHealth(targetUrl, true);
-                  appsScriptSuccess = true;
-                  appsScriptResult = result;
+                const parsedRes = JSON.parse(text);
+                if (parsedRes && parsedRes.success === false) {
+                  rejectedBySheet = true;
+                  rejectionError = parsedRes.error || 'Operation rejected by Google Sheets.';
+                  parsedRemoteRes = parsedRes;
+                  console.warn(`[SHEET SYNC] Action "${action}" rejected by Google Sheet:`, rejectionError);
                   break;
                 }
+                parsedRemoteRes = parsedRes;
+                syncedToSheet = true;
+                markUrlHealth(targetUrl, true);
+                console.log(`[SHEET SYNC SUCCESS] Action "${action}" committed to Google Sheet.`);
+                break;
               } catch (pe) {
                 markUrlHealth(targetUrl, false, "Invalid JSON");
               }
+            } else {
+              markUrlHealth(targetUrl, false, `HTTP ${response.status}`);
             }
           } catch (err: any) {
+            console.warn(`[SHEET SYNC ERROR] Action "${action}" failed on ${targetUrl}:`, err.message);
             markUrlHealth(targetUrl, false, err.message);
           }
         }
 
-        if (appsScriptSuccess && appsScriptResult) {
-          if (action === 'api_getREPORTS_SOPData') {
-            const db = readLocalDb();
-            const deletedList = db.deleted_sop_ids || [];
-            let cleanResult = Array.isArray(appsScriptResult) ? appsScriptResult.filter((r: any) => r && r.id !== '__DELETED_SOP_IDS__') : [];
-            if (cleanResult.length === 0 && Array.isArray(db.reports_sop) && db.reports_sop.length > 0) {
-              cleanResult = [...db.reports_sop];
+        if (isUserWrite && targetUserCode) {
+          const existingPending = pendingServerUserWrites.get(targetUserCode);
+          if (existingPending) {
+            existingPending.inFlight = false;
+            if (syncedToSheet) {
+              existingPending.updatedAt = Date.now();
             }
-            const seenIds = new Set<string>();
-            const seenDriveIds = new Set<string>();
-            const seenSignatures = new Set<string>();
-            const deduped: any[] = [];
-            for (const item of cleanResult) {
-              if (!item || typeof item !== 'object') continue;
-              const id = item.id ? String(item.id).trim().toLowerCase() : '';
-              const driveId = item.driveFileId ? String(item.driveFileId).trim().toLowerCase() : '';
-              const title = item.title ? String(item.title).trim().toLowerCase() : '';
-              const attach = (item.attachmentUrl || item.attachmentName || '').trim().toLowerCase();
-              const sig = `${title}:::${attach}`;
-
-              if (id && seenIds.has(id)) continue;
-              if (driveId && seenDriveIds.has(driveId)) continue;
-              if (title && attach && seenSignatures.has(sig)) continue;
-
-              if (id) seenIds.add(id);
-              if (driveId) seenDriveIds.add(driveId);
-              if (title && attach) seenSignatures.add(sig);
-              deduped.push(item);
-            }
-            deduped.push({ id: '__DELETED_SOP_IDS__', deletedList: deletedList });
-            return res.json(deduped);
           }
-          return res.json(appsScriptResult);
         }
 
-        // Instant fallback to local integrated database
-        try {
-          const localResult = localWriteResult !== null ? localWriteResult : executeLocalAction(action, bodyPayload.params || []);
-          if (localResult !== undefined) {
-            return res.json(localResult);
-          }
-        } catch (localErr: any) {
-          return res.status(500).json({ success: false, error: localErr.message });
-        }
+        return { syncedToSheet, rejectedBySheet, rejectionError, parsedRemoteRes };
+      };
+
+      const writeOutcome = isUserWrite
+        ? await (serverUserWriteChain = serverUserWriteChain.catch(() => {}).then(executeRemoteWrite) as any)
+        : await executeRemoteWrite();
+
+      clearApiReadCache();
+
+      if (writeOutcome?.rejectedBySheet) {
+        return res.json({
+          success: false,
+          error: writeOutcome.rejectionError || 'Rejected by Google Sheets.'
+        });
       }
 
-      // For standard write actions: Persist locally instantly, spawn background sync to Google Sheets, and return immediately (<5ms)
-      if (!isReadAction) {
-        if (localWriteResult && typeof localWriteResult === 'object' && localWriteResult.success === false) {
-          return res.json(localWriteResult);
+      if (writeOutcome?.syncedToSheet) {
+        if (isUploadAction && writeOutcome.parsedRemoteRes) {
+          return res.json(writeOutcome.parsedRemoteRes);
         }
-
-        const healthyUrls = candidateUrls.filter(isUrlHealthy);
-        const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
-        const isUserWrite = action === 'api_updateUser' || action === 'api_saveUser';
-        const targetUserCode = String(bodyPayload.params?.[0]?.userCode || '').trim().toUpperCase();
-
-        const runWriteSync = async () => {
-          let syncedToSheet = false;
-          for (const targetUrl of urlsToTry) {
-            try {
-              const bgController = new AbortController();
-              const bgTimeout = setTimeout(() => bgController.abort(), 45000);
-              const bgRes = await fetch(targetUrl, {
-                method: "POST",
-                body: JSON.stringify(bodyPayload),
-                headers: { "Content-Type": "application/json" },
-                redirect: 'follow',
-                signal: bgController.signal as any
-              });
-              clearTimeout(bgTimeout);
-              if (bgRes.ok) {
-                const bgText = await bgRes.text();
-                if (!bgText.trim().startsWith("<")) {
-                  let parsedOk = true;
-                  try {
-                    const parsedRes = JSON.parse(bgText);
-                    if (parsedRes && parsedRes.success === false) parsedOk = false;
-                  } catch (pe) {}
-                  if (parsedOk) {
-                    console.log(`[SHEET SYNC SUCCESS] Action "${action}" successfully synchronized to Google Sheet:`, bgText.substring(0, 100));
-                    markUrlHealth(targetUrl, true);
-                    syncedToSheet = true;
-                    break;
-                  } else {
-                    console.warn(`[SHEET SYNC] Action "${action}" rejected by Google Sheet:`, bgText.substring(0, 150));
-                  }
-                }
-              } else {
-                console.warn(`[SHEET SYNC] Action "${action}" received HTTP ${bgRes.status} from Google Sheets:`, targetUrl);
-              }
-            } catch (bgErr: any) {
-              console.warn(`[SHEET SYNC ERROR] Action "${action}" failed on ${targetUrl}:`, bgErr.message);
-              markUrlHealth(targetUrl, false, bgErr.message);
-            }
-          }
-          if (isUserWrite && targetUserCode) {
-            const existingPending = pendingServerUserWrites.get(targetUserCode);
-            if (existingPending) {
-              existingPending.inFlight = false;
-              if (syncedToSheet) {
-                existingPending.updatedAt = Date.now();
-              }
-            }
-          }
-        };
-
-        if (isUserWrite) {
-          serverUserWriteChain = serverUserWriteChain.catch(() => {}).then(runWriteSync);
-        } else {
-          runWriteSync();
-        }
-
-        if (localWriteResult !== null && localWriteResult !== undefined) {
-          return res.json({ success: true, ...localWriteResult });
-        }
-
-        return res.json({ success: true });
+        return res.json({
+          success: true,
+          ...(localWriteResult && typeof localWriteResult === 'object' ? localWriteResult : {}),
+          ...(writeOutcome.parsedRemoteRes && typeof writeOutcome.parsedRemoteRes === 'object' ? writeOutcome.parsedRemoteRes : {})
+        });
       }
 
-      // Check healthy URLs for read operations
-      const healthyUrls = candidateUrls.filter(isUrlHealthy);
-      const urlsToTry = healthyUrls.length > 0 ? healthyUrls : candidateUrls;
-
-      let responseData: any = null;
-      let success = false;
-
-      for (const targetUrl of urlsToTry) {
-        try {
-          const controller = new AbortController();
-          const timeoutDuration = 25000; // 25s timeout for large ERP data queries
-          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-          
-          const response = await fetch(targetUrl, {
-            method: "POST",
-            body: JSON.stringify(bodyPayload),
-            headers: { "Content-Type": "application/json" },
-            redirect: 'follow',
-            signal: controller.signal as any
-          });
-          clearTimeout(timeoutId);
-
-          const text = await response.text();
-
-          if (text.trim().startsWith("<") || text.includes("Page not found") || text.includes("Sorry, unable to open")) {
-            markUrlHealth(targetUrl, false, "HTML 404 response");
-            continue;
-          }
-
-          if (response.ok) {
-            try {
-              const parsed = JSON.parse(text);
-              if (parsed && (parsed.success === true || (parsed.success !== false && !parsed.error))) {
-                responseData = parsed;
-                success = true;
-                markUrlHealth(targetUrl, true);
-                break;
-              } else {
-                markUrlHealth(targetUrl, false, parsed?.error || "success=false");
-              }
-            } catch (pErr) {
-              markUrlHealth(targetUrl, false, "Non-JSON response");
-            }
-          } else {
-            markUrlHealth(targetUrl, false, `HTTP ${response.status}`);
-          }
-        } catch (fetchErr: any) {
-          markUrlHealth(targetUrl, false, fetchErr.message);
-        }
-      }
-
-      if (success && responseData) {
-        if (isReadAction && cacheKey) {
-          apiReadCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
-        }
-        return res.json(responseData);
-      }
-
-      // If Google Apps Script was slow or unavailable, seamlessly serve from local database which contains all real synced data!
+      // If Google Sheets was unreachable, record local pending ID so subsequent live syncs don't overwrite the unsaved item before retry
       try {
-        const localResult = executeLocalAction(action, bodyPayload.params || []);
-        if (localResult !== undefined) {
-          if (isReadAction && cacheKey) {
-            apiReadCache.set(cacheKey, { timestamp: Date.now(), data: localResult });
+        const savedId = (localWriteResult && localWriteResult.id) || bodyPayload.params?.[0]?.id || bodyPayload.params?.[0]?.workorderNumber;
+        const pendingColMap: Record<string, string> = {
+          api_saveWorkorder: 'workorders',
+          api_updateWorkorder: 'workorders',
+          api_saveMATERIALREPORT: 'material_reports',
+          api_saveMaterialReport: 'material_reports',
+          api_saveCUTTINGQUALITY: 'cutting_reports',
+          api_saveCuttingReport: 'cutting_reports',
+          api_saveSEWINGDEFECT: 'sewing_reports',
+          api_saveInlineReport: 'sewing_reports',
+          api_save8ROUNDSYSTEM: 'sewing_reports',
+          api_update8ROUNDSYSTEM: 'sewing_reports',
+          api_saveENDLINEQUALITY: 'endline_reports',
+          api_saveEndlineReport: 'endline_reports',
+          api_saveAQLREPORT: 'aql_reports',
+          api_saveFINALAUDIT: 'final_reports',
+          api_saveREWORK: 'rework_reports',
+          api_saveReworkReport: 'rework_reports',
+          api_saveREPORTS_SOP: 'reports_sop',
+          api_saveCustomerComplaint: 'customer_complaints'
+        };
+        const colKey = pendingColMap[action];
+        if (colKey && savedId) {
+          const curDb = readLocalDb();
+          curDb._pending_ids = curDb._pending_ids || {};
+          curDb._pending_ids[colKey] = curDb._pending_ids[colKey] || [];
+          const idStr = String(savedId).trim();
+          if (!curDb._pending_ids[colKey].includes(idStr)) {
+            curDb._pending_ids[colKey].push(idStr);
+            writeLocalDb(curDb);
           }
-          return res.json(localResult);
         }
-      } catch (localErr: any) {
-        console.error(`[API PROXY Fallback] Local database error for ${action}:`, localErr.message);
-      }
+      } catch (pErr) {}
 
-      // Universal safe fallback for read/write actions so app stays responsive
-      if (isReadAction) {
-        if (action === 'api_getInitialData') {
-          return res.json(executeLocalAction('api_getInitialData', bodyPayload.params || []));
-        }
-        return res.json([]);
-      } else {
-        return res.json({ success: true });
+      // Fallback for uploads or offline writes
+      if (localWriteResult !== null && localWriteResult !== undefined) {
+        return res.json({ success: true, offline: true, ...localWriteResult });
       }
+      if (isUploadAction) {
+        try {
+          const uploadFallback = executeLocalAction(action, bodyPayload.params || []);
+          if (uploadFallback !== undefined) return res.json(uploadFallback);
+        } catch (uErr: any) {
+          return res.status(500).json({ success: false, error: uErr.message });
+        }
+      }
+      return res.json({ success: true, offline: true });
 
     } catch (error: any) {
       console.error("[API PROXY] Request Execution Failed:", error.message);

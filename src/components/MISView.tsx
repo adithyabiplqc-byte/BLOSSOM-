@@ -161,13 +161,24 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
         };
         
         const targetApi = apiMapping[id] || 'api_getEndlineData';
-        const res = await api.run(targetApi as any);
+        const [res, zmRes, woRes] = await Promise.all([
+          api.run(targetApi as any),
+          api.run('api_getZoneMappings').catch(() => []),
+          api.run('api_getWorkorders').catch(() => [])
+        ]);
 
-        if (res && res.length > 0) {
+        if (Array.isArray(res) && res.length > 0) {
           setRawRecords(res);
 
           // Apply Global Zone Filter
-          const filtered = res.filter((r: any) => isRecordMatchingZone(r, globalZone || 'ALL', [], allSubmodulesData?.workorders || []));
+          const filtered = res.filter((r: any) =>
+            isRecordMatchingZone(
+              r,
+              globalZone || 'ALL',
+              Array.isArray(zmRes) ? zmRes : [],
+              Array.isArray(woRes) ? woRes : []
+            )
+          );
 
           const grouped = filtered.reduce((acc: any, curr: any) => {
             const rawDate = curr.timestamp || curr.receivedDate;
@@ -187,14 +198,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
           setData(Object.values(grouped));
         } else {
           setRawRecords([]);
-          setData([
-            { name: 'Mon', pass: 400, rework: 20, fail: 24 },
-            { name: 'Tue', pass: 300, rework: 15, fail: 13 },
-            { name: 'Wed', pass: 200, rework: 40, fail: 98 },
-            { name: 'Thu', pass: 278, rework: 10, fail: 39 },
-            { name: 'Fri', pass: 189, rework: 25, fail: 48 },
-            { name: 'Sat', pass: 239, rework: 30, fill: 38 },
-          ]);
+          setData([]);
         }
       }
     } catch (e) {
@@ -259,9 +263,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       setSelectedDate(prev => {
         // If user explicitly chose All Historic Logs, preserve that
         if (prev === '') return '';
-        // If prev is not set or is not in availableDates, select the best date with actual data
         if (!prev || !availableDates.includes(prev)) {
-          if (availableDates.includes('2026-09-23')) return '2026-09-23';
           return availableDates[0];
         }
         return prev;
@@ -792,7 +794,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
 
     const matchesZone = (zoneStr: string) => {
       if (!globalZone || globalZone === 'ALL') return true;
-      return getSafeString(zoneStr) === globalZone.toUpperCase();
+      return isRecordMatchingZone({ zone: zoneStr }, globalZone.toUpperCase(), [], allSubmodulesData?.workorders || []);
     };
 
     const matchesDate = (dateStr: string) => {
@@ -2268,7 +2270,7 @@ const MISView: React.FC<MISViewProps> = ({ id, globalZone }) => {
       if (Array.isArray(group.data)) {
         group.data.forEach(r => {
           const norm = getNormalizedRecord(r);
-          if (!zoneToFilter || norm.zone === zoneToFilter || zoneToFilter === 'ALL') {
+          if (!zoneToFilter || zoneToFilter === 'ALL' || isRecordMatchingZone(r, zoneToFilter, [], allSubmodulesData?.workorders || [])) {
             allRecords.push({ ...norm, source: group.name });
           }
         });

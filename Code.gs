@@ -476,13 +476,15 @@ function getMatchingSheetsForModule(baseName, preferredZone) {
       if (
         sheetNameUpper === prefixUpper ||
         sheetNameUpper.indexOf(prefixUpper + ' - ') === 0 ||
+        sheetNameUpper.indexOf(prefixUpper + '-') === 0 ||
+        sheetNameUpper.indexOf(prefixUpper + '_') === 0 ||
         sheetNameUpper.indexOf(prefixUpper + ' ') === 0
       ) {
         matches = true;
         break;
       }
     }
-    if (!matches && canonical === 'REPORTS_SOP' && (sheetNameUpper === 'REPORTS_SOP_KERALA' || sheetNameUpper === 'REPORTS_SOP_ADMIN')) {
+    if (!matches && canonical === 'REPORTS_SOP' && (sheetNameUpper.indexOf('REPORTS_SOP') === 0 || sheetNameUpper.indexOf('REPORTS - SOP') === 0)) {
       matches = true;
     }
     if (matches) {
@@ -925,7 +927,7 @@ function getDataFromSheet(sheetName) {
       const cache = CacheService.getScriptCache();
       const stringified = JSON.stringify(data);
       if (stringified.length < 100000) {
-        cache.put(cacheKey, stringified, 600); // 10 minutes cache
+        cache.put(cacheKey, stringified, typeof CACHE_TTL === 'number' ? CACHE_TTL : 30);
       }
     } catch (cacheErr) {
       console.warn("Cache write failed:", cacheErr);
@@ -941,7 +943,13 @@ function getDataFromSheet(sheetName) {
 function clearSheetCache(sheetName) {
   try {
     const cache = CacheService.getScriptCache();
-    cache.remove(`BQOS_CACHE_${sheetName.replace(/\s+/g, '_')}`);
+    const raw = String(sheetName || '').trim();
+    if (!raw) return;
+    const keys = [
+      `BQOS_CACHE_${raw.replace(/\s+/g, '_')}`,
+      `BQOS_CACHE_${raw.toUpperCase().replace(/\s+/g, '_')}`
+    ];
+    cache.removeAll(keys);
   } catch (e) {}
 }
 
@@ -1813,7 +1821,25 @@ function api_saveUser(user, admin = 'SYSTEM') {
 
 function api_getUsers() { 
   const sheetName = getConsolidatedUserSheetName();
-  return getDataFromSheet(sheetName);
+  const rows = getDataFromSheet(sheetName) || [];
+  const byCode = {};
+  const ordered = [];
+  for (let i = 0; i < rows.length; i++) {
+    const u = rows[i];
+    if (!u) continue;
+    const code = String(u.userCode || u.username || '').trim().toUpperCase();
+    if (!code) {
+      ordered.push(u);
+      continue;
+    }
+    if (byCode[code] === undefined) {
+      byCode[code] = ordered.length;
+      ordered.push(u);
+    } else {
+      ordered[byCode[code]] = u;
+    }
+  }
+  return ordered;
 }
 
 function api_updateUser(user, admin = 'SYSTEM') {
@@ -1980,9 +2006,13 @@ function aggregateZonedData(baseName) {
       let matches = false;
       allowedPrefixes.forEach(prefix => {
         const prefixUpper = prefix.toUpperCase();
-        if (sheetNameUpper === prefixUpper) {
-          matches = true;
-        } else if (sheetNameUpper.startsWith(prefixUpper + " - ") || sheetNameUpper.startsWith(prefixUpper + " ")) {
+        if (
+          sheetNameUpper === prefixUpper ||
+          sheetNameUpper.startsWith(prefixUpper + " - ") ||
+          sheetNameUpper.startsWith(prefixUpper + "-") ||
+          sheetNameUpper.startsWith(prefixUpper + "_") ||
+          sheetNameUpper.startsWith(prefixUpper + " ")
+        ) {
           matches = true;
         }
       });
@@ -1993,6 +2023,8 @@ function aggregateZonedData(baseName) {
           let inferredZone = "";
           if (sheetNameUpper.indexOf(" - ") !== -1) {
             inferredZone = sheetNameUpper.split(" - ")[1].trim();
+          } else if (canonicalPrefix === 'REPORTS_SOP' && sheetNameUpper.indexOf("REPORTS_SOP_") === 0) {
+            inferredZone = sheetNameUpper.replace("REPORTS_SOP_", "").trim();
           }
           if (inferredZone) {
             sheetData.forEach(function(row) {
@@ -2068,10 +2100,25 @@ function api_getWorkorders(params) {
   const allData = aggregateZonedData(baseName);
   
   if (zone && zone !== 'ALL' && zone !== 'WORKORDER' && zone !== 'COMMON') {
-    const zoneUpper = zone.toUpperCase().trim();
+    const zoneUpper = String(zone).toUpperCase().trim();
+    const allowedZones = {};
+    allowedZones[zoneUpper] = true;
+    allowedZones[zoneUpper.replace(/^ZMAP-/, '')] = true;
+    try {
+      const zoneRows = api_getZoneMappings() || [];
+      for (let i = 0; i < zoneRows.length; i++) {
+        const z = String(zoneRows[i].zone || '').toUpperCase().trim();
+        const id = String(zoneRows[i].id || '').toUpperCase().trim();
+        if (z === zoneUpper || id === zoneUpper || z.replace(/^ZMAP-/, '') === zoneUpper || id.replace(/^ZMAP-/, '') === zoneUpper) {
+          if (z) { allowedZones[z] = true; allowedZones[z.replace(/^ZMAP-/, '')] = true; }
+          if (id) { allowedZones[id] = true; allowedZones[id.replace(/^ZMAP-/, '')] = true; }
+        }
+      }
+    } catch (e) {}
     return allData.filter(wo => {
        const zVal = String(wo.zone || wo.location || "").toUpperCase().trim();
-       return zVal === zoneUpper;
+       const zClean = zVal.replace(/^ZMAP-/, '');
+       return !!(allowedZones[zVal] || allowedZones[zClean] || zVal === 'ALL' || zVal === 'COMMON' || zVal === 'SYSTEM');
     });
   }
   
@@ -3555,9 +3602,11 @@ function api_getREPORTS_SOPData(params) {
     var sheet = allSheets[s];
     var rawName = sheet.getName().trim();
     var name = rawName.toUpperCase();
-    if (name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
+    if (name.indexOf('REPORTS_SOP - ') === 0 || name.indexOf('REPORTS_SOP_') === 0 || name.indexOf('REPORTS - SOP') === 0) {
       var zonedData = getDataFromSheet(rawName) || [];
-      var inferredZone = name.indexOf('REPORTS_SOP - ') === 0 ? name.split(' - ')[1].trim() : '';
+      var inferredZone = name.indexOf('REPORTS_SOP - ') === 0
+        ? name.split(' - ')[1].trim()
+        : (name.indexOf('REPORTS_SOP_') === 0 ? name.replace('REPORTS_SOP_', '').trim() : '');
       if (Array.isArray(zonedData)) {
         for (var j = 0; j < zonedData.length; j++) {
           var zRow = zonedData[j];
@@ -3589,7 +3638,7 @@ function api_deleteREPORTS_SOP(id) {
       const sheet = allSheets[s];
       const name = sheet.getName().toUpperCase().trim();
       
-      if (name === 'REPORTS_SOP' || name.indexOf('REPORTS_SOP - ') === 0 || name === 'REPORTS_SOP_KERALA' || name === 'REPORTS_SOP_ADMIN') {
+      if (name === 'REPORTS_SOP' || name.indexOf('REPORTS_SOP - ') === 0 || name.indexOf('REPORTS_SOP_') === 0 || name.indexOf('REPORTS - SOP') === 0) {
         if (sheet.getLastRow() < 2) continue;
         const data = sheet.getDataRange().getValues();
         const headers = data[0];
@@ -3667,7 +3716,14 @@ function api_getCustomerComplaints(params) {
       for (var i = 0; i < sheets.length; i++) {
         var rawName = sheets[i].getName().trim();
         var sName = rawName.toUpperCase();
-        if (sName.indexOf('CUSTOMER_COMPLAINTS - ') === 0 || sName.indexOf('CUSTOMER COMPLAINTS - ') === 0) {
+        if (
+          sName.indexOf('CUSTOMER_COMPLAINTS - ') === 0 ||
+          sName.indexOf('CUSTOMER COMPLAINTS - ') === 0 ||
+          sName.indexOf('CUSTOMER_COMPLAINTS-') === 0 ||
+          sName.indexOf('CUSTOMER COMPLAINTS-') === 0 ||
+          sName.indexOf('CUSTOMER_COMPLAINTS_') === 0 ||
+          sName.indexOf('CUSTOMER COMPLAINTS_') === 0
+        ) {
           var inferredZone = sName.indexOf(' - ') !== -1 ? sName.split(' - ')[1].trim() : '';
           var zRows = getDataFromSheet(rawName) || [];
           zRows.forEach(function(r) {
