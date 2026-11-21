@@ -1228,7 +1228,7 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                     </button>
                   </div>
 
-                  <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
+                  <div className={`space-y-3.5 ${defectItems.length > 3 ? 'sm:max-h-[480px] sm:overflow-y-auto sm:pr-1' : ''}`}>
                     {defectItems.map((item, idx) => (
                       <div 
                         key={item.id} 
@@ -1252,46 +1252,54 @@ const EndlineQuality: React.FC<EndlineQualityProps> = ({
                         </div>
 
                         {/* Defect Piece Specifications */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">operator</label>
+                            <label className="text-[10px] sm:text-[9px] font-black text-slate-500 sm:text-slate-400 uppercase block pl-0.5">operator</label>
                             <SearchableSelect
+                              label="Operator"
+                              multiline
                               value={item.worker}
                               onChange={e => handleDefectItemChange(idx, 'worker', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-3 sm:py-1.5 sm:px-2.5 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentWorkers.map((w: string) => <option key={w} value={w}>{w}</option>)}
                             </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">operation</label>
+                            <label className="text-[10px] sm:text-[9px] font-black text-slate-500 sm:text-slate-400 uppercase block pl-0.5">operation</label>
                             <SearchableSelect
+                              label="Operation"
+                              multiline
                               value={item.operation}
                               onChange={e => handleDefectItemChange(idx, 'operation', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-3 sm:py-1.5 sm:px-2.5 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentOperations.map((op: string) => <option key={op} value={op}>{op}</option>)}
                             </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">defect description</label>
+                            <label className="text-[10px] sm:text-[9px] font-black text-slate-500 sm:text-slate-400 uppercase block pl-0.5">defect description</label>
                             <SearchableSelect
+                              label="Defect Description"
+                              multiline
                               value={item.defect}
                               onChange={e => handleDefectItemChange(idx, 'defect', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-3 sm:py-1.5 sm:px-2.5 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentDefects.map((df: string) => <option key={df} value={df}>{df}</option>)}
                             </SearchableSelect>
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block pl-0.5">machine reference</label>
+                            <label className="text-[10px] sm:text-[9px] font-black text-slate-500 sm:text-slate-400 uppercase block pl-0.5">machine reference</label>
                             <SearchableSelect
+                              label="Machine Reference"
+                              multiline
                               value={item.machine}
                               onChange={e => handleDefectItemChange(idx, 'machine', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-3 sm:py-1.5 sm:px-2.5 text-xs text-slate-700 outline-none hover:border-slate-300 font-bold cursor-pointer"
                             >
                               {currentMachines.map((m: string) => <option key={m} value={m}>{m}</option>)}
                             </SearchableSelect>
